@@ -68,7 +68,7 @@ Status SliceState::reset(const syntax::StreamParameters& stream)
     line_states_.resize(planes);
     for (std::size_t i = 0; i < line_states_.size(); ++i) {
         std::uint32_t width = stream.width;
-        if (i == 1 || i == 2) {
+        if (stream.chroma_planes && (i == 1 || i == 2)) {
             const std::uint32_t add = (std::uint32_t{1} << stream.log2_h_chroma_subsample) - 1;
             width = (stream.width + add) >> stream.log2_h_chroma_subsample;
         }

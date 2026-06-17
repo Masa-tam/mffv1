@@ -44,7 +44,7 @@ PlaneRole expected_plane_role(const syntax::StreamParameters& stream, std::size_
 
 std::uint32_t plane_width(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
 {
-    if (plane_index == 1 || plane_index == 2) {
+    if (stream.chroma_planes && (plane_index == 1 || plane_index == 2)) {
         return (stream.width + ((std::uint32_t{1} << stream.log2_h_chroma_subsample) - 1))
             >> stream.log2_h_chroma_subsample;
     }
@@ -53,7 +53,7 @@ std::uint32_t plane_width(const syntax::StreamParameters& stream, std::size_t pl
 
 std::uint32_t plane_height(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
 {
-    if (plane_index == 1 || plane_index == 2) {
+    if (stream.chroma_planes && (plane_index == 1 || plane_index == 2)) {
         return (stream.height + ((std::uint32_t{1} << stream.log2_v_chroma_subsample) - 1))
             >> stream.log2_v_chroma_subsample;
     }

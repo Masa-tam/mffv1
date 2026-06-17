@@ -17,9 +17,9 @@ std::uint32_t subsampled_extent(std::uint32_t value, std::uint8_t log2_subsample
     return (value + add) >> log2_subsample;
 }
 
-bool is_chroma_plane(std::size_t plane_index) noexcept
+bool is_chroma_plane(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
 {
-    return plane_index == 1 || plane_index == 2;
+    return stream.chroma_planes && (plane_index == 1 || plane_index == 2);
 }
 
 PlaneRole expected_plane_role(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
@@ -42,7 +42,7 @@ std::uint32_t plane_x(const syntax::StreamParameters& stream,
                       const syntax::SliceDescriptor& slice,
                       std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(plane_index)) {
+    if (is_chroma_plane(stream, plane_index)) {
         return slice.x >> stream.log2_h_chroma_subsample;
     }
     return slice.x;
@@ -52,7 +52,7 @@ std::uint32_t plane_y(const syntax::StreamParameters& stream,
                       const syntax::SliceDescriptor& slice,
                       std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(plane_index)) {
+    if (is_chroma_plane(stream, plane_index)) {
         return slice.y >> stream.log2_v_chroma_subsample;
     }
     return slice.y;
@@ -62,7 +62,7 @@ std::uint32_t slice_plane_width(const syntax::StreamParameters& stream,
                                 const syntax::SliceDescriptor& slice,
                                 std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(plane_index)) {
+    if (is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(slice.width, stream.log2_h_chroma_subsample);
     }
     return slice.width;
@@ -72,7 +72,7 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
                                  const syntax::SliceDescriptor& slice,
                                  std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(plane_index)) {
+    if (is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(slice.height, stream.log2_v_chroma_subsample);
     }
     return slice.height;
@@ -81,7 +81,7 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
 std::uint32_t frame_plane_width(const syntax::StreamParameters& stream,
                                 std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(plane_index)) {
+    if (is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(stream.width, stream.log2_h_chroma_subsample);
     }
     return stream.width;
@@ -90,7 +90,7 @@ std::uint32_t frame_plane_width(const syntax::StreamParameters& stream,
 std::uint32_t frame_plane_height(const syntax::StreamParameters& stream,
                                  std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(plane_index)) {
+    if (is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(stream.height, stream.log2_v_chroma_subsample);
     }
     return stream.height;

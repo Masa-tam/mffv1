@@ -72,6 +72,21 @@ TEST(SliceStateTest, ResetsOneLineStatePerCodedPlane)
     EXPECT_EQ(state.line_state(0).width(), stream.width);
 }
 
+TEST(SliceStateTest, KeepsExtraPlaneFullWidthWhenChromaIsAbsent)
+{
+    auto stream = make_stream();
+    stream.extra_plane = true;
+    stream.log2_h_chroma_subsample = 1;
+    ffv1::codec::SliceState state;
+
+    const auto status = state.reset(stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(state.plane_count(), 2u);
+    EXPECT_EQ(state.line_state(0).width(), stream.width);
+    EXPECT_EQ(state.line_state(1).width(), stream.width);
+}
+
 TEST(SliceDecoderTest, RejectsEmptyPayload)
 {
     const auto stream = make_stream();

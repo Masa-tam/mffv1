@@ -186,4 +186,41 @@ TEST(SliceOutputWindowTest, MapsExtraPlaneAtFullResolution)
     EXPECT_EQ(window.row_u8(1, 1), alpha.data() + 18);
 }
 
+TEST(SliceOutputWindowTest, KeepsExtraPlaneFullResolutionWhenChromaIsAbsent)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 8;
+    stream.height = 4;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = false;
+    stream.extra_plane = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 32> y{};
+    std::array<std::uint8_t, 32> alpha{};
+    std::array<ffv1::MutablePlaneView, 2> planes{};
+
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[1].data = alpha.data();
+    planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.x = 2;
+    slice.y = 1;
+    slice.width = 4;
+    slice.height = 2;
+
+    ffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(window.plane_width(1), 4u);
+    EXPECT_EQ(window.plane_height(1), 2u);
+    EXPECT_EQ(window.row_u8(1, 0), alpha.data() + 10);
+    EXPECT_EQ(window.row_u8(1, 1), alpha.data() + 18);
+}
+
 } // namespace

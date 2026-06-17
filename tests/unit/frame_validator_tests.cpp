@@ -197,6 +197,26 @@ TEST(FrameValidatorTest, AcceptsExtraPlaneRole)
     EXPECT_TRUE(validator.validate_output(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, KeepsExtraPlaneFullResolutionWhenChromaIsAbsent)
+{
+    auto stream = make_y_stream();
+    stream.extra_plane = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 12> y{};
+    std::array<std::uint8_t, 12> alpha{};
+    std::array<ffv1::MutablePlaneView, 2> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 4, 3, 4};
+    planes[1].data = alpha.data();
+    planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt8, 4, 3, 4};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    const ffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, RequiresChromaPlanesWhenStreamHasChroma)
 {
     auto stream = make_y_stream();

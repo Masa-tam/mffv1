@@ -26,6 +26,7 @@ add_executable(ffv1_unit_tests
     unit/predictor_tests.cpp
     unit/range_coder_tests.cpp
     unit/rfc_math_tests.cpp
+    unit/slice_output_window_tests.cpp
 )
 
 target_link_libraries(ffv1_unit_tests

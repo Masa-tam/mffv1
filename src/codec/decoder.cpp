@@ -4,6 +4,7 @@
 #include "codec/frame_decode_context.hpp"
 #include "codec/frame_parser.hpp"
 #include "codec/frame_validator.hpp"
+#include "codec/slice_output_window.hpp"
 #include "ffv1/stream_parameters.hpp"
 
 #include <memory>
@@ -71,6 +72,13 @@ public:
         status = validator.validate_output(*stream_, output);
         if (!status.ok()) {
             return status;
+        }
+        for (const auto& slice : frame.slices) {
+            codec::SliceOutputWindow window;
+            status = window.validate(*stream_, output, slice);
+            if (!status.ok()) {
+                return status;
+            }
         }
         return make_error(ErrorCode::NotImplemented, "frame decoding is not implemented yet");
     }

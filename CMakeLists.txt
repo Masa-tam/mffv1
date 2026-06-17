@@ -15,6 +15,7 @@ add_library(ffv1
     src/codec/frame_parser.cpp
     src/codec/frame_validator.cpp
     src/codec/configuration_record_parser.cpp
+    src/codec/slice_output_window.cpp
     src/entropy/range_coder.cpp
     src/ffv1/configuration_parser.cpp
     src/ffv1/predictor.cpp

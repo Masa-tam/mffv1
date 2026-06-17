@@ -1,0 +1,120 @@
+#include "codec/slice_output_window.hpp"
+
+#include <array>
+#include <cstdint>
+
+#include <gtest/gtest.h>
+
+namespace {
+
+ffv1::syntax::StreamParameters make_y_stream()
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 8;
+    stream.height = 4;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = false;
+    return stream;
+}
+
+ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 32>& storage)
+{
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 8;
+    plane.info.height = 4;
+    plane.info.stride_bytes = 8;
+    return plane;
+}
+
+TEST(SliceOutputWindowTest, MapsSinglePlaneSliceRows)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 32> storage{};
+    auto plane = make_y_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.x = 2;
+    slice.y = 1;
+    slice.width = 4;
+    slice.height = 2;
+
+    ffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(window.plane_count(), 1u);
+    EXPECT_EQ(window.plane_width(0), 4u);
+    EXPECT_EQ(window.plane_height(0), 2u);
+    EXPECT_EQ(window.row_u8(0, 0), storage.data() + 10);
+    EXPECT_EQ(window.row_u8(0, 1), storage.data() + 18);
+    EXPECT_EQ(window.row_u16(0, 0), nullptr);
+}
+
+TEST(SliceOutputWindowTest, RejectsOutOfFrameSlice)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 32> storage{};
+    auto plane = make_y_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.x = 7;
+    slice.y = 0;
+    slice.width = 2;
+    slice.height = 1;
+
+    ffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 8;
+    stream.height = 4;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 32> y{};
+    std::array<std::uint8_t, 8> cb{};
+    std::array<std::uint8_t, 8> cr{};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.x = 2;
+    slice.y = 0;
+    slice.width = 4;
+    slice.height = 4;
+
+    ffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(window.plane_count(), 3u);
+    EXPECT_EQ(window.plane_width(0), 4u);
+    EXPECT_EQ(window.plane_height(0), 4u);
+    EXPECT_EQ(window.plane_width(1), 2u);
+    EXPECT_EQ(window.plane_height(1), 2u);
+    EXPECT_EQ(window.row_u8(1, 0), cb.data() + 1);
+    EXPECT_EQ(window.row_u8(2, 1), cr.data() + 5);
+}
+
+} // namespace
+

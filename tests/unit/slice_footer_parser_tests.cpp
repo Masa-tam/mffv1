@@ -1,0 +1,125 @@
+#include "codec/slice_footer_parser.hpp"
+
+#include <array>
+#include <cstddef>
+
+#include <gtest/gtest.h>
+
+namespace {
+
+TEST(SliceFooterParserTest, ReadsSliceSize)
+{
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x12},
+        std::byte{0x34},
+    };
+    ffv1::bitstream::BitReader reader(payload);
+    ffv1::syntax::StreamParameters stream;
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceFooterParser parser;
+    const auto status = parser.read(reader, stream, descriptor);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(descriptor.slice_size, 0x1234u);
+    EXPECT_FALSE(descriptor.has_crc);
+    EXPECT_EQ(reader.byte_position(), payload.size());
+}
+
+TEST(SliceFooterParserTest, ReadsErrorStatusAndCrcWhenEnabled)
+{
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+        std::byte{0x01},
+        std::byte{0x12},
+        std::byte{0x34},
+        std::byte{0x56},
+        std::byte{0x78},
+    };
+    ffv1::bitstream::BitReader reader(payload);
+    ffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceFooterParser parser;
+    const auto status = parser.read(reader, stream, descriptor);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(descriptor.slice_size, 7u);
+    EXPECT_EQ(descriptor.error_status, 1u);
+    EXPECT_TRUE(descriptor.has_crc);
+    EXPECT_EQ(descriptor.expected_crc, 0x12345678u);
+    EXPECT_EQ(reader.byte_position(), payload.size());
+}
+
+TEST(SliceFooterParserTest, RejectsReservedErrorStatus)
+{
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+        std::byte{0x03},
+        std::byte{0x12},
+        std::byte{0x34},
+        std::byte{0x56},
+        std::byte{0x78},
+    };
+    ffv1::bitstream::BitReader reader(payload);
+    ffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceFooterParser parser;
+    const auto status = parser.read(reader, stream, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 3u);
+}
+
+TEST(SliceFooterParserTest, RejectsUnalignedFooter)
+{
+    const std::array payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+    };
+    ffv1::bitstream::BitReader reader(payload);
+    ASSERT_TRUE(reader.skip_bits(1).ok());
+    ffv1::syntax::StreamParameters stream;
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceFooterParser parser;
+    const auto status = parser.read(reader, stream, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+}
+
+TEST(SliceFooterParserTest, ReportsUnderflowAtFooterOffset)
+{
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x12},
+    };
+    ffv1::bitstream::BitReader reader(payload);
+    ffv1::syntax::StreamParameters stream;
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceFooterParser parser;
+    const auto status = parser.read(reader, stream, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+}
+
+} // namespace

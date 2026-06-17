@@ -27,6 +27,7 @@ add_executable(ffv1_unit_tests
     unit/predictor_tests.cpp
     unit/range_coder_tests.cpp
     unit/rfc_math_tests.cpp
+    unit/multi_slice_decode_tests.cpp
     unit/slice_decoder_tests.cpp
     unit/slice_footer_parser_tests.cpp
     unit/slice_header_parser_tests.cpp

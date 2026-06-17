@@ -1,0 +1,91 @@
+#include "codec/frame_parser.hpp"
+#include "codec/slice_decoder.hpp"
+#include "codec/slice_output_window.hpp"
+
+#include <array>
+#include <cstdint>
+
+#include <gtest/gtest.h>
+
+namespace {
+
+ffv1::syntax::StreamParameters make_two_slice_stream()
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 2;
+    stream.height = 1;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = false;
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 1;
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
+    return stream;
+}
+
+ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 2>& storage)
+{
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 2;
+    plane.info.height = 1;
+    plane.info.stride_bytes = 2;
+    return plane;
+}
+
+TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
+{
+    const auto stream = make_two_slice_stream();
+    const std::array frame_payload{
+        std::byte{0xbc},
+        std::byte{0xd3},
+        std::byte{0x3d},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x08},
+        std::byte{0x21},
+        std::byte{0xe0},
+        std::byte{0xa6},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x08},
+    };
+
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    auto status = parser.parse_with_range_header(frame_payload, frame);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 5u);
+    EXPECT_EQ(frame.slices[1].content_byte_offset, 11u);
+    EXPECT_EQ(frame.slices[1].footer_byte_offset, 13u);
+
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    ffv1::MutableFrameView output{&plane, 1};
+    for (const auto& slice : frame.slices) {
+        ffv1::codec::SliceOutputWindow window;
+        status = window.validate(stream, output, slice);
+        ASSERT_TRUE(status.ok()) << status.message;
+
+        ffv1::codec::SliceState state;
+        status = state.reset(stream);
+        ASSERT_TRUE(status.ok()) << status.message;
+
+        const ffv1::codec::SliceDecoder decoder(stream);
+        status = decoder.decode(slice, window, state);
+        ASSERT_TRUE(status.ok()) << status.message;
+    }
+
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[1], 0u);
+}
+
+} // namespace

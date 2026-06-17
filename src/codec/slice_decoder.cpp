@@ -122,7 +122,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (stream_.bits_per_raw_sample == 0 || stream_.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
-    if (stream_.chroma_planes || stream_.extra_plane || output.plane_count() != 1) {
+    if (stream_.chroma_planes || stream_.extra_plane) {
         return make_error(ErrorCode::NotImplemented, "only Y-only slice decoding is implemented");
     }
 
@@ -145,60 +145,62 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         return status;
     }
 
-    auto& line = state.line_state(0);
-    for (std::uint32_t y = 0; y < output.plane_height(0); ++y) {
-        auto* row_u8 = output.row_u8(0, y);
-        auto* row_u16 = output.row_u16(0, y);
-        if (stream_.bits_per_raw_sample <= 8 && row_u8 == nullptr) {
-            return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint8");
+    for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
+        auto& line = state.line_state(plane_index);
+        for (std::uint32_t y = 0; y < output.plane_height(plane_index); ++y) {
+            auto* row_u8 = output.row_u8(plane_index, y);
+            auto* row_u16 = output.row_u16(plane_index, y);
+            if (stream_.bits_per_raw_sample <= 8 && row_u8 == nullptr) {
+                return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint8");
+            }
+            if (stream_.bits_per_raw_sample > 8 && row_u16 == nullptr) {
+                return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint16");
+            }
+
+            std::int32_t left = 0;
+            for (std::uint32_t x = 0; x < output.plane_width(plane_index); ++x) {
+                const std::int32_t far_left = x > 1 ? line.current()[x - 2] : 0;
+                const std::int32_t top = line.previous()[x];
+                const std::int32_t top_left = x == 0 ? 0 : line.previous()[x - 1];
+                const std::int32_t top_right =
+                    (x + 1) < output.plane_width(plane_index) ? line.previous()[x + 1] : top;
+                const std::int32_t top_top = line.second_previous()[x];
+                const std::int32_t prediction = syntax::Predictor::median_predict(left, top, top_left);
+
+                syntax::ContextDecision context;
+                status = context_model.derive_context({far_left, left, top, top_left, top_right, top_top}, context);
+                if (!status.ok()) {
+                    return status;
+                }
+
+                std::int64_t difference64 = 0;
+                status = reader.read_signed(context.context, difference64);
+                if (!status.ok()) {
+                    set_byte_location_if_missing(status, slice.content_byte_offset + reader.byte_position());
+                    return status;
+                }
+                if (context.invert_difference) {
+                    difference64 = -difference64;
+                }
+                if (difference64 < std::numeric_limits<std::int32_t>::min()
+                    || difference64 > std::numeric_limits<std::int32_t>::max()) {
+                    return make_error(ErrorCode::SyntaxError, "sample difference is outside int32 range");
+                }
+
+                const std::int32_t sample =
+                    syntax::Predictor::reconstruct(prediction,
+                                                   static_cast<std::int32_t>(difference64),
+                                                   stream_.bits_per_raw_sample);
+                if (stream_.bits_per_raw_sample <= 8) {
+                    row_u8[x] = static_cast<std::uint8_t>(sample);
+                } else {
+                    row_u16[x] = static_cast<std::uint16_t>(sample);
+                }
+                line.mutable_current()[x] = sample;
+                left = sample;
+            }
+            line.swap_lines();
         }
-        if (stream_.bits_per_raw_sample > 8 && row_u16 == nullptr) {
-            return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint16");
-        }
-
-        std::int32_t left = 0;
-        for (std::uint32_t x = 0; x < output.plane_width(0); ++x) {
-            const std::int32_t far_left = x > 1 ? line.current()[x - 2] : 0;
-            const std::int32_t top = line.previous()[x];
-            const std::int32_t top_left = x == 0 ? 0 : line.previous()[x - 1];
-            const std::int32_t top_right =
-                (x + 1) < output.plane_width(0) ? line.previous()[x + 1] : top;
-            const std::int32_t top_top = line.second_previous()[x];
-            const std::int32_t prediction = syntax::Predictor::median_predict(left, top, top_left);
-
-            syntax::ContextDecision context;
-            status = context_model.derive_context({far_left, left, top, top_left, top_right, top_top}, context);
-            if (!status.ok()) {
-                return status;
-            }
-
-            std::int64_t difference64 = 0;
-            status = reader.read_signed(context.context, difference64);
-            if (!status.ok()) {
-                set_byte_location_if_missing(status, slice.content_byte_offset + reader.byte_position());
-                return status;
-            }
-            if (context.invert_difference) {
-                difference64 = -difference64;
-            }
-            if (difference64 < std::numeric_limits<std::int32_t>::min()
-                || difference64 > std::numeric_limits<std::int32_t>::max()) {
-                return make_error(ErrorCode::SyntaxError, "sample difference is outside int32 range");
-            }
-
-            const std::int32_t sample =
-                syntax::Predictor::reconstruct(prediction,
-                                               static_cast<std::int32_t>(difference64),
-                                               stream_.bits_per_raw_sample);
-            if (stream_.bits_per_raw_sample <= 8) {
-                row_u8[x] = static_cast<std::uint8_t>(sample);
-            } else {
-                row_u16[x] = static_cast<std::uint16_t>(sample);
-            }
-            line.mutable_current()[x] = sample;
-            left = sample;
-        }
-        line.swap_lines();
     }
 
     return ok_status();

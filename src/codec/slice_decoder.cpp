@@ -136,7 +136,29 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                "slice content offset is outside payload",
                                slice.content_byte_offset);
     }
-    const auto content_payload = slice.payload.subspan(static_cast<std::size_t>(local_content_offset));
+    auto local_content_end = static_cast<std::uint64_t>(slice.payload.size());
+    if (slice.footer_byte_offset != 0 || slice.slice_size != 0) {
+        if (slice.footer_byte_offset < slice.payload_byte_offset) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "slice footer offset is before payload",
+                                   slice.footer_byte_offset);
+        }
+        const auto local_footer_offset = slice.footer_byte_offset - slice.payload_byte_offset;
+        if (local_footer_offset > slice.payload.size()) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "slice footer offset is outside payload",
+                                   slice.footer_byte_offset);
+        }
+        if (local_footer_offset < local_content_offset) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "slice footer offset is before content",
+                                   slice.footer_byte_offset);
+        }
+        local_content_end = local_footer_offset;
+    }
+    const auto content_payload = slice.payload.subspan(static_cast<std::size_t>(local_content_offset),
+                                                       static_cast<std::size_t>(local_content_end
+                                                                                - local_content_offset));
     if (content_payload.empty()) {
         return make_byte_error(ErrorCode::SyntaxError, "slice payload is empty", slice.content_byte_offset);
     }

@@ -1,5 +1,7 @@
 #include "codec/frame_parser.hpp"
 
+#include "codec/slice_header_parser.hpp"
+
 #include <cstdint>
 
 namespace ffv1::codec {
@@ -35,13 +37,19 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
 
     syntax::SliceDescriptor slice;
     slice.index = 0;
-    slice.x = 0;
-    slice.y = 0;
-    slice.width = stream_.width;
-    slice.height = stream_.height;
+    SliceHeaderValues header;
+    header.x = 0;
+    header.y = 0;
+    header.width = stream_.width;
+    header.height = stream_.height;
+    header.quant_table_set_indexes.push_back(0);
+    const SliceHeaderParser header_parser;
+    Status status = header_parser.apply(stream_, header, slice);
+    if (!status.ok()) {
+        return status;
+    }
     slice.payload = payload;
     slice.payload_byte_offset = 0;
-    slice.quant_table_set_indexes.push_back(0);
     out_frame.slices.push_back(slice);
 
     return ok_status();

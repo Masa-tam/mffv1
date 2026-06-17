@@ -16,6 +16,7 @@ ffv1::syntax::StreamParameters make_stream()
     stream.chroma_planes = false;
     stream.num_h_slices = 1;
     stream.num_v_slices = 1;
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
     return stream;
 }
 

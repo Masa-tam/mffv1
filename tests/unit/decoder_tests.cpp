@@ -15,6 +15,30 @@ TEST(DecoderTest, FactoryCreatesDecoder)
     EXPECT_NE(result.decoder, nullptr);
 }
 
+TEST(DecoderTest, FactoryAcceptsExternalFrameDimensions)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 16;
+    options.frame_height = 8;
+
+    const auto result = ffv1::create_decoder(options);
+
+    EXPECT_TRUE(result.status.ok());
+    EXPECT_NE(result.decoder, nullptr);
+}
+
+TEST(DecoderTest, FactoryRejectsIncompleteExternalFrameDimensions)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 16;
+
+    const auto result = ffv1::create_decoder(options);
+
+    EXPECT_FALSE(result.status.ok());
+    EXPECT_EQ(result.status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.decoder, nullptr);
+}
+
 TEST(DecoderTest, ConfigureRejectsEmptyConfigurationRecord)
 {
     const auto result = ffv1::create_decoder({});
@@ -56,4 +80,3 @@ TEST(DecoderTest, DecodeRequiresConfiguration)
 }
 
 } // namespace
-

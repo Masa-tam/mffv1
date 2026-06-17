@@ -155,7 +155,8 @@ Fields:
 
 Invariants:
 
-- Dimensions are positive and checked for overflow.
+- Dimensions are positive before frame parsing. They may come from an external
+  container-facing API field rather than the FFV1 configuration record itself.
 - Bit depth is within the supported Phase 2 subset.
 - Slice counts are positive.
 - Quantization tables are normalized before assignment.
@@ -619,7 +620,8 @@ Decode flow:
 decode_frame()
   -> ensure configured
   -> validate output frame view
-  -> FrameParser::parse()
+  -> FrameParser::parse_with_range_header() for version >= 3
+     or FrameParser::parse() for legacy headerless Phase 2 path
   -> for each SliceDescriptor:
        -> SliceOutputWindow::validate()
        -> SliceState::reset()
@@ -769,4 +771,3 @@ Integration tests:
 - When RFC behavior is ambiguous, add a comment in this document or
   `docs/DESIGN.md` before encoding the behavior in code.
 - Future SIMD paths must prove equivalence to this scalar baseline.
-

@@ -32,6 +32,11 @@ public:
             return status;
         }
 
+        if (options_.frame_width != 0 && options_.frame_height != 0) {
+            stream.width = options_.frame_width;
+            stream.height = options_.frame_height;
+        }
+
         stream_ = std::move(stream);
         return ok_status();
     }
@@ -46,7 +51,7 @@ public:
         }
         codec::FrameDecodeContext frame;
         codec::FrameParser parser(*stream_);
-        Status status = parser.parse(frame_payload, frame);
+        Status status = parse_frame(parser, frame_payload, frame);
         if (!status.ok()) {
             return status;
         }
@@ -65,7 +70,7 @@ public:
         codec::FrameDecodeContext frame;
         frame.output = output;
         codec::FrameParser parser(*stream_);
-        Status status = parser.parse(frame_payload, frame);
+        Status status = parse_frame(parser, frame_payload, frame);
         if (!status.ok()) {
             return status;
         }
@@ -95,6 +100,16 @@ public:
     }
 
 private:
+    Status parse_frame(const codec::FrameParser& parser,
+                       ByteSpan frame_payload,
+                       codec::FrameDecodeContext& frame) const
+    {
+        if (stream_->version >= 3) {
+            return parser.parse_with_range_header(frame_payload, frame);
+        }
+        return parser.parse(frame_payload, frame);
+    }
+
     DecoderOptions options_;
     std::optional<syntax::StreamParameters> stream_;
 };
@@ -104,6 +119,11 @@ private:
 DecoderFactoryResult create_decoder(const DecoderOptions& options)
 {
     DecoderFactoryResult result;
+    if ((options.frame_width == 0) != (options.frame_height == 0)) {
+        result.status = make_error(ErrorCode::InvalidArgument,
+                                   "decoder frame dimensions must be both set or both zero");
+        return result;
+    }
     result.status = ok_status();
     result.decoder = std::make_unique<Decoder>(options);
     return result;

@@ -25,6 +25,8 @@ struct DecoderOptions {
     int thread_count = 0;
     bool verify_crc = true;
     bool strict = true;
+    std::uint32_t frame_width = 0;
+    std::uint32_t frame_height = 0;
     CpuFeatures cpu = {};
 };
 
@@ -36,4 +38,3 @@ struct EncoderOptions {
 };
 
 } // namespace ffv1
-

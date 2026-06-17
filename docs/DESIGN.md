@@ -142,6 +142,8 @@ struct DecoderOptions {
     int thread_count = 0;       // 0 means auto.
     bool verify_crc = true;
     bool strict = true;
+    uint32_t frame_width = 0;    // External container dimension; 0 means unset.
+    uint32_t frame_height = 0;   // Must be set together with frame_width.
     CpuFeatures cpu = {};
 };
 

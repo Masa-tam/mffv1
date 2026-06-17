@@ -372,7 +372,7 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor16BitChromaSlice)
     }
 }
 
-TEST(SliceDecoderTest, ReportsUnsupportedExtraPlanePath)
+TEST(SliceDecoderTest, DecodesZeroDifferencesForExtraPlaneSlice)
 {
     auto stream = make_stream();
     stream.extra_plane = true;
@@ -385,7 +385,12 @@ TEST(SliceDecoderTest, ReportsUnsupportedExtraPlanePath)
     planes[1].data = alpha.data();
     planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt8, 4, 2, 4};
     ffv1::MutableFrameView frame{planes.data(), planes.size()};
-    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+    const std::array<std::byte, 16> payload{
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+    };
 
     ffv1::syntax::SliceDescriptor slice;
     slice.width = 4;
@@ -402,8 +407,13 @@ TEST(SliceDecoderTest, ReportsUnsupportedExtraPlanePath)
     const ffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::NotImplemented);
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : y) {
+        EXPECT_EQ(sample, 0u);
+    }
+    for (const auto sample : alpha) {
+        EXPECT_EQ(sample, 0u);
+    }
 }
 
 TEST(SliceDecoderTest, RejectsUnsupportedBitDepth)

@@ -122,8 +122,8 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (stream_.bits_per_raw_sample == 0 || stream_.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
-    if (stream_.chroma_planes || stream_.extra_plane) {
-        return make_error(ErrorCode::NotImplemented, "only Y-only slice decoding is implemented");
+    if (stream_.extra_plane) {
+        return make_error(ErrorCode::NotImplemented, "extra plane slice decoding is not implemented");
     }
 
     entropy::RangeCoder reader;

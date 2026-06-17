@@ -264,7 +264,7 @@ TEST(SliceDecoderTest, DecodesWrappedNegativeDifferenceForYOnly16BitSlice)
     EXPECT_EQ(storage[1], 0u);
 }
 
-TEST(SliceDecoderTest, ReportsUnsupportedChromaPath)
+TEST(SliceDecoderTest, DecodesZeroDifferencesFor8BitChromaSlice)
 {
     auto stream = make_stream();
     stream.chroma_planes = true;
@@ -282,7 +282,12 @@ TEST(SliceDecoderTest, ReportsUnsupportedChromaPath)
     planes[2].data = cr.data();
     planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 2, 1, 2};
     ffv1::MutableFrameView frame{planes.data(), planes.size()};
-    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+    const std::array<std::byte, 16> payload{
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+    };
 
     ffv1::syntax::SliceDescriptor slice;
     slice.width = 4;
@@ -299,8 +304,16 @@ TEST(SliceDecoderTest, ReportsUnsupportedChromaPath)
     const ffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::NotImplemented);
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : y) {
+        EXPECT_EQ(sample, 0u);
+    }
+    for (const auto sample : cb) {
+        EXPECT_EQ(sample, 0u);
+    }
+    for (const auto sample : cr) {
+        EXPECT_EQ(sample, 0u);
+    }
 }
 
 TEST(SliceDecoderTest, RejectsUnsupportedBitDepth)

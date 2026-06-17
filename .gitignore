@@ -1,0 +1,16 @@
+# CMake build outputs
+/build/
+/out/
+
+# Visual Studio user files
+/.vs/
+*.user
+*.suo
+
+# Test and coverage outputs
+/Testing/
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+

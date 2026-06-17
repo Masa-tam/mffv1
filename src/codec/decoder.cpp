@@ -7,6 +7,7 @@
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_output_window.hpp"
 #include "ffv1/stream_parameters.hpp"
+#include "util/status.hpp"
 
 #include <memory>
 #include <optional>
@@ -91,16 +92,19 @@ public:
             codec::SliceOutputWindow window;
             status = window.validate(*stream_, output, slice);
             if (!status.ok()) {
+                set_slice_location_if_missing(status, slice.index);
                 return status;
             }
             codec::SliceState state;
             status = state.reset(*stream_);
             if (!status.ok()) {
+                set_slice_location_if_missing(status, slice.index);
                 return status;
             }
             const codec::SliceDecoder decoder(*stream_);
             status = decoder.decode(slice, window, state);
             if (!status.ok()) {
+                set_slice_location_if_missing(status, slice.index);
                 return status;
             }
         }

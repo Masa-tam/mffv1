@@ -249,4 +249,31 @@ TEST(DecoderTest, DecodeFrameWrapsNegativeDifference)
     EXPECT_EQ(storage[0], 255u);
 }
 
+TEST(DecoderTest, DecodeFrameUsesLeftPrediction)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 2;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 2);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> frame_payload{
+        std::byte{0x1c},
+        std::byte{0xf0},
+    };
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 1u);
+    EXPECT_EQ(storage[1], 1u);
+}
+
 } // namespace

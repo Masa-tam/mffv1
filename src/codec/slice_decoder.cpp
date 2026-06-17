@@ -103,7 +103,11 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                             SliceOutputWindow& output,
                             SliceState& state) const
 {
-    if (slice.payload.empty()) {
+    if (slice.content_byte_offset > slice.payload.size()) {
+        return make_error(ErrorCode::SyntaxError, "slice content offset is outside payload");
+    }
+    const auto content_payload = slice.payload.subspan(static_cast<std::size_t>(slice.content_byte_offset));
+    if (content_payload.empty()) {
         return make_error(ErrorCode::SyntaxError, "slice payload is empty");
     }
     if (output.plane_count() != state.plane_count()) {
@@ -130,7 +134,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     }
     const syntax::ContextModel context_model(stream_.quant_table_sets[quant_table_set_index]);
 
-    Status status = reader.reset(slice.payload, context_model.context_count());
+    Status status = reader.reset(content_payload, context_model.context_count());
     if (!status.ok()) {
         return status;
     }

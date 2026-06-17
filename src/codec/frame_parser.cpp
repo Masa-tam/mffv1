@@ -49,6 +49,8 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         return status;
     }
     slice.payload = payload;
+    slice.header_byte_offset = 0;
+    slice.content_byte_offset = 0;
     slice.payload_byte_offset = 0;
     out_frame.slices.push_back(slice);
 

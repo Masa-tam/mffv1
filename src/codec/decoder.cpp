@@ -4,6 +4,7 @@
 #include "codec/frame_decode_context.hpp"
 #include "codec/frame_parser.hpp"
 #include "codec/frame_validator.hpp"
+#include "codec/slice_decoder.hpp"
 #include "codec/slice_output_window.hpp"
 #include "ffv1/stream_parameters.hpp"
 
@@ -79,8 +80,18 @@ public:
             if (!status.ok()) {
                 return status;
             }
+            codec::SliceState state;
+            status = state.reset(*stream_);
+            if (!status.ok()) {
+                return status;
+            }
+            const codec::SliceDecoder decoder(*stream_);
+            status = decoder.decode(slice, window, state);
+            if (!status.ok()) {
+                return status;
+            }
         }
-        return make_error(ErrorCode::NotImplemented, "frame decoding is not implemented yet");
+        return ok_status();
     }
 
 private:

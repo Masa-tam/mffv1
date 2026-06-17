@@ -316,6 +316,96 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor8BitChromaSlice)
     }
 }
 
+TEST(SliceDecoderTest, DecodesZeroDifferencesFor16BitChromaSlice)
+{
+    auto stream = make_stream();
+    stream.bits_per_raw_sample = 16;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint16_t, 8> y{};
+    std::array<std::uint16_t, 2> cb{};
+    std::array<std::uint16_t, 2> cr{};
+    y.fill(0xffff);
+    cb.fill(0xffff);
+    cr.fill(0xffff);
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt16, 4, 2, 8};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt16, 2, 1, 4};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt16, 2, 1, 4};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 16> payload{
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+    };
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.content_byte_offset = 0;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : y) {
+        EXPECT_EQ(sample, 0u);
+    }
+    for (const auto sample : cb) {
+        EXPECT_EQ(sample, 0u);
+    }
+    for (const auto sample : cr) {
+        EXPECT_EQ(sample, 0u);
+    }
+}
+
+TEST(SliceDecoderTest, ReportsUnsupportedExtraPlanePath)
+{
+    auto stream = make_stream();
+    stream.extra_plane = true;
+
+    std::array<std::uint8_t, 8> y{};
+    std::array<std::uint8_t, 8> alpha{};
+    std::array<ffv1::MutablePlaneView, 2> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[1].data = alpha.data();
+    planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.content_byte_offset = 0;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::NotImplemented);
+}
+
 TEST(SliceDecoderTest, RejectsUnsupportedBitDepth)
 {
     auto stream = make_stream();

@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <vector>
 
+#include "ffv1/frame.hpp"
 #include "ffv1/options.hpp"
 
 namespace ffv1::syntax {
@@ -52,6 +53,28 @@ struct StreamParameters {
         count = static_cast<std::uint8_t>(count + 1);
     }
     return count;
+}
+
+[[nodiscard]] inline bool is_chroma_plane(const StreamParameters& stream, std::size_t plane_index) noexcept
+{
+    return stream.chroma_planes && (plane_index == 1 || plane_index == 2);
+}
+
+[[nodiscard]] inline PlaneRole expected_plane_role(const StreamParameters& stream,
+                                                   std::size_t plane_index) noexcept
+{
+    if (plane_index == 0) {
+        return PlaneRole::Y;
+    }
+    if (stream.chroma_planes) {
+        if (plane_index == 1) {
+            return PlaneRole::Cb;
+        }
+        if (plane_index == 2) {
+            return PlaneRole::Cr;
+        }
+    }
+    return PlaneRole::Alpha;
 }
 
 } // namespace ffv1::syntax

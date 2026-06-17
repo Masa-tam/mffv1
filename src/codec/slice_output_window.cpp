@@ -17,32 +17,11 @@ std::uint32_t subsampled_extent(std::uint32_t value, std::uint8_t log2_subsample
     return (value + add) >> log2_subsample;
 }
 
-bool is_chroma_plane(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
-{
-    return stream.chroma_planes && (plane_index == 1 || plane_index == 2);
-}
-
-PlaneRole expected_plane_role(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
-{
-    if (plane_index == 0) {
-        return PlaneRole::Y;
-    }
-    if (stream.chroma_planes) {
-        if (plane_index == 1) {
-            return PlaneRole::Cb;
-        }
-        if (plane_index == 2) {
-            return PlaneRole::Cr;
-        }
-    }
-    return PlaneRole::Alpha;
-}
-
 std::uint32_t plane_x(const syntax::StreamParameters& stream,
                       const syntax::SliceDescriptor& slice,
                       std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (syntax::is_chroma_plane(stream, plane_index)) {
         return slice.x >> stream.log2_h_chroma_subsample;
     }
     return slice.x;
@@ -52,7 +31,7 @@ std::uint32_t plane_y(const syntax::StreamParameters& stream,
                       const syntax::SliceDescriptor& slice,
                       std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (syntax::is_chroma_plane(stream, plane_index)) {
         return slice.y >> stream.log2_v_chroma_subsample;
     }
     return slice.y;
@@ -62,7 +41,7 @@ std::uint32_t slice_plane_width(const syntax::StreamParameters& stream,
                                 const syntax::SliceDescriptor& slice,
                                 std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (syntax::is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(slice.width, stream.log2_h_chroma_subsample);
     }
     return slice.width;
@@ -72,7 +51,7 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
                                  const syntax::SliceDescriptor& slice,
                                  std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (syntax::is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(slice.height, stream.log2_v_chroma_subsample);
     }
     return slice.height;
@@ -81,7 +60,7 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
 std::uint32_t frame_plane_width(const syntax::StreamParameters& stream,
                                 std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (syntax::is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(stream.width, stream.log2_h_chroma_subsample);
     }
     return stream.width;
@@ -90,7 +69,7 @@ std::uint32_t frame_plane_width(const syntax::StreamParameters& stream,
 std::uint32_t frame_plane_height(const syntax::StreamParameters& stream,
                                  std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (syntax::is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(stream.height, stream.log2_v_chroma_subsample);
     }
     return stream.height;
@@ -132,7 +111,7 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
         if (plane.data == nullptr) {
             return make_error(ErrorCode::InvalidArgument, "output plane data pointer is null");
         }
-        if (plane.info.role != expected_plane_role(stream, i)) {
+        if (plane.info.role != syntax::expected_plane_role(stream, i)) {
             return make_error(ErrorCode::InvalidArgument, "output plane role does not match stream plane order");
         }
 

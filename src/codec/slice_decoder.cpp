@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <limits>
+#include <string>
+#include <utility>
 
 namespace ffv1::syntax {
 
@@ -61,6 +63,25 @@ void LineState::swap_lines() noexcept
 
 namespace ffv1::codec {
 
+namespace {
+
+void set_byte_location_if_missing(Status& status, std::uint64_t byte_offset) noexcept
+{
+    if (!status.location.has_byte_offset) {
+        status.location.byte_offset = byte_offset;
+        status.location.has_byte_offset = true;
+    }
+}
+
+Status make_byte_error(ErrorCode code, std::string message, std::uint64_t byte_offset)
+{
+    Status status = make_error(code, std::move(message));
+    set_byte_location_if_missing(status, byte_offset);
+    return status;
+}
+
+} // namespace
+
 Status SliceState::reset(const syntax::StreamParameters& stream)
 {
     const auto planes = syntax::coded_plane_count(stream);
@@ -104,11 +125,13 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                             SliceState& state) const
 {
     if (slice.content_byte_offset > slice.payload.size()) {
-        return make_error(ErrorCode::SyntaxError, "slice content offset is outside payload");
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice content offset is outside payload",
+                               slice.content_byte_offset);
     }
     const auto content_payload = slice.payload.subspan(static_cast<std::size_t>(slice.content_byte_offset));
     if (content_payload.empty()) {
-        return make_error(ErrorCode::SyntaxError, "slice payload is empty");
+        return make_byte_error(ErrorCode::SyntaxError, "slice payload is empty", slice.content_byte_offset);
     }
     if (output.plane_count() != state.plane_count()) {
         return make_error(ErrorCode::InvalidArgument, "slice output and state plane counts differ");
@@ -136,6 +159,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
 
     Status status = reader.reset(content_payload, context_model.context_count());
     if (!status.ok()) {
+        set_byte_location_if_missing(status, slice.content_byte_offset);
         return status;
     }
 
@@ -165,6 +189,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             std::int64_t difference64 = 0;
             status = reader.read_signed(context.context, difference64);
             if (!status.ok()) {
+                set_byte_location_if_missing(status, slice.content_byte_offset + reader.byte_position());
                 return status;
             }
             if (context.invert_difference) {

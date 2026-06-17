@@ -83,6 +83,8 @@ TEST(SliceDecoderTest, RejectsEmptyPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
 }
 
 TEST(SliceDecoderTest, RejectsContentOffsetOutsidePayload)
@@ -110,6 +112,8 @@ TEST(SliceDecoderTest, RejectsContentOffsetOutsidePayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, slice.content_byte_offset);
 }
 
 TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly8BitSlice)

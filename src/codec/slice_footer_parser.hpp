@@ -9,9 +9,15 @@ namespace ffv1::codec {
 
 class SliceFooterParser {
 public:
+    [[nodiscard]] std::size_t footer_size(const syntax::StreamParameters& stream) const noexcept;
+
     Status read(bitstream::BitReader& reader,
                 const syntax::StreamParameters& stream,
                 syntax::SliceDescriptor& descriptor) const;
+
+    Status read_from_end(ByteSpan slice_payload,
+                         const syntax::StreamParameters& stream,
+                         syntax::SliceDescriptor& descriptor) const;
 };
 
 } // namespace ffv1::codec

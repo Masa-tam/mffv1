@@ -21,6 +21,7 @@ struct SliceDescriptor {
     std::uint64_t header_byte_offset = 0;
     std::uint64_t content_byte_offset = 0;
     std::uint64_t payload_byte_offset = 0;
+    std::uint64_t footer_byte_offset = 0;
     std::uint32_t slice_size = 0;
     std::vector<std::uint32_t> quant_table_set_indexes;
     std::uint8_t error_status = 0;

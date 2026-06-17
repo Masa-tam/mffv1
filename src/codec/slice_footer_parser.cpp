@@ -2,9 +2,15 @@
 
 #include "util/status.hpp"
 
+#include <cstddef>
 #include <cstdint>
 
 namespace ffv1::codec {
+
+std::size_t SliceFooterParser::footer_size(const syntax::StreamParameters& stream) const noexcept
+{
+    return stream.error_status_enabled ? 8u : 3u;
+}
 
 Status SliceFooterParser::read(bitstream::BitReader& reader,
                                const syntax::StreamParameters& stream,
@@ -53,6 +59,40 @@ Status SliceFooterParser::read(bitstream::BitReader& reader,
     }
     descriptor.expected_crc = static_cast<std::uint32_t>(value);
     descriptor.has_crc = true;
+    return ok_status();
+}
+
+Status SliceFooterParser::read_from_end(ByteSpan slice_payload,
+                                        const syntax::StreamParameters& stream,
+                                        syntax::SliceDescriptor& descriptor) const
+{
+    const auto required_footer_size = footer_size(stream);
+    if (slice_payload.size() < required_footer_size) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice payload is too small to contain a footer",
+                               descriptor.payload_byte_offset);
+    }
+
+    const auto footer_offset = slice_payload.size() - required_footer_size;
+    descriptor.footer_byte_offset = descriptor.payload_byte_offset + footer_offset;
+
+    bitstream::BitReader reader(slice_payload.subspan(footer_offset, required_footer_size));
+    Status status = read(reader, stream, descriptor);
+    if (!status.ok()) {
+        if (status.location.has_byte_offset) {
+            status.location.byte_offset += descriptor.footer_byte_offset;
+        } else {
+            set_byte_location_if_missing(status, descriptor.footer_byte_offset);
+        }
+        return status;
+    }
+
+    if (descriptor.slice_size != slice_payload.size()) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice footer size does not match slice payload size",
+                               descriptor.footer_byte_offset);
+    }
+
     return ok_status();
 }
 

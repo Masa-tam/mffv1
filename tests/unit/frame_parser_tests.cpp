@@ -153,6 +153,8 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 12u);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
 }
 
 TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
@@ -166,6 +168,8 @@ TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
 }
 
 TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)

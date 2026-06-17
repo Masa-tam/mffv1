@@ -35,6 +35,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     const SliceHeaderParser header_parser;
     status = header_parser.apply(stream_, header, slice);
     if (!status.ok()) {
+        set_slice_location_if_missing(status, slice.index);
         return status;
     }
     slice.payload = payload;
@@ -51,6 +52,7 @@ Status FrameParser::parse_with_range_header(ByteSpan payload, FrameDecodeContext
     entropy::RangeCoder header_reader;
     Status status = header_reader.reset(payload);
     if (!status.ok()) {
+        set_slice_location_if_missing(status, 0);
         return status;
     }
     return parse_with_header_reader(payload, header_reader, out_frame);
@@ -74,12 +76,15 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
     const SliceHeaderParser header_parser;
     status = header_parser.read_descriptor(header_reader, stream_, slice);
     if (!status.ok()) {
+        set_slice_location_if_missing(status, slice.index);
         return status;
     }
     if (slice.content_byte_offset > payload.size()) {
-        return make_byte_error(ErrorCode::SyntaxError,
-                               "slice header consumes more bytes than the frame payload contains",
-                               slice.content_byte_offset);
+        status = make_byte_error(ErrorCode::SyntaxError,
+                                 "slice header consumes more bytes than the frame payload contains",
+                                 slice.content_byte_offset);
+        set_slice_location_if_missing(status, slice.index);
+        return status;
     }
     slice.payload = payload;
     out_frame.slices.push_back(slice);

@@ -113,7 +113,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({2, 1, 8, 4, 1, 0}, 1);
+    ScriptedUnsignedReader reader({0, 0, 1, 1, 1, 0}, 1);
     const std::array<std::byte, 16> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
         std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
@@ -125,10 +125,10 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
 
     EXPECT_TRUE(status.ok()) << status.message;
     ASSERT_EQ(frame.slices.size(), 1u);
-    EXPECT_EQ(frame.slices[0].x, 2u);
-    EXPECT_EQ(frame.slices[0].y, 1u);
-    EXPECT_EQ(frame.slices[0].width, 8u);
-    EXPECT_EQ(frame.slices[0].height, 4u);
+    EXPECT_EQ(frame.slices[0].x, 0u);
+    EXPECT_EQ(frame.slices[0].y, 0u);
+    EXPECT_EQ(frame.slices[0].width, stream.width);
+    EXPECT_EQ(frame.slices[0].height, stream.height);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 0u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 6u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
@@ -141,7 +141,7 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({0, 0, 16, 8, 1, 0}, 2);
+    ScriptedUnsignedReader reader({0, 0, 1, 1, 1, 0}, 2);
     const std::array<std::byte, 8> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
         std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
@@ -196,8 +196,8 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 7> payload{
-        std::byte{0xd8},
-        std::byte{0xa4},
+        std::byte{0xbc},
+        std::byte{0xd3},
         std::byte{0x3d},
         std::byte{0x65},
         std::byte{0x43},
@@ -214,7 +214,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     EXPECT_EQ(frame.slices[0].width, stream.width);
     EXPECT_EQ(frame.slices[0].height, stream.height);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
-    EXPECT_EQ(frame.slices[0].content_byte_offset, 4u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
     ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 1u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);

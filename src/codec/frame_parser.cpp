@@ -29,11 +29,11 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     SliceHeaderValues header;
     header.x = 0;
     header.y = 0;
-    header.width = stream_.width;
-    header.height = stream_.height;
+    header.width = 1;
+    header.height = 1;
     header.quant_table_set_indexes.push_back(0);
     const SliceHeaderParser header_parser;
-    status = header_parser.apply(stream_, header, slice);
+    status = header_parser.apply_raster(stream_, header, slice);
     if (!status.ok()) {
         set_slice_location_if_missing(status, slice.index);
         return status;

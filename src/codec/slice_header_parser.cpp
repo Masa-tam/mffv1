@@ -16,8 +16,8 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     if (!status.ok()) {
         return status;
     }
-    if (value > stream.width) {
-        return make_byte_error(ErrorCode::SyntaxError, "slice_x is outside the frame", reader.byte_position());
+    if (value > stream.num_h_slices || value > std::numeric_limits<std::uint32_t>::max()) {
+        return make_byte_error(ErrorCode::SyntaxError, "slice_x is outside the slice raster", reader.byte_position());
     }
     out_values.x = static_cast<std::uint32_t>(value);
 
@@ -25,8 +25,8 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     if (!status.ok()) {
         return status;
     }
-    if (value > stream.height) {
-        return make_byte_error(ErrorCode::SyntaxError, "slice_y is outside the frame", reader.byte_position());
+    if (value > stream.num_v_slices || value > std::numeric_limits<std::uint32_t>::max()) {
+        return make_byte_error(ErrorCode::SyntaxError, "slice_y is outside the slice raster", reader.byte_position());
     }
     out_values.y = static_cast<std::uint32_t>(value);
 
@@ -52,10 +52,10 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     }
     out_values.height = static_cast<std::uint32_t>(value);
 
-    if (out_values.width > stream.width - out_values.x
-        || out_values.height > stream.height - out_values.y) {
+    if (out_values.width > stream.num_h_slices - out_values.x
+        || out_values.height > stream.num_v_slices - out_values.y) {
         return make_byte_error(ErrorCode::SyntaxError,
-                               "slice header rectangle is outside the frame",
+                               "slice header rectangle is outside the slice raster",
                                reader.byte_position());
     }
 
@@ -104,7 +104,7 @@ Status SliceHeaderParser::read_descriptor(entropy::SymbolReader& reader,
         return status;
     }
 
-    status = apply(stream, values, descriptor);
+    status = apply_raster(stream, values, descriptor);
     if (!status.ok()) {
         return status;
     }

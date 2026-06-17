@@ -130,7 +130,9 @@ TEST(SliceHeaderParserTest, RejectsOutOfRasterRectangle)
 
 TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
 {
-    const auto stream = make_stream();
+    auto stream = make_stream();
+    stream.num_h_slices = 16;
+    stream.num_v_slices = 8;
     ScriptedUnsignedReader reader({4, 2, 8, 4, 1, 1});
     ffv1::codec::SliceHeaderValues values;
 
@@ -149,7 +151,7 @@ TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
 TEST(SliceHeaderParserTest, ReadRejectsUnsupportedQuantTableIndexCount)
 {
     const auto stream = make_stream();
-    ScriptedUnsignedReader reader({0, 0, 16, 8, 4}, 2);
+    ScriptedUnsignedReader reader({0, 0, 1, 1, 4}, 2);
     ffv1::codec::SliceHeaderValues values;
 
     const ffv1::codec::SliceHeaderParser parser;
@@ -161,10 +163,10 @@ TEST(SliceHeaderParserTest, ReadRejectsUnsupportedQuantTableIndexCount)
     EXPECT_EQ(status.location.byte_offset, 10u);
 }
 
-TEST(SliceHeaderParserTest, ReadRejectsOutOfFrameRectangleWithByteLocation)
+TEST(SliceHeaderParserTest, ReadRejectsOutOfRasterRectangleWithByteLocation)
 {
     const auto stream = make_stream();
-    ScriptedUnsignedReader reader({15, 0, 2, 1}, 2);
+    ScriptedUnsignedReader reader({0, 0, 2, 1}, 2);
     ffv1::codec::SliceHeaderValues values;
 
     const ffv1::codec::SliceHeaderParser parser;
@@ -179,7 +181,7 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfFrameRectangleWithByteLocation)
 TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation)
 {
     const auto stream = make_stream();
-    ScriptedUnsignedReader reader({0, 0, 16, 8, 1, 2}, 2);
+    ScriptedUnsignedReader reader({0, 0, 1, 1, 1, 2}, 2);
     ffv1::codec::SliceHeaderValues values;
 
     const ffv1::codec::SliceHeaderParser parser;
@@ -194,17 +196,17 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation
 TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)
 {
     const auto stream = make_stream();
-    ScriptedUnsignedReader reader({4, 2, 8, 4, 1, 1}, 2);
+    ScriptedUnsignedReader reader({0, 0, 1, 1, 1, 1}, 2);
     ffv1::syntax::SliceDescriptor descriptor;
 
     const ffv1::codec::SliceHeaderParser parser;
     const auto status = parser.read_descriptor(reader, stream, descriptor);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(descriptor.x, 4u);
-    EXPECT_EQ(descriptor.y, 2u);
-    EXPECT_EQ(descriptor.width, 8u);
-    EXPECT_EQ(descriptor.height, 4u);
+    EXPECT_EQ(descriptor.x, 0u);
+    EXPECT_EQ(descriptor.y, 0u);
+    EXPECT_EQ(descriptor.width, stream.width);
+    EXPECT_EQ(descriptor.height, stream.height);
     ASSERT_EQ(descriptor.quant_table_set_indexes.size(), 1u);
     EXPECT_EQ(descriptor.quant_table_set_indexes[0], 1u);
     EXPECT_EQ(descriptor.header_byte_offset, 0u);

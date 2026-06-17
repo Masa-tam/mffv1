@@ -54,7 +54,10 @@ Status RangeCoder::reset(ByteSpan payload,
                          std::uint8_t initial_state)
 {
     if (payload.size() < 2) {
-        return make_error(ErrorCode::SyntaxError, "range coder payload must contain at least two bytes");
+        Status status = make_error(ErrorCode::SyntaxError, "range coder payload must contain at least two bytes");
+        status.location.has_byte_offset = true;
+        status.location.byte_offset = 0;
+        return status;
     }
     if (scalar_context_count == 0) {
         return make_error(ErrorCode::InvalidArgument, "range coder must have at least one scalar context");

@@ -17,6 +17,8 @@ TEST(RangeCoderTest, RejectsTooShortPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
 }
 
 TEST(RangeCoderTest, DecodesLowInitialStateAsFalseBinary)

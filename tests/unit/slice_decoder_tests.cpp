@@ -198,6 +198,72 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly16BitSlice)
     }
 }
 
+TEST(SliceDecoderTest, DecodesPositiveDifferenceForYOnly16BitSlice)
+{
+    auto stream = make_stream();
+    stream.bits_per_raw_sample = 16;
+    std::array<std::uint16_t, 8> storage{};
+    storage.fill(0xffff);
+    auto plane = make_u16_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{
+        std::byte{0x14},
+        std::byte{0x46},
+    };
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.content_byte_offset = 0;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 1u);
+    EXPECT_EQ(storage[1], 0xffffu);
+}
+
+TEST(SliceDecoderTest, DecodesWrappedNegativeDifferenceForYOnly16BitSlice)
+{
+    auto stream = make_stream();
+    stream.bits_per_raw_sample = 16;
+    std::array<std::uint16_t, 8> storage{};
+    storage.fill(0);
+    auto plane = make_u16_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{
+        std::byte{0x21},
+        std::byte{0xcf},
+    };
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.content_byte_offset = 0;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 65535u);
+    EXPECT_EQ(storage[1], 0u);
+}
+
 TEST(SliceDecoderTest, ReportsUnsupportedChromaPath)
 {
     auto stream = make_stream();

@@ -1,6 +1,5 @@
 #include "codec/frame_parser.hpp"
-#include "codec/slice_decoder.hpp"
-#include "codec/slice_output_window.hpp"
+#include "codec/slice_executor.hpp"
 
 #include <array>
 #include <cstdint>
@@ -70,19 +69,9 @@ TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage);
     ffv1::MutableFrameView output{&plane, 1};
-    for (const auto& slice : frame.slices) {
-        ffv1::codec::SliceOutputWindow window;
-        status = window.validate(stream, output, slice);
-        ASSERT_TRUE(status.ok()) << status.message;
-
-        ffv1::codec::SliceState state;
-        status = state.reset(stream);
-        ASSERT_TRUE(status.ok()) << status.message;
-
-        const ffv1::codec::SliceDecoder decoder(stream);
-        status = decoder.decode(slice, window, state);
-        ASSERT_TRUE(status.ok()) << status.message;
-    }
+    const ffv1::codec::SliceExecutor executor(stream);
+    status = executor.decode(output, frame.slices);
+    ASSERT_TRUE(status.ok()) << status.message;
 
     EXPECT_EQ(storage[0], 0u);
     EXPECT_EQ(storage[1], 0u);

@@ -4,8 +4,7 @@
 #include "codec/frame_decode_context.hpp"
 #include "codec/frame_parser.hpp"
 #include "codec/frame_validator.hpp"
-#include "codec/slice_decoder.hpp"
-#include "codec/slice_output_window.hpp"
+#include "codec/slice_executor.hpp"
 #include "ffv1/stream_parameters.hpp"
 #include "util/status.hpp"
 
@@ -112,32 +111,8 @@ private:
 
     Status decode_slices(const codec::FrameDecodeContext& frame, MutableFrameView output) const
     {
-        for (const auto& slice : frame.slices) {
-            Status status = decode_slice(slice, output);
-            if (!status.ok()) {
-                set_slice_location_if_missing(status, slice.index);
-                return status;
-            }
-        }
-        return ok_status();
-    }
-
-    Status decode_slice(const syntax::SliceDescriptor& slice, MutableFrameView output) const
-    {
-        codec::SliceOutputWindow window;
-        Status status = window.validate(*stream_, output, slice);
-        if (!status.ok()) {
-            return status;
-        }
-
-        codec::SliceState state;
-        status = state.reset(*stream_);
-        if (!status.ok()) {
-            return status;
-        }
-
-        const codec::SliceDecoder decoder(*stream_);
-        return decoder.decode(slice, window, state);
+        const codec::SliceExecutor executor(*stream_);
+        return executor.decode(output, frame.slices);
     }
 
     DecoderOptions options_;

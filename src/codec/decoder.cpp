@@ -46,12 +46,16 @@ public:
         if (!stream_.has_value()) {
             return make_error(ErrorCode::InvalidState, "decoder is not configured");
         }
+        Status status = ensure_dimensions_known();
+        if (!status.ok()) {
+            return status;
+        }
         if (frame_payload.empty()) {
             return make_error(ErrorCode::InvalidArgument, "frame payload is empty");
         }
         codec::FrameDecodeContext frame;
         codec::FrameParser parser(*stream_);
-        Status status = parse_frame(parser, frame_payload, frame);
+        status = parse_frame(parser, frame_payload, frame);
         if (!status.ok()) {
             return status;
         }
@@ -64,13 +68,17 @@ public:
         if (!stream_.has_value()) {
             return make_error(ErrorCode::InvalidState, "decoder is not configured");
         }
+        Status status = ensure_dimensions_known();
+        if (!status.ok()) {
+            return status;
+        }
         if (frame_payload.empty()) {
             return make_error(ErrorCode::InvalidArgument, "frame payload is empty");
         }
         codec::FrameDecodeContext frame;
         frame.output = output;
         codec::FrameParser parser(*stream_);
-        Status status = parse_frame(parser, frame_payload, frame);
+        status = parse_frame(parser, frame_payload, frame);
         if (!status.ok()) {
             return status;
         }
@@ -100,6 +108,14 @@ public:
     }
 
 private:
+    Status ensure_dimensions_known() const
+    {
+        if (stream_->width == 0 || stream_->height == 0) {
+            return make_error(ErrorCode::InvalidState, "decoder frame dimensions are not configured");
+        }
+        return ok_status();
+    }
+
     Status parse_frame(const codec::FrameParser& parser,
                        ByteSpan frame_payload,
                        codec::FrameDecodeContext& frame) const

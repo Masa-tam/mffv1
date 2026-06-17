@@ -79,6 +79,57 @@ TEST(DecoderTest, DecodeRequiresConfiguration)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
 }
 
+TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
+{
+    const auto result = ffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const std::array<std::byte, 3> configuration_record{
+        std::byte{0x95},
+        std::byte{0x36},
+        std::byte{0xe9},
+    };
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
+    ffv1::FrameInfo info;
+    const auto status = result.decoder->inspect_frame(frame_payload, info);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+}
+
+TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)
+{
+    const auto result = ffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const std::array<std::byte, 3> configuration_record{
+        std::byte{0x95},
+        std::byte{0x36},
+        std::byte{0xe9},
+    };
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    std::array<std::uint8_t, 1> storage{};
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 1;
+    plane.info.height = 1;
+    plane.info.stride_bytes = 1;
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> frame_payload{std::byte{0xff}, std::byte{0x00}};
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+}
+
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 {
     ffv1::DecoderOptions options;

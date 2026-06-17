@@ -13,6 +13,7 @@ add_library(ffv1
     src/codec/decoder.cpp
     src/codec/encoder.cpp
     src/codec/frame_validator.cpp
+    src/codec/configuration_record_parser.cpp
     src/entropy/range_coder.cpp
     src/ffv1/configuration_parser.cpp
     src/ffv1/predictor.cpp

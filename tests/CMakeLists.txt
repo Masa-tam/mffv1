@@ -19,6 +19,8 @@ endif()
 
 add_executable(ffv1_unit_tests
     unit/bit_reader_tests.cpp
+    unit/frame_validator_tests.cpp
+    unit/predictor_tests.cpp
     unit/rfc_math_tests.cpp
 )
 

@@ -1,0 +1,26 @@
+#pragma once
+
+#include <cstdint>
+#include <string>
+#include <utility>
+
+#include "ffv1/result.hpp"
+
+namespace ffv1 {
+
+inline void set_byte_location_if_missing(Status& status, std::uint64_t byte_offset) noexcept
+{
+    if (!status.location.has_byte_offset) {
+        status.location.byte_offset = byte_offset;
+        status.location.has_byte_offset = true;
+    }
+}
+
+inline Status make_byte_error(ErrorCode code, std::string message, std::uint64_t byte_offset)
+{
+    Status status = make_error(code, std::move(message));
+    set_byte_location_if_missing(status, byte_offset);
+    return status;
+}
+
+} // namespace ffv1

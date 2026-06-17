@@ -2,6 +2,7 @@
 
 #include "codec/slice_header_parser.hpp"
 #include "entropy/range_coder.hpp"
+#include "util/status.hpp"
 
 #include <cstdint>
 
@@ -76,11 +77,9 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return status;
     }
     if (slice.content_byte_offset > payload.size()) {
-        Status error =
-            make_error(ErrorCode::SyntaxError, "slice header consumes more bytes than the frame payload contains");
-        error.location.has_byte_offset = true;
-        error.location.byte_offset = slice.content_byte_offset;
-        return error;
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice header consumes more bytes than the frame payload contains",
+                               slice.content_byte_offset);
     }
     slice.payload = payload;
     out_frame.slices.push_back(slice);

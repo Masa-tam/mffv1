@@ -3,11 +3,10 @@
 #include "entropy/range_coder.hpp"
 #include "ffv1/context_model.hpp"
 #include "ffv1/predictor.hpp"
+#include "util/status.hpp"
 
 #include <cstdint>
 #include <limits>
-#include <string>
-#include <utility>
 
 namespace ffv1::syntax {
 
@@ -62,25 +61,6 @@ void LineState::swap_lines() noexcept
 } // namespace ffv1::syntax
 
 namespace ffv1::codec {
-
-namespace {
-
-void set_byte_location_if_missing(Status& status, std::uint64_t byte_offset) noexcept
-{
-    if (!status.location.has_byte_offset) {
-        status.location.byte_offset = byte_offset;
-        status.location.has_byte_offset = true;
-    }
-}
-
-Status make_byte_error(ErrorCode code, std::string message, std::uint64_t byte_offset)
-{
-    Status status = make_error(code, std::move(message));
-    set_byte_location_if_missing(status, byte_offset);
-    return status;
-}
-
-} // namespace
 
 Status SliceState::reset(const syntax::StreamParameters& stream)
 {

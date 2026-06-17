@@ -2,10 +2,53 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <deque>
+#include <utility>
 
 #include <gtest/gtest.h>
 
 namespace {
+
+class ScriptedUnsignedReader final : public ffv1::entropy::SymbolReader {
+public:
+    explicit ScriptedUnsignedReader(std::deque<std::uint64_t> values, std::uint64_t bytes_per_read)
+        : values_(std::move(values))
+        , bytes_per_read_(bytes_per_read)
+    {
+    }
+
+    ffv1::Status read_bool(bool&) override
+    {
+        return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected bool read");
+    }
+
+    ffv1::Status read_unsigned(std::uint64_t& out_value) override
+    {
+        if (values_.empty()) {
+            return ffv1::make_error(ffv1::ErrorCode::SyntaxError, "scripted reader underflow");
+        }
+        out_value = values_.front();
+        values_.pop_front();
+        byte_position_ += bytes_per_read_;
+        return ffv1::ok_status();
+    }
+
+    ffv1::Status read_signed(std::int64_t&) override
+    {
+        return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected signed read");
+    }
+
+    std::uint64_t byte_position() const noexcept override
+    {
+        return byte_position_;
+    }
+
+private:
+    std::deque<std::uint64_t> values_;
+    std::uint64_t bytes_per_read_ = 0;
+    std::uint64_t byte_position_ = 0;
+};
 
 ffv1::syntax::StreamParameters make_stream()
 {
@@ -63,6 +106,51 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptor)
     EXPECT_EQ(frame.frame_info.width, stream.width);
     EXPECT_EQ(frame.frame_info.height, stream.height);
     EXPECT_EQ(frame.frame_info.plane_count, 1u);
+}
+
+TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
+{
+    const auto stream = make_stream();
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({2, 1, 8, 4, 1, 0}, 1);
+    const std::array<std::byte, 16> payload{
+        std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
+        std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
+        std::byte{8}, std::byte{9}, std::byte{10}, std::byte{11},
+        std::byte{12}, std::byte{13}, std::byte{14}, std::byte{15},
+    };
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].x, 2u);
+    EXPECT_EQ(frame.slices[0].y, 1u);
+    EXPECT_EQ(frame.slices[0].width, 8u);
+    EXPECT_EQ(frame.slices[0].height, 4u);
+    EXPECT_EQ(frame.slices[0].header_byte_offset, 0u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 6u);
+    EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
+    ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 1u);
+    EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
+}
+
+TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
+{
+    const auto stream = make_stream();
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({0, 0, 16, 8, 1, 0}, 2);
+    const std::array<std::byte, 8> payload{
+        std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
+        std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
+    };
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
 TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)

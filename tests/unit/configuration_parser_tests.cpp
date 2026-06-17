@@ -189,5 +189,49 @@ TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)
     EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
 }
 
-} // namespace
+TEST(ConfigurationParserTest, Version0UsesDefaultZeroQuantTableSet)
+{
+    std::deque<Symbol> symbols{
+        u(0),     // version
+        u(1),     // coder_type: range
+        u(0),     // colorspace_type: YCbCr
+        b(false), // chroma_planes
+        u(0),     // log2_h_chroma_subsample
+        u(0),     // log2_v_chroma_subsample
+        b(false), // extra_plane
+    };
 
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(stream.version, 0);
+    ASSERT_EQ(stream.quant_table_sets.size(), 1u);
+    EXPECT_EQ(stream.quant_table_sets[0].context_count, 1u);
+}
+
+TEST(ConfigurationParserTest, QuantTableMirrorsNegativeHalf)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[12] = u(0);  // table 0: value 0 for index 0
+    symbols.insert(symbols.begin() + 13, u(126)); // table 0: value 1 for indexes 1..127
+
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(stream.quant_table_sets.size(), 1u);
+    EXPECT_EQ(stream.quant_table_sets[0].tables[0][0], 0);
+    EXPECT_EQ(stream.quant_table_sets[0].tables[0][1], 1);
+    EXPECT_EQ(stream.quant_table_sets[0].tables[0][127], 1);
+    EXPECT_EQ(stream.quant_table_sets[0].tables[0][128], -1);
+    EXPECT_EQ(stream.quant_table_sets[0].tables[0][255], -1);
+}
+
+} // namespace

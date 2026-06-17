@@ -17,6 +17,8 @@ struct QuantTableSet {
     std::uint32_t context_count = 0;
 };
 
+QuantTableSet make_zero_quant_table_set();
+
 struct InitialState {
     std::uint8_t state = 0;
 };

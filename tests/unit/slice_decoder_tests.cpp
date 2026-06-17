@@ -1,4 +1,5 @@
 #include "codec/slice_decoder.hpp"
+#include "ffv1/configuration_parser.hpp"
 
 #include <array>
 #include <cstdint>
@@ -14,9 +15,7 @@ ffv1::syntax::StreamParameters make_stream()
     stream.height = 2;
     stream.bits_per_raw_sample = 8;
     stream.chroma_planes = false;
-    ffv1::syntax::QuantTableSet table_set;
-    table_set.context_count = 1;
-    stream.quant_table_sets.push_back(table_set);
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
     return stream;
 }
 

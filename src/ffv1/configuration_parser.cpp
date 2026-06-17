@@ -10,6 +10,13 @@
 
 namespace ffv1::syntax {
 
+QuantTableSet make_zero_quant_table_set()
+{
+    QuantTableSet table_set;
+    table_set.context_count = 1;
+    return table_set;
+}
+
 namespace {
 
 constexpr std::uint64_t kMaxQuantTableSetCount = 8;
@@ -163,11 +170,15 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         }
     }
 
-    stream.quant_table_sets.resize(static_cast<std::size_t>(quant_table_set_count));
-    for (auto& set : stream.quant_table_sets) {
-        status = parse_quant_table_set(reader, set);
-        if (!status.ok()) {
-            return status;
+    if (stream.version == 0) {
+        stream.quant_table_sets.push_back(make_zero_quant_table_set());
+    } else {
+        stream.quant_table_sets.resize(static_cast<std::size_t>(quant_table_set_count));
+        for (auto& set : stream.quant_table_sets) {
+            status = parse_quant_table_set(reader, set);
+            if (!status.ok()) {
+                return status;
+            }
         }
     }
 

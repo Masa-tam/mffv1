@@ -200,4 +200,40 @@ TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
     }
 }
 
+TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const std::array<std::byte, 3> configuration_record{
+        std::byte{0x95},
+        std::byte{0x36},
+        std::byte{0xe9},
+    };
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = options.frame_width;
+    plane.info.height = options.frame_height;
+    plane.info.stride_bytes = 1;
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> frame_payload{
+        std::byte{0x14},
+        std::byte{0x46},
+    };
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 1u);
+}
+
 } // namespace

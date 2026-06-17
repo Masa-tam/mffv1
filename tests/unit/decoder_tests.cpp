@@ -104,6 +104,20 @@ TEST(DecoderTest, DecodeRequiresConfiguration)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
 }
 
+TEST(DecoderTest, InspectFrameRequiresConfiguration)
+{
+    const auto result = ffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const std::array<std::byte, 1> payload{std::byte{0x00}};
+    ffv1::FrameInfo info;
+    const auto status = result.decoder->inspect_frame(payload, info);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+}
+
 TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
 {
     const auto result = ffv1::create_decoder({});
@@ -119,6 +133,26 @@ TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+}
+
+TEST(DecoderTest, InspectFrameRejectsEmptyPayload)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    const ffv1::ByteSpan frame_payload;
+    ffv1::FrameInfo info;
+    const auto status = result.decoder->inspect_frame(frame_payload, info);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)

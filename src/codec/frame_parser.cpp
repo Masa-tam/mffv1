@@ -76,7 +76,11 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return status;
     }
     if (slice.content_byte_offset > payload.size()) {
-        return make_error(ErrorCode::SyntaxError, "slice header consumes more bytes than the frame payload contains");
+        Status error =
+            make_error(ErrorCode::SyntaxError, "slice header consumes more bytes than the frame payload contains");
+        error.location.has_byte_offset = true;
+        error.location.byte_offset = slice.content_byte_offset;
+        return error;
     }
     slice.payload = payload;
     out_frame.slices.push_back(slice);

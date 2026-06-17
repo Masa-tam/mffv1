@@ -5,6 +5,7 @@
 #include "ffv1/predictor.hpp"
 #include "util/status.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 
@@ -100,12 +101,18 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                             SliceOutputWindow& output,
                             SliceState& state) const
 {
-    if (slice.content_byte_offset > slice.payload.size()) {
+    if (slice.content_byte_offset < slice.payload_byte_offset) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice content offset is before payload",
+                               slice.content_byte_offset);
+    }
+    const auto local_content_offset = slice.content_byte_offset - slice.payload_byte_offset;
+    if (local_content_offset > slice.payload.size()) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice content offset is outside payload",
                                slice.content_byte_offset);
     }
-    const auto content_payload = slice.payload.subspan(static_cast<std::size_t>(slice.content_byte_offset));
+    const auto content_payload = slice.payload.subspan(static_cast<std::size_t>(local_content_offset));
     if (content_payload.empty()) {
         return make_byte_error(ErrorCode::SyntaxError, "slice payload is empty", slice.content_byte_offset);
     }

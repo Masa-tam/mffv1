@@ -1,6 +1,7 @@
 #include "codec/frame_parser.hpp"
 
 #include "codec/slice_header_parser.hpp"
+#include "codec/slice_raster_validator.hpp"
 #include "entropy/range_coder.hpp"
 #include "util/status.hpp"
 
@@ -44,6 +45,11 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     slice.payload_byte_offset = 0;
     out_frame.slices.push_back(slice);
 
+    status = validate_slice_raster_coverage(stream_, out_frame.slices);
+    if (!status.ok()) {
+        set_slice_location_if_missing(status, slice.index);
+        return status;
+    }
     return ok_status();
 }
 
@@ -88,6 +94,11 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
     }
     slice.payload = payload;
     out_frame.slices.push_back(slice);
+    status = validate_slice_raster_coverage(stream_, out_frame.slices);
+    if (!status.ok()) {
+        set_slice_location_if_missing(status, slice.index);
+        return status;
+    }
     return ok_status();
 }
 

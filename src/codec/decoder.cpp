@@ -56,7 +56,7 @@ public:
             return status;
         }
         out_info = frame.frame_info;
-        return make_error(ErrorCode::NotImplemented, "frame inspection is not implemented yet");
+        return ok_status();
     }
 
     Status decode_frame(ByteSpan frame_payload, MutableFrameView output) override

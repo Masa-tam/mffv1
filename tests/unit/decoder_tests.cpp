@@ -79,4 +79,32 @@ TEST(DecoderTest, DecodeRequiresConfiguration)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
 }
 
+TEST(DecoderTest, InspectFrameUsesExternalDimensions)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 16;
+    options.frame_height = 8;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const std::array<std::byte, 3> configuration_record{
+        std::byte{0x95},
+        std::byte{0x36},
+        std::byte{0xe9},
+    };
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
+    ffv1::FrameInfo info;
+    const auto status = result.decoder->inspect_frame(frame_payload, info);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(info.width, options.frame_width);
+    EXPECT_EQ(info.height, options.frame_height);
+    EXPECT_EQ(info.version, 0u);
+    EXPECT_EQ(info.bits_per_raw_sample, 8u);
+    EXPECT_EQ(info.plane_count, 1u);
+}
+
 } // namespace

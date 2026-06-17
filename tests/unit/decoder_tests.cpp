@@ -303,4 +303,40 @@ TEST(DecoderTest, DecodeFrameUsesTopPrediction)
     EXPECT_EQ(storage[1], 1u);
 }
 
+TEST(DecoderTest, DecodeFramePreservesStridePadding)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 2;
+    options.frame_height = 2;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 4);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 16> frame_payload{
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+    };
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[1], 0u);
+    EXPECT_EQ(storage[2], 0xee);
+    EXPECT_EQ(storage[3], 0xee);
+    EXPECT_EQ(storage[4], 0u);
+    EXPECT_EQ(storage[5], 0u);
+    EXPECT_EQ(storage[6], 0xee);
+    EXPECT_EQ(storage[7], 0xee);
+}
+
 } // namespace

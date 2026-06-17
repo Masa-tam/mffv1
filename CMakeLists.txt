@@ -12,6 +12,7 @@ add_library(ffv1
     src/bitstream/bit_reader.cpp
     src/codec/decoder.cpp
     src/codec/encoder.cpp
+    src/codec/frame_parser.cpp
     src/codec/frame_validator.cpp
     src/codec/configuration_record_parser.cpp
     src/entropy/range_coder.cpp

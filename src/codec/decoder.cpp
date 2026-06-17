@@ -1,6 +1,8 @@
 #include "ffv1/codec.hpp"
 
 #include "codec/configuration_record_parser.hpp"
+#include "codec/frame_decode_context.hpp"
+#include "codec/frame_parser.hpp"
 #include "codec/frame_validator.hpp"
 #include "ffv1/stream_parameters.hpp"
 
@@ -40,12 +42,13 @@ public:
         if (frame_payload.empty()) {
             return make_error(ErrorCode::InvalidArgument, "frame payload is empty");
         }
-        out_info = {};
-        out_info.width = stream_->width;
-        out_info.height = stream_->height;
-        out_info.version = static_cast<std::uint8_t>(stream_->version);
-        out_info.bits_per_raw_sample = stream_->bits_per_raw_sample;
-        out_info.plane_count = syntax::coded_plane_count(*stream_);
+        codec::FrameDecodeContext frame;
+        codec::FrameParser parser(*stream_);
+        Status status = parser.parse(frame_payload, frame);
+        if (!status.ok()) {
+            return status;
+        }
+        out_info = frame.frame_info;
         return make_error(ErrorCode::NotImplemented, "frame inspection is not implemented yet");
     }
 
@@ -57,8 +60,15 @@ public:
         if (frame_payload.empty()) {
             return make_error(ErrorCode::InvalidArgument, "frame payload is empty");
         }
+        codec::FrameDecodeContext frame;
+        frame.output = output;
+        codec::FrameParser parser(*stream_);
+        Status status = parser.parse(frame_payload, frame);
+        if (!status.ok()) {
+            return status;
+        }
         const codec::FrameValidator validator;
-        Status status = validator.validate_output(*stream_, output);
+        status = validator.validate_output(*stream_, output);
         if (!status.ok()) {
             return status;
         }

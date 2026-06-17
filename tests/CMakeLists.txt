@@ -20,6 +20,7 @@ endif()
 add_executable(ffv1_unit_tests
     unit/bit_reader_tests.cpp
     unit/decoder_tests.cpp
+    unit/frame_parser_tests.cpp
     unit/configuration_parser_tests.cpp
     unit/frame_validator_tests.cpp
     unit/predictor_tests.cpp

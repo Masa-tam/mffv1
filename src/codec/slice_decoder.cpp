@@ -119,6 +119,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
     }
+    if (stream_.bits_per_raw_sample == 0 || stream_.bits_per_raw_sample > 16) {
+        return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
+    }
     if (stream_.chroma_planes || stream_.extra_plane || output.plane_count() != 1) {
         return make_error(ErrorCode::NotImplemented, "only Y-only slice decoding is implemented");
     }

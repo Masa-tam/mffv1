@@ -303,6 +303,34 @@ TEST(SliceDecoderTest, ReportsUnsupportedChromaPath)
     EXPECT_EQ(status.code, ffv1::ErrorCode::NotImplemented);
 }
 
+TEST(SliceDecoderTest, RejectsUnsupportedBitDepth)
+{
+    auto stream = make_stream();
+    stream.bits_per_raw_sample = 17;
+    std::array<std::uint16_t, 8> storage{};
+    auto plane = make_u16_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.content_byte_offset = 0;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+}
+
 TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
 {
     const auto stream = make_stream();

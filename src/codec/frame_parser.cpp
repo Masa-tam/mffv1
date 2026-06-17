@@ -1,6 +1,7 @@
 #include "codec/frame_parser.hpp"
 
 #include "codec/slice_header_parser.hpp"
+#include "entropy/range_coder.hpp"
 
 #include <cstdint>
 
@@ -42,6 +43,16 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     out_frame.slices.push_back(slice);
 
     return ok_status();
+}
+
+Status FrameParser::parse_with_range_header(ByteSpan payload, FrameDecodeContext& out_frame) const
+{
+    entropy::RangeCoder header_reader;
+    Status status = header_reader.reset(payload);
+    if (!status.ok()) {
+        return status;
+    }
+    return parse_with_header_reader(payload, header_reader, out_frame);
 }
 
 Status FrameParser::parse_with_header_reader(ByteSpan payload,

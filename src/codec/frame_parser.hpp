@@ -13,6 +13,7 @@ public:
     explicit FrameParser(const syntax::StreamParameters& stream) noexcept;
 
     Status parse(ByteSpan payload, FrameDecodeContext& out_frame) const;
+    Status parse_with_range_header(ByteSpan payload, FrameDecodeContext& out_frame) const;
     Status parse_with_header_reader(ByteSpan payload,
                                     entropy::SymbolReader& header_reader,
                                     FrameDecodeContext& out_frame) const;

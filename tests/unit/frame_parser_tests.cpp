@@ -153,6 +153,37 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
+TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
+{
+    const auto stream = make_stream();
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array<std::byte, 1> payload{std::byte{0}};
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
+TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
+{
+    const auto stream = make_stream();
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array<std::byte, 4> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
 TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
 {
     auto stream = make_stream();

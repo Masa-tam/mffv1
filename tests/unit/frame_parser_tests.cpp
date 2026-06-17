@@ -184,6 +184,36 @@ TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
+TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
+{
+    const auto stream = make_stream();
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array<std::byte, 7> payload{
+        std::byte{0xd8},
+        std::byte{0xa4},
+        std::byte{0x3d},
+        std::byte{0x65},
+        std::byte{0x43},
+        std::byte{0x7d},
+        std::byte{0x38},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].x, 0u);
+    EXPECT_EQ(frame.slices[0].y, 0u);
+    EXPECT_EQ(frame.slices[0].width, stream.width);
+    EXPECT_EQ(frame.slices[0].height, stream.height);
+    EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 4u);
+    EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
+    ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 1u);
+    EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
+}
+
 TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
 {
     auto stream = make_stream();

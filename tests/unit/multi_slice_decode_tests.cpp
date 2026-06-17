@@ -69,7 +69,7 @@ TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage);
     ffv1::MutableFrameView output{&plane, 1};
-    const ffv1::codec::SliceExecutor executor(stream);
+    const ffv1::codec::SliceExecutor executor(stream, 2);
     status = executor.decode(output, frame.slices);
     ASSERT_TRUE(status.ok()) << status.message;
 

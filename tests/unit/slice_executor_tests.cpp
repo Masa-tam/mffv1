@@ -91,4 +91,33 @@ TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
     EXPECT_EQ(status.location.slice_index, 7u);
 }
 
+TEST(SliceExecutorTest, ParallelDecodeReportsFirstFailingSliceInInputOrder)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 1> payload{std::byte{0xff}};
+
+    ffv1::syntax::SliceDescriptor first;
+    first.index = 3;
+    first.width = 1;
+    first.height = 1;
+    first.payload = payload;
+    first.quant_table_set_indexes.push_back(0);
+
+    ffv1::syntax::SliceDescriptor second = first;
+    second.index = 9;
+
+    const std::array slices{first, second};
+
+    const ffv1::codec::SliceExecutor executor(stream, 2);
+    const auto status = executor.decode(output, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 3u);
+}
+
 } // namespace

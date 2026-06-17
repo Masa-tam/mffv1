@@ -19,6 +19,8 @@ public:
     [[nodiscard]] std::uint32_t thread_count() const noexcept;
 
 private:
+    Status decode_serial(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const;
+    Status decode_parallel(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const;
     Status decode_slice(MutableFrameView output, const syntax::SliceDescriptor& slice) const;
 
     const syntax::StreamParameters& stream_;

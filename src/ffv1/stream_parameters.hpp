@@ -55,9 +55,37 @@ struct StreamParameters {
     return count;
 }
 
+[[nodiscard]] inline std::uint32_t subsampled_extent(std::uint32_t value,
+                                                     std::uint8_t log2_subsample) noexcept
+{
+    if (log2_subsample == 0) {
+        return value;
+    }
+    const std::uint32_t add = (std::uint32_t{1} << log2_subsample) - 1;
+    return (value + add) >> log2_subsample;
+}
+
 [[nodiscard]] inline bool is_chroma_plane(const StreamParameters& stream, std::size_t plane_index) noexcept
 {
     return stream.chroma_planes && (plane_index == 1 || plane_index == 2);
+}
+
+[[nodiscard]] inline std::uint32_t plane_width(const StreamParameters& stream,
+                                               std::size_t plane_index) noexcept
+{
+    if (is_chroma_plane(stream, plane_index)) {
+        return subsampled_extent(stream.width, stream.log2_h_chroma_subsample);
+    }
+    return stream.width;
+}
+
+[[nodiscard]] inline std::uint32_t plane_height(const StreamParameters& stream,
+                                                std::size_t plane_index) noexcept
+{
+    if (is_chroma_plane(stream, plane_index)) {
+        return subsampled_extent(stream.height, stream.log2_v_chroma_subsample);
+    }
+    return stream.height;
 }
 
 [[nodiscard]] inline PlaneRole expected_plane_role(const StreamParameters& stream,

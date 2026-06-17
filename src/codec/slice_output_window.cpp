@@ -8,15 +8,6 @@ namespace ffv1::codec {
 
 namespace {
 
-std::uint32_t subsampled_extent(std::uint32_t value, std::uint8_t log2_subsample) noexcept
-{
-    if (log2_subsample == 0) {
-        return value;
-    }
-    const std::uint32_t add = (std::uint32_t{1} << log2_subsample) - 1;
-    return (value + add) >> log2_subsample;
-}
-
 std::uint32_t plane_x(const syntax::StreamParameters& stream,
                       const syntax::SliceDescriptor& slice,
                       std::size_t plane_index) noexcept
@@ -42,7 +33,7 @@ std::uint32_t slice_plane_width(const syntax::StreamParameters& stream,
                                 std::size_t plane_index) noexcept
 {
     if (syntax::is_chroma_plane(stream, plane_index)) {
-        return subsampled_extent(slice.width, stream.log2_h_chroma_subsample);
+        return syntax::subsampled_extent(slice.width, stream.log2_h_chroma_subsample);
     }
     return slice.width;
 }
@@ -52,27 +43,9 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
                                  std::size_t plane_index) noexcept
 {
     if (syntax::is_chroma_plane(stream, plane_index)) {
-        return subsampled_extent(slice.height, stream.log2_v_chroma_subsample);
+        return syntax::subsampled_extent(slice.height, stream.log2_v_chroma_subsample);
     }
     return slice.height;
-}
-
-std::uint32_t frame_plane_width(const syntax::StreamParameters& stream,
-                                std::size_t plane_index) noexcept
-{
-    if (syntax::is_chroma_plane(stream, plane_index)) {
-        return subsampled_extent(stream.width, stream.log2_h_chroma_subsample);
-    }
-    return stream.width;
-}
-
-std::uint32_t frame_plane_height(const syntax::StreamParameters& stream,
-                                 std::size_t plane_index) noexcept
-{
-    if (syntax::is_chroma_plane(stream, plane_index)) {
-        return subsampled_extent(stream.height, stream.log2_v_chroma_subsample);
-    }
-    return stream.height;
 }
 
 std::uint32_t bytes_per_sample(SampleFormat format) noexcept
@@ -119,8 +92,8 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
         const std::uint32_t py = plane_y(stream, slice, i);
         const std::uint32_t pw = slice_plane_width(stream, slice, i);
         const std::uint32_t ph = slice_plane_height(stream, slice, i);
-        const std::uint32_t frame_width = frame_plane_width(stream, i);
-        const std::uint32_t frame_height = frame_plane_height(stream, i);
+        const std::uint32_t frame_width = syntax::plane_width(stream, i);
+        const std::uint32_t frame_height = syntax::plane_height(stream, i);
 
         if (plane.info.width < frame_width || plane.info.height < frame_height) {
             return make_error(ErrorCode::InvalidArgument, "output plane dimensions are smaller than the frame plane");

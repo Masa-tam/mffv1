@@ -26,29 +26,11 @@ SampleFormat expected_sample_format(const syntax::StreamParameters& stream) noex
     return stream.bits_per_raw_sample <= 8 ? SampleFormat::UInt8 : SampleFormat::UInt16;
 }
 
-std::uint32_t plane_width(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
-{
-    if (syntax::is_chroma_plane(stream, plane_index)) {
-        return (stream.width + ((std::uint32_t{1} << stream.log2_h_chroma_subsample) - 1))
-            >> stream.log2_h_chroma_subsample;
-    }
-    return stream.width;
-}
-
-std::uint32_t plane_height(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
-{
-    if (syntax::is_chroma_plane(stream, plane_index)) {
-        return (stream.height + ((std::uint32_t{1} << stream.log2_v_chroma_subsample) - 1))
-            >> stream.log2_v_chroma_subsample;
-    }
-    return stream.height;
-}
-
 std::ptrdiff_t minimum_stride_bytes(const syntax::StreamParameters& stream,
                                     std::size_t plane_index) noexcept
 {
     const auto bytes_per_sample = stream.bits_per_raw_sample <= 8 ? 1u : 2u;
-    return static_cast<std::ptrdiff_t>(plane_width(stream, plane_index) * bytes_per_sample);
+    return static_cast<std::ptrdiff_t>(syntax::plane_width(stream, plane_index) * bytes_per_sample);
 }
 
 Status validate_plane_info(const syntax::StreamParameters& stream,
@@ -61,7 +43,8 @@ Status validate_plane_info(const syntax::StreamParameters& stream,
     if (info.sample_format != expected_sample_format(stream)) {
         return make_error(ErrorCode::InvalidArgument, "plane sample format does not match stream bit depth");
     }
-    if (info.width < plane_width(stream, plane_index) || info.height < plane_height(stream, plane_index)) {
+    if (info.width < syntax::plane_width(stream, plane_index)
+        || info.height < syntax::plane_height(stream, plane_index)) {
         return make_error(ErrorCode::InvalidArgument, "plane dimensions are smaller than the stream requires");
     }
     if (info.stride_bytes < minimum_stride_bytes(stream, plane_index)) {

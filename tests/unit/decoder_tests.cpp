@@ -17,6 +17,30 @@ std::array<std::byte, 3> minimal_v0_y_only_configuration_record()
     };
 }
 
+std::array<std::byte, 2> zero_scalar_payload()
+{
+    return {
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+}
+
+std::array<std::byte, 16> zero_frame_payload()
+{
+    return {
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+    };
+}
+
+ffv1::Status configure_minimal_v0_y_only(ffv1::IDecoder& decoder)
+{
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
+    return decoder.configure(configuration_record);
+}
+
 ffv1::MutablePlaneView make_y_plane(std::uint8_t* data,
                                     std::uint32_t width,
                                     std::uint32_t height,
@@ -124,8 +148,7 @@ TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
     ffv1::FrameInfo info;
@@ -144,8 +167,7 @@ TEST(DecoderTest, InspectFrameRejectsEmptyPayload)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     const ffv1::ByteSpan frame_payload;
     ffv1::FrameInfo info;
@@ -161,13 +183,12 @@ TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 1> storage{};
     auto plane = make_y_plane(storage.data(), 1, 1, 1);
     ffv1::MutableFrameView output{&plane, 1};
-    const std::array<std::byte, 2> frame_payload{std::byte{0xff}, std::byte{0x00}};
+    const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
@@ -184,16 +205,12 @@ TEST(DecoderTest, DecodeFrameRejectsMissingOutputPlanes)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     ffv1::MutableFrameView output;
     output.planes = nullptr;
     output.plane_count = 1;
-    const std::array<std::byte, 2> frame_payload{
-        std::byte{0xff},
-        std::byte{0x00},
-    };
+    const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
@@ -210,15 +227,11 @@ TEST(DecoderTest, DecodeFrameRejectsNullOutputPlaneData)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     auto plane = make_y_plane(nullptr, options.frame_width, options.frame_height, 1);
     ffv1::MutableFrameView output{&plane, 1};
-    const std::array<std::byte, 2> frame_payload{
-        std::byte{0xff},
-        std::byte{0x00},
-    };
+    const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
@@ -235,16 +248,12 @@ TEST(DecoderTest, DecodeFrameRejectsShortOutputStride)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 2> storage{};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     ffv1::MutableFrameView output{&plane, 1};
-    const std::array<std::byte, 2> frame_payload{
-        std::byte{0xff},
-        std::byte{0x00},
-    };
+    const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
@@ -261,8 +270,7 @@ TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint16_t, 1> storage{};
     ffv1::MutablePlaneView plane;
@@ -273,10 +281,7 @@ TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
     plane.info.height = options.frame_height;
     plane.info.stride_bytes = 2;
     ffv1::MutableFrameView output{&plane, 1};
-    const std::array<std::byte, 2> frame_payload{
-        std::byte{0xff},
-        std::byte{0x00},
-    };
+    const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
@@ -293,16 +298,12 @@ TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     ffv1::MutableFrameView output;
     output.planes = nullptr;
     output.plane_count = 0;
-    const std::array<std::byte, 2> frame_payload{
-        std::byte{0xff},
-        std::byte{0x00},
-    };
+    const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
@@ -319,8 +320,7 @@ TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 1> storage{};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
@@ -342,8 +342,7 @@ TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 1> storage{};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
@@ -365,8 +364,7 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
     ffv1::FrameInfo info;
@@ -389,20 +387,14 @@ TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 8> storage{};
     storage.fill(0xee);
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 4);
     ffv1::MutableFrameView output{&plane, 1};
 
-    const std::array<std::byte, 16> frame_payload{
-        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
-        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
-        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
-        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
-    };
+    const auto frame_payload = zero_frame_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
@@ -421,8 +413,7 @@ TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
@@ -447,8 +438,7 @@ TEST(DecoderTest, DecodeFrameWrapsNegativeDifference)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
@@ -473,8 +463,7 @@ TEST(DecoderTest, DecodeFrameUsesLeftPrediction)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 2);
@@ -500,8 +489,7 @@ TEST(DecoderTest, DecodeFrameUsesTopPrediction)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
@@ -527,19 +515,13 @@ TEST(DecoderTest, DecodeFramePreservesStridePadding)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const auto configuration_record = minimal_v0_y_only_configuration_record();
-    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 8> storage{};
     storage.fill(0xee);
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 4);
     ffv1::MutableFrameView output{&plane, 1};
-    const std::array<std::byte, 16> frame_payload{
-        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
-        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
-        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
-        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
-    };
+    const auto frame_payload = zero_frame_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 

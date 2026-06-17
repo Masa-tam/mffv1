@@ -1,5 +1,11 @@
 #include "codec/slice_decoder.hpp"
 
+#include "entropy/range_coder.hpp"
+#include "ffv1/predictor.hpp"
+
+#include <cstdint>
+#include <limits>
+
 namespace ffv1::syntax {
 
 Status LineState::reset(std::uint32_t width)
@@ -98,8 +104,52 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
     }
-    return make_error(ErrorCode::NotImplemented, "slice decoding is not implemented yet");
+    if (stream_.chroma_planes || stream_.extra_plane || stream_.bits_per_raw_sample > 8
+        || output.plane_count() != 1) {
+        return make_error(ErrorCode::NotImplemented, "only 8-bit Y-only slice decoding is implemented");
+    }
+
+    entropy::RangeCoder reader;
+    Status status = reader.reset(slice.payload, 1);
+    if (!status.ok()) {
+        return status;
+    }
+
+    auto& line = state.line_state(0);
+    for (std::uint32_t y = 0; y < output.plane_height(0); ++y) {
+        auto* row = output.row_u8(0, y);
+        if (row == nullptr) {
+            return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint8");
+        }
+
+        std::int32_t left = 0;
+        for (std::uint32_t x = 0; x < output.plane_width(0); ++x) {
+            const std::int32_t top = line.previous()[x];
+            const std::int32_t top_left = x == 0 ? 0 : line.previous()[x - 1];
+            const std::int32_t prediction = syntax::Predictor::median_predict(left, top, top_left);
+
+            std::int64_t difference64 = 0;
+            status = reader.read_signed(0, difference64);
+            if (!status.ok()) {
+                return status;
+            }
+            if (difference64 < std::numeric_limits<std::int32_t>::min()
+                || difference64 > std::numeric_limits<std::int32_t>::max()) {
+                return make_error(ErrorCode::SyntaxError, "sample difference is outside int32 range");
+            }
+
+            const std::int32_t sample =
+                syntax::Predictor::reconstruct(prediction,
+                                               static_cast<std::int32_t>(difference64),
+                                               stream_.bits_per_raw_sample);
+            row[x] = static_cast<std::uint8_t>(sample);
+            line.mutable_current()[x] = sample;
+            left = sample;
+        }
+        line.swap_lines();
+    }
+
+    return ok_status();
 }
 
 } // namespace ffv1::codec
-

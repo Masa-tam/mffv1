@@ -246,4 +246,70 @@ TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
     EXPECT_EQ(status.code, ffv1::ErrorCode::NotImplemented);
 }
 
+TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array<std::byte, 2> payload{
+        std::byte{0},
+        std::byte{0},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+}
+
+TEST(FrameParserTest, RejectsMultiSliceRangePayloadWithTooFewSlices)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(frame.slices.empty());
+}
+
+TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x03},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x03},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_NE(status.code, ffv1::ErrorCode::NotImplemented);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+}
+
 } // namespace

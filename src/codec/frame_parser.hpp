@@ -20,6 +20,7 @@ public:
 
 private:
     Status initialize_frame(ByteSpan payload, FrameDecodeContext& out_frame) const;
+    Status parse_located_range_slices(ByteSpan payload, FrameDecodeContext& out_frame) const;
 
     const syntax::StreamParameters& stream_;
 };

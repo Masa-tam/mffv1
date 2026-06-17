@@ -24,6 +24,10 @@ public:
                 const syntax::StreamParameters& stream,
                 SliceHeaderValues& out_values) const;
 
+    Status read_descriptor(entropy::SymbolReader& reader,
+                           const syntax::StreamParameters& stream,
+                           syntax::SliceDescriptor& descriptor) const;
+
     Status apply(const syntax::StreamParameters& stream,
                  const SliceHeaderValues& values,
                  syntax::SliceDescriptor& descriptor) const;

@@ -21,7 +21,7 @@ public:
                  std::size_t scalar_context_count = 1,
                  std::uint8_t initial_state = kDefaultInitialState);
 
-    [[nodiscard]] std::uint64_t byte_position() const noexcept;
+    [[nodiscard]] std::uint64_t byte_position() const noexcept override;
 
     Status read_bool(bool& out_value) override;
     Status read_unsigned(std::uint64_t& out_value) override;
@@ -46,4 +46,3 @@ private:
 };
 
 } // namespace ffv1::entropy
-

@@ -71,6 +71,28 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     return ok_status();
 }
 
+Status SliceHeaderParser::read_descriptor(entropy::SymbolReader& reader,
+                                          const syntax::StreamParameters& stream,
+                                          syntax::SliceDescriptor& descriptor) const
+{
+    SliceHeaderValues values;
+    const auto header_offset = reader.byte_position();
+    Status status = read(reader, stream, values);
+    if (!status.ok()) {
+        return status;
+    }
+
+    status = apply(stream, values, descriptor);
+    if (!status.ok()) {
+        return status;
+    }
+
+    descriptor.header_byte_offset = header_offset;
+    descriptor.content_byte_offset = reader.byte_position();
+    descriptor.payload_byte_offset = header_offset;
+    return ok_status();
+}
+
 Status SliceHeaderParser::apply(const syntax::StreamParameters& stream,
                                 const SliceHeaderValues& values,
                                 syntax::SliceDescriptor& descriptor) const

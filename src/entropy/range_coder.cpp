@@ -8,6 +8,11 @@
 
 namespace ffv1::entropy {
 
+std::uint64_t SymbolReader::byte_position() const noexcept
+{
+    return 0;
+}
+
 namespace {
 
 constexpr std::array<std::uint8_t, 256> kDefaultStateTransition = {
@@ -224,4 +229,3 @@ void RangeCoder::refill() noexcept
 }
 
 } // namespace ffv1::entropy
-

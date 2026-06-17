@@ -22,6 +22,22 @@ bool is_chroma_plane(std::size_t plane_index) noexcept
     return plane_index == 1 || plane_index == 2;
 }
 
+PlaneRole expected_plane_role(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
+{
+    if (plane_index == 0) {
+        return PlaneRole::Y;
+    }
+    if (stream.chroma_planes) {
+        if (plane_index == 1) {
+            return PlaneRole::Cb;
+        }
+        if (plane_index == 2) {
+            return PlaneRole::Cr;
+        }
+    }
+    return PlaneRole::Alpha;
+}
+
 std::uint32_t plane_x(const syntax::StreamParameters& stream,
                       const syntax::SliceDescriptor& slice,
                       std::size_t plane_index) noexcept
@@ -116,6 +132,9 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
         if (plane.data == nullptr) {
             return make_error(ErrorCode::InvalidArgument, "output plane data pointer is null");
         }
+        if (plane.info.role != expected_plane_role(stream, i)) {
+            return make_error(ErrorCode::InvalidArgument, "output plane role does not match stream plane order");
+        }
 
         const std::uint32_t px = plane_x(stream, slice, i);
         const std::uint32_t py = plane_y(stream, slice, i);
@@ -194,4 +213,3 @@ std::uint16_t* SliceOutputWindow::row_u16(std::size_t plane_index, std::uint32_t
 }
 
 } // namespace ffv1::codec
-

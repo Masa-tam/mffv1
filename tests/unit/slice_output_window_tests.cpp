@@ -116,6 +116,40 @@ TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
     EXPECT_EQ(window.row_u8(2, 1), cr.data() + 5);
 }
 
+TEST(SliceOutputWindowTest, RejectsSwappedChromaPlaneRoles)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 8;
+    stream.height = 4;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 32> y{};
+    std::array<std::uint8_t, 8> cb{};
+    std::array<std::uint8_t, 8> cr{};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 8;
+    slice.height = 4;
+
+    ffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
 TEST(SliceOutputWindowTest, MapsExtraPlaneAtFullResolution)
 {
     ffv1::syntax::StreamParameters stream;

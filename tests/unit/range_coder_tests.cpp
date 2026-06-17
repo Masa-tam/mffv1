@@ -31,6 +31,7 @@ TEST(RangeCoderTest, DecodesLowInitialStateAsFalseBinary)
     bool value = true;
     EXPECT_TRUE(coder.read_bool(value).ok());
     EXPECT_FALSE(value);
+    EXPECT_EQ(coder.byte_position(), 2u);
 }
 
 TEST(RangeCoderTest, DecodesHighInitialStateAsTrueBinary)
@@ -59,6 +60,26 @@ TEST(RangeCoderTest, DecodesHighInitialStateAsZeroUnsignedSymbol)
     std::uint64_t value = 99;
     EXPECT_TRUE(coder.read_unsigned(value).ok());
     EXPECT_EQ(value, 0u);
+    EXPECT_EQ(coder.byte_position(), 2u);
+}
+
+TEST(RangeCoderTest, BytePositionAdvancesAfterRefill)
+{
+    const std::array<std::byte, 4> payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0xaa},
+        std::byte{0xbb},
+    };
+    ffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload).ok());
+
+    bool value = true;
+    for (int i = 0; i < 64 && coder.byte_position() == 2; ++i) {
+        EXPECT_TRUE(coder.read_bool(value).ok());
+    }
+
+    EXPECT_GT(coder.byte_position(), 2u);
 }
 
 TEST(RangeCoderTest, DecodesHighInitialStateAsZeroSignedSymbol)
@@ -92,4 +113,3 @@ TEST(RangeCoderTest, RejectsOutOfRangeScalarContext)
 }
 
 } // namespace
-

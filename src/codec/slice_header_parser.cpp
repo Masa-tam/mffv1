@@ -1,5 +1,7 @@
 #include "codec/slice_header_parser.hpp"
 
+#include "util/status.hpp"
+
 #include <cstddef>
 #include <limits>
 
@@ -15,7 +17,7 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
         return status;
     }
     if (value > stream.width) {
-        return make_error(ErrorCode::SyntaxError, "slice_x is outside the frame");
+        return make_byte_error(ErrorCode::SyntaxError, "slice_x is outside the frame", reader.byte_position());
     }
     out_values.x = static_cast<std::uint32_t>(value);
 
@@ -24,7 +26,7 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
         return status;
     }
     if (value > stream.height) {
-        return make_error(ErrorCode::SyntaxError, "slice_y is outside the frame");
+        return make_byte_error(ErrorCode::SyntaxError, "slice_y is outside the frame", reader.byte_position());
     }
     out_values.y = static_cast<std::uint32_t>(value);
 
@@ -33,7 +35,9 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
         return status;
     }
     if (value == 0 || value > std::numeric_limits<std::uint32_t>::max()) {
-        return make_error(ErrorCode::SyntaxError, "slice_width must be non-zero and fit uint32");
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice_width must be non-zero and fit uint32",
+                               reader.byte_position());
     }
     out_values.width = static_cast<std::uint32_t>(value);
 
@@ -42,7 +46,9 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
         return status;
     }
     if (value == 0 || value > std::numeric_limits<std::uint32_t>::max()) {
-        return make_error(ErrorCode::SyntaxError, "slice_height must be non-zero and fit uint32");
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice_height must be non-zero and fit uint32",
+                               reader.byte_position());
     }
     out_values.height = static_cast<std::uint32_t>(value);
 
@@ -51,7 +57,9 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
         return status;
     }
     if (value == 0 || value > 3) {
-        return make_error(ErrorCode::UnsupportedFeature, "unsupported quant_table_set_index_count");
+        return make_byte_error(ErrorCode::UnsupportedFeature,
+                               "unsupported quant_table_set_index_count",
+                               reader.byte_position());
     }
 
     out_values.quant_table_set_indexes.clear();
@@ -63,7 +71,9 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
             return status;
         }
         if (index > std::numeric_limits<std::uint32_t>::max()) {
-            return make_error(ErrorCode::SyntaxError, "quant_table_set_index is too large");
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "quant_table_set_index is too large",
+                                   reader.byte_position());
         }
         out_values.quant_table_set_indexes.push_back(static_cast<std::uint32_t>(index));
     }

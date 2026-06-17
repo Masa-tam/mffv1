@@ -102,7 +102,7 @@ TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
 TEST(SliceHeaderParserTest, ReadRejectsUnsupportedQuantTableIndexCount)
 {
     const auto stream = make_stream();
-    ScriptedUnsignedReader reader({0, 0, 16, 8, 4});
+    ScriptedUnsignedReader reader({0, 0, 16, 8, 4}, 2);
     ffv1::codec::SliceHeaderValues values;
 
     const ffv1::codec::SliceHeaderParser parser;
@@ -110,6 +110,8 @@ TEST(SliceHeaderParserTest, ReadRejectsUnsupportedQuantTableIndexCount)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 10u);
 }
 
 TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)

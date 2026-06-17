@@ -1,0 +1,118 @@
+#include "codec/slice_raster_validator.hpp"
+
+#include <array>
+#include <vector>
+
+#include <gtest/gtest.h>
+
+namespace {
+
+ffv1::syntax::StreamParameters make_stream()
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 16;
+    stream.height = 8;
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    return stream;
+}
+
+ffv1::syntax::SliceDescriptor make_slice(std::uint32_t index,
+                                         std::uint32_t x,
+                                         std::uint32_t y,
+                                         std::uint32_t width,
+                                         std::uint32_t height)
+{
+    ffv1::syntax::SliceDescriptor slice;
+    slice.index = index;
+    slice.raster_x = x;
+    slice.raster_y = y;
+    slice.raster_width = width;
+    slice.raster_height = height;
+    return slice;
+}
+
+TEST(SliceRasterValidatorTest, AcceptsCompleteRasterCoverage)
+{
+    const auto stream = make_stream();
+    const std::array slices{
+        make_slice(0, 0, 0, 1, 1),
+        make_slice(1, 1, 0, 1, 1),
+        make_slice(2, 0, 1, 1, 1),
+        make_slice(3, 1, 1, 1, 1),
+    };
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+}
+
+TEST(SliceRasterValidatorTest, AcceptsSingleSliceCoveringWholeRaster)
+{
+    const auto stream = make_stream();
+    const std::array slices{make_slice(0, 0, 0, 2, 2)};
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+}
+
+TEST(SliceRasterValidatorTest, RejectsMissingRasterCell)
+{
+    const auto stream = make_stream();
+    const std::array slices{
+        make_slice(0, 0, 0, 1, 1),
+        make_slice(1, 1, 0, 1, 1),
+        make_slice(2, 0, 1, 1, 1),
+    };
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
+TEST(SliceRasterValidatorTest, RejectsOverlappingRasterCells)
+{
+    const auto stream = make_stream();
+    const std::array slices{
+        make_slice(0, 0, 0, 2, 1),
+        make_slice(1, 1, 0, 1, 1),
+        make_slice(2, 0, 1, 2, 1),
+    };
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 1u);
+}
+
+TEST(SliceRasterValidatorTest, RejectsOutOfRasterRectangle)
+{
+    const auto stream = make_stream();
+    const std::array slices{make_slice(7, 1, 0, 2, 1)};
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 7u);
+}
+
+TEST(SliceRasterValidatorTest, RejectsZeroSizedSlice)
+{
+    const auto stream = make_stream();
+    const std::array slices{make_slice(3, 0, 0, 0, 1)};
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 3u);
+}
+
+} // namespace

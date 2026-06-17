@@ -276,6 +276,52 @@ TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
 }
 
+TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    std::array<std::uint8_t, 1> storage{};
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
+    ffv1::MutableFrameView output{&plane, 1};
+    const ffv1::ByteSpan frame_payload;
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    std::array<std::uint8_t, 1> storage{};
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 1> frame_payload{std::byte{0xff}};
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 {
     ffv1::DecoderOptions options;

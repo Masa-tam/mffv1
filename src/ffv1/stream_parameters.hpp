@@ -88,6 +88,51 @@ struct StreamParameters {
     return stream.height;
 }
 
+[[nodiscard]] inline std::uint32_t scaled_grid_position(std::uint32_t extent,
+                                                        std::uint32_t grid_count,
+                                                        std::uint64_t grid_position) noexcept
+{
+    if (grid_count == 0) {
+        return 0;
+    }
+    const std::uint64_t scaled = grid_position * static_cast<std::uint64_t>(extent);
+    return static_cast<std::uint32_t>(scaled / grid_count);
+}
+
+[[nodiscard]] inline std::uint32_t slice_pixel_x(const StreamParameters& stream,
+                                                 std::uint32_t slice_x) noexcept
+{
+    return scaled_grid_position(stream.width, stream.num_h_slices, slice_x);
+}
+
+[[nodiscard]] inline std::uint32_t slice_pixel_y(const StreamParameters& stream,
+                                                 std::uint32_t slice_y) noexcept
+{
+    return scaled_grid_position(stream.height, stream.num_v_slices, slice_y);
+}
+
+[[nodiscard]] inline std::uint32_t slice_pixel_width(const StreamParameters& stream,
+                                                     std::uint32_t slice_x,
+                                                     std::uint32_t slice_width) noexcept
+{
+    const std::uint64_t slice_end =
+        static_cast<std::uint64_t>(slice_x) + static_cast<std::uint64_t>(slice_width);
+    const auto pixel_x = scaled_grid_position(stream.width, stream.num_h_slices, slice_x);
+    const auto pixel_end = scaled_grid_position(stream.width, stream.num_h_slices, slice_end);
+    return pixel_end - pixel_x;
+}
+
+[[nodiscard]] inline std::uint32_t slice_pixel_height(const StreamParameters& stream,
+                                                      std::uint32_t slice_y,
+                                                      std::uint32_t slice_height) noexcept
+{
+    const std::uint64_t slice_end =
+        static_cast<std::uint64_t>(slice_y) + static_cast<std::uint64_t>(slice_height);
+    const auto pixel_y = scaled_grid_position(stream.height, stream.num_v_slices, slice_y);
+    const auto pixel_end = scaled_grid_position(stream.height, stream.num_v_slices, slice_end);
+    return pixel_end - pixel_y;
+}
+
 [[nodiscard]] inline PlaneRole expected_plane_role(const StreamParameters& stream,
                                                    std::size_t plane_index) noexcept
 {

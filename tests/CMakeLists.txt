@@ -30,6 +30,7 @@ add_executable(ffv1_unit_tests
     unit/slice_decoder_tests.cpp
     unit/slice_header_parser_tests.cpp
     unit/slice_output_window_tests.cpp
+    unit/stream_parameters_tests.cpp
 )
 
 target_link_libraries(ffv1_unit_tests

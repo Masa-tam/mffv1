@@ -17,6 +17,7 @@ add_library(ffv1
     src/codec/configuration_record_parser.cpp
     src/codec/slice_decoder.cpp
     src/codec/slice_output_window.cpp
+    src/ffv1/context_model.cpp
     src/entropy/range_coder.cpp
     src/ffv1/configuration_parser.cpp
     src/ffv1/predictor.cpp

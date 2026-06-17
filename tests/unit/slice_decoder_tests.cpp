@@ -14,6 +14,9 @@ ffv1::syntax::StreamParameters make_stream()
     stream.height = 2;
     stream.bits_per_raw_sample = 8;
     stream.chroma_planes = false;
+    ffv1::syntax::QuantTableSet table_set;
+    table_set.context_count = 1;
+    stream.quant_table_sets.push_back(table_set);
     return stream;
 }
 

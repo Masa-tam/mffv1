@@ -1,6 +1,7 @@
 #include "codec/slice_decoder.hpp"
 
 #include "entropy/range_coder.hpp"
+#include "ffv1/context_model.hpp"
 #include "ffv1/predictor.hpp"
 
 #include <cstdint>
@@ -110,7 +111,12 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     }
 
     entropy::RangeCoder reader;
-    Status status = reader.reset(slice.payload, 1);
+    if (stream_.quant_table_sets.empty()) {
+        return make_error(ErrorCode::InvalidState, "stream has no quantization table sets");
+    }
+    const syntax::ContextModel context_model(stream_.quant_table_sets.front());
+
+    Status status = reader.reset(slice.payload, context_model.context_count());
     if (!status.ok()) {
         return status;
     }
@@ -126,10 +132,18 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         for (std::uint32_t x = 0; x < output.plane_width(0); ++x) {
             const std::int32_t top = line.previous()[x];
             const std::int32_t top_left = x == 0 ? 0 : line.previous()[x - 1];
+            const std::int32_t top_right =
+                (x + 1) < output.plane_width(0) ? line.previous()[x + 1] : top;
             const std::int32_t prediction = syntax::Predictor::median_predict(left, top, top_left);
 
+            std::uint32_t context_id = 0;
+            status = context_model.derive_context({left, top, top_left, top_right}, context_id);
+            if (!status.ok()) {
+                return status;
+            }
+
             std::int64_t difference64 = 0;
-            status = reader.read_signed(0, difference64);
+            status = reader.read_signed(context_id, difference64);
             if (!status.ok()) {
                 return status;
             }

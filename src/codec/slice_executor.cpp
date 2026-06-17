@@ -4,10 +4,30 @@
 #include "codec/slice_output_window.hpp"
 #include "util/status.hpp"
 
+#include <cstdint>
+
 namespace ffv1::codec {
 
+namespace {
+
+std::uint32_t normalize_thread_count(int thread_count) noexcept
+{
+    if (thread_count <= 1) {
+        return 1;
+    }
+    return static_cast<std::uint32_t>(thread_count);
+}
+
+} // namespace
+
 SliceExecutor::SliceExecutor(const syntax::StreamParameters& stream) noexcept
+    : SliceExecutor(stream, 1)
+{
+}
+
+SliceExecutor::SliceExecutor(const syntax::StreamParameters& stream, int thread_count) noexcept
     : stream_(stream)
+    , thread_count_(normalize_thread_count(thread_count))
 {
 }
 
@@ -21,6 +41,11 @@ Status SliceExecutor::decode(MutableFrameView output, std::span<const syntax::Sl
         }
     }
     return ok_status();
+}
+
+std::uint32_t SliceExecutor::thread_count() const noexcept
+{
+    return thread_count_;
 }
 
 Status SliceExecutor::decode_slice(MutableFrameView output, const syntax::SliceDescriptor& slice) const

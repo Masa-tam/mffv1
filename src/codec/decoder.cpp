@@ -111,7 +111,7 @@ private:
 
     Status decode_slices(const codec::FrameDecodeContext& frame, MutableFrameView output) const
     {
-        const codec::SliceExecutor executor(*stream_);
+        const codec::SliceExecutor executor(*stream_, options_.thread_count);
         return executor.decode(output, frame.slices);
     }
 
@@ -124,6 +124,10 @@ private:
 DecoderFactoryResult create_decoder(const DecoderOptions& options)
 {
     DecoderFactoryResult result;
+    if (options.thread_count < 0) {
+        result.status = make_error(ErrorCode::InvalidArgument, "decoder thread count must not be negative");
+        return result;
+    }
     if ((options.frame_width == 0) != (options.frame_height == 0)) {
         result.status = make_error(ErrorCode::InvalidArgument,
                                    "decoder frame dimensions must be both set or both zero");

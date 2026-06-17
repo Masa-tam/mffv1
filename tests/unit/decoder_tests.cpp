@@ -88,6 +88,18 @@ TEST(DecoderTest, FactoryRejectsIncompleteExternalFrameDimensions)
     EXPECT_EQ(result.decoder, nullptr);
 }
 
+TEST(DecoderTest, FactoryRejectsNegativeThreadCount)
+{
+    ffv1::DecoderOptions options;
+    options.thread_count = -1;
+
+    const auto result = ffv1::create_decoder(options);
+
+    EXPECT_FALSE(result.status.ok());
+    EXPECT_EQ(result.status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.decoder, nullptr);
+}
+
 TEST(DecoderTest, ConfigureRejectsEmptyConfigurationRecord)
 {
     const auto result = ffv1::create_decoder({});

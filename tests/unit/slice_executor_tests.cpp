@@ -46,6 +46,26 @@ TEST(SliceExecutorTest, AcceptsEmptySliceList)
     EXPECT_EQ(storage[0], 0xee);
 }
 
+TEST(SliceExecutorTest, NormalizesNonPositiveThreadCountToSerial)
+{
+    const auto stream = make_stream();
+
+    const ffv1::codec::SliceExecutor automatic_executor(stream, 0);
+    const ffv1::codec::SliceExecutor serial_executor(stream, 1);
+
+    EXPECT_EQ(automatic_executor.thread_count(), 1u);
+    EXPECT_EQ(serial_executor.thread_count(), 1u);
+}
+
+TEST(SliceExecutorTest, KeepsRequestedPositiveThreadCount)
+{
+    const auto stream = make_stream();
+
+    const ffv1::codec::SliceExecutor executor(stream, 4);
+
+    EXPECT_EQ(executor.thread_count(), 4u);
+}
+
 TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
 {
     const auto stream = make_stream();

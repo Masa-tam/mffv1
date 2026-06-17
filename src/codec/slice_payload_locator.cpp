@@ -4,7 +4,9 @@
 #include "codec/slice_footer_parser.hpp"
 #include "util/status.hpp"
 
+#include <algorithm>
 #include <cstddef>
+#include <utility>
 
 namespace ffv1::codec {
 
@@ -49,6 +51,43 @@ Status SlicePayloadLocator::locate_trailing_slice(ByteSpan frame_payload,
     descriptor.payload = frame_payload.subspan(static_cast<std::size_t>(descriptor.payload_byte_offset),
                                                descriptor.slice_size);
     descriptor.footer_byte_offset = descriptor.payload_byte_offset + descriptor.slice_size - footer_size;
+    return ok_status();
+}
+
+Status SlicePayloadLocator::locate_slices(ByteSpan frame_payload,
+                                          const syntax::StreamParameters& stream,
+                                          std::size_t expected_slice_count,
+                                          std::vector<syntax::SliceDescriptor>& descriptors) const
+{
+    if (expected_slice_count == 0) {
+        return make_error(ErrorCode::InvalidArgument, "expected slice count must be non-zero");
+    }
+
+    std::vector<syntax::SliceDescriptor> located;
+    located.reserve(expected_slice_count);
+    auto remaining_size = frame_payload.size();
+    for (std::size_t index = 0; index < expected_slice_count; ++index) {
+        syntax::SliceDescriptor descriptor;
+        Status status = locate_trailing_slice(frame_payload.subspan(0, remaining_size), stream, descriptor);
+        if (!status.ok()) {
+            return status;
+        }
+
+        remaining_size = static_cast<std::size_t>(descriptor.payload_byte_offset);
+        located.push_back(descriptor);
+    }
+
+    if (remaining_size != 0) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "frame payload contains bytes before the located slices",
+                               0);
+    }
+
+    std::reverse(located.begin(), located.end());
+    for (std::size_t index = 0; index < located.size(); ++index) {
+        located[index].index = static_cast<std::uint32_t>(index);
+    }
+    descriptors = std::move(located);
     return ok_status();
 }
 

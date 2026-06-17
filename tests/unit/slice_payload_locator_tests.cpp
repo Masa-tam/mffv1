@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -145,6 +146,111 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeLargerThanFrame)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
+}
+
+TEST(SlicePayloadLocatorTest, LocatesMultipleSlicesInPayloadOrder)
+{
+    const std::array payload{
+        std::byte{0xa0},
+        std::byte{0xa1},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+        std::byte{0xb0},
+        std::byte{0xb1},
+        std::byte{0xb2},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x06},
+    };
+    ffv1::syntax::StreamParameters stream;
+    std::vector<ffv1::syntax::SliceDescriptor> descriptors;
+
+    const ffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(payload, stream, 2, descriptors);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(descriptors.size(), 2u);
+    EXPECT_EQ(descriptors[0].index, 0u);
+    EXPECT_EQ(descriptors[0].slice_size, 5u);
+    EXPECT_EQ(descriptors[0].payload_byte_offset, 0u);
+    EXPECT_EQ(descriptors[0].footer_byte_offset, 2u);
+    EXPECT_EQ(descriptors[0].payload[0], std::byte{0xa0});
+    EXPECT_EQ(descriptors[1].index, 1u);
+    EXPECT_EQ(descriptors[1].slice_size, 6u);
+    EXPECT_EQ(descriptors[1].payload_byte_offset, 5u);
+    EXPECT_EQ(descriptors[1].footer_byte_offset, 8u);
+    EXPECT_EQ(descriptors[1].payload[0], std::byte{0xb0});
+}
+
+TEST(SlicePayloadLocatorTest, RejectsZeroExpectedSliceCount)
+{
+    const std::array payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+    ffv1::syntax::StreamParameters stream;
+    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+
+    const ffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(payload, stream, 0, descriptors);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(descriptors.size(), 1u);
+}
+
+TEST(SlicePayloadLocatorTest, RejectsUncoveredPrefixWhenExpectedCountIsTooSmall)
+{
+    const std::array payload{
+        std::byte{0xa0},
+        std::byte{0xa1},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+        std::byte{0xb0},
+        std::byte{0xb1},
+        std::byte{0xb2},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x06},
+    };
+    ffv1::syntax::StreamParameters stream;
+    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+
+    const ffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(payload, stream, 1, descriptors);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_EQ(descriptors.size(), 1u);
+}
+
+TEST(SlicePayloadLocatorTest, RejectsExpectedCountLargerThanPayload)
+{
+    const std::array payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+    ffv1::syntax::StreamParameters stream;
+    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+
+    const ffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(payload, stream, 2, descriptors);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_EQ(descriptors.size(), 1u);
 }
 
 } // namespace

@@ -1,8 +1,43 @@
 #include "codec/slice_header_parser.hpp"
 
+#include <cstdint>
+#include <deque>
+#include <utility>
+
 #include <gtest/gtest.h>
 
 namespace {
+
+class ScriptedUnsignedReader final : public ffv1::entropy::SymbolReader {
+public:
+    explicit ScriptedUnsignedReader(std::deque<std::uint64_t> values)
+        : values_(std::move(values))
+    {
+    }
+
+    ffv1::Status read_bool(bool&) override
+    {
+        return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected bool read");
+    }
+
+    ffv1::Status read_unsigned(std::uint64_t& out_value) override
+    {
+        if (values_.empty()) {
+            return ffv1::make_error(ffv1::ErrorCode::SyntaxError, "scripted reader underflow");
+        }
+        out_value = values_.front();
+        values_.pop_front();
+        return ffv1::ok_status();
+    }
+
+    ffv1::Status read_signed(std::int64_t&) override
+    {
+        return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected signed read");
+    }
+
+private:
+    std::deque<std::uint64_t> values_;
+};
 
 ffv1::syntax::StreamParameters make_stream()
 {
@@ -35,6 +70,37 @@ TEST(SliceHeaderParserTest, AppliesValidHeaderValues)
     EXPECT_EQ(descriptor.height, 4u);
     ASSERT_EQ(descriptor.quant_table_set_indexes.size(), 1u);
     EXPECT_EQ(descriptor.quant_table_set_indexes[0], 1u);
+}
+
+TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({4, 2, 8, 4, 1, 1});
+    ffv1::codec::SliceHeaderValues values;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(values.x, 4u);
+    EXPECT_EQ(values.y, 2u);
+    EXPECT_EQ(values.width, 8u);
+    EXPECT_EQ(values.height, 4u);
+    ASSERT_EQ(values.quant_table_set_indexes.size(), 1u);
+    EXPECT_EQ(values.quant_table_set_indexes[0], 1u);
+}
+
+TEST(SliceHeaderParserTest, ReadRejectsUnsupportedQuantTableIndexCount)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({0, 0, 16, 8, 4});
+    ffv1::codec::SliceHeaderValues values;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
 }
 
 TEST(SliceHeaderParserTest, RejectsOutOfFrameRectangle)
@@ -87,4 +153,3 @@ TEST(SliceHeaderParserTest, RejectsOutOfRangeQuantTableIndex)
 }
 
 } // namespace
-

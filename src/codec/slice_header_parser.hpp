@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "entropy/symbol_reader.hpp"
 #include "ffv1/result.hpp"
 #include "ffv1/slice_descriptor.hpp"
 #include "ffv1/stream_parameters.hpp"
@@ -19,10 +20,13 @@ struct SliceHeaderValues {
 
 class SliceHeaderParser {
 public:
+    Status read(entropy::SymbolReader& reader,
+                const syntax::StreamParameters& stream,
+                SliceHeaderValues& out_values) const;
+
     Status apply(const syntax::StreamParameters& stream,
                  const SliceHeaderValues& values,
                  syntax::SliceDescriptor& descriptor) const;
 };
 
 } // namespace ffv1::codec
-

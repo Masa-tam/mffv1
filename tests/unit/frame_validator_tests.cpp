@@ -66,6 +66,20 @@ TEST(FrameValidatorTest, RejectsWrongSampleFormat)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
 }
 
+TEST(FrameValidatorTest, RejectsWrongPlaneRole)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    plane.info.role = ffv1::PlaneRole::Cb;
+    ffv1::MutableFrameView frame{&plane, 1};
+
+    const ffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
 TEST(FrameValidatorTest, RejectsShortStride)
 {
     const auto stream = make_y_stream();
@@ -78,6 +92,72 @@ TEST(FrameValidatorTest, RejectsShortStride)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, AcceptsChromaPlaneRoles)
+{
+    auto stream = make_y_stream();
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 12> y{};
+    std::array<std::uint8_t, 4> cb{};
+    std::array<std::uint8_t, 4> cr{};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 4, 3, 4};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 2, 2, 2};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 2, 2, 2};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    const ffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
+TEST(FrameValidatorTest, RejectsSwappedChromaPlaneRoles)
+{
+    auto stream = make_y_stream();
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 12> y{};
+    std::array<std::uint8_t, 4> cb{};
+    std::array<std::uint8_t, 4> cr{};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 4, 3, 4};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 2, 2, 2};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 2, 2, 2};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    const ffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, AcceptsExtraPlaneRole)
+{
+    auto stream = make_y_stream();
+    stream.extra_plane = true;
+
+    std::array<std::uint8_t, 12> y{};
+    std::array<std::uint8_t, 12> alpha{};
+    std::array<ffv1::MutablePlaneView, 2> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 4, 3, 4};
+    planes[1].data = alpha.data();
+    planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt8, 4, 3, 4};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    const ffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
 }
 
 TEST(FrameValidatorTest, RequiresChromaPlanesWhenStreamHasChroma)
@@ -95,4 +175,3 @@ TEST(FrameValidatorTest, RequiresChromaPlanesWhenStreamHasChroma)
 }
 
 } // namespace
-

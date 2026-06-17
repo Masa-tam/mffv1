@@ -26,6 +26,22 @@ SampleFormat expected_sample_format(const syntax::StreamParameters& stream) noex
     return stream.bits_per_raw_sample <= 8 ? SampleFormat::UInt8 : SampleFormat::UInt16;
 }
 
+PlaneRole expected_plane_role(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
+{
+    if (plane_index == 0) {
+        return PlaneRole::Y;
+    }
+    if (stream.chroma_planes) {
+        if (plane_index == 1) {
+            return PlaneRole::Cb;
+        }
+        if (plane_index == 2) {
+            return PlaneRole::Cr;
+        }
+    }
+    return PlaneRole::Alpha;
+}
+
 std::uint32_t plane_width(const syntax::StreamParameters& stream, std::size_t plane_index) noexcept
 {
     if (plane_index == 1 || plane_index == 2) {
@@ -55,6 +71,9 @@ Status validate_plane_info(const syntax::StreamParameters& stream,
                            const PlaneInfo& info,
                            std::size_t plane_index)
 {
+    if (info.role != expected_plane_role(stream, plane_index)) {
+        return make_error(ErrorCode::InvalidArgument, "plane role does not match stream plane order");
+    }
     if (info.sample_format != expected_sample_format(stream)) {
         return make_error(ErrorCode::InvalidArgument, "plane sample format does not match stream bit depth");
     }
@@ -128,4 +147,3 @@ Status FrameValidator::validate_input(const syntax::StreamParameters& stream,
 }
 
 } // namespace ffv1::codec
-

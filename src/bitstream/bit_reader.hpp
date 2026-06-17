@@ -18,7 +18,9 @@ public:
 
     Status read_bit(std::uint8_t& out_bit) noexcept;
     Status read_bits(std::uint8_t bit_count, std::uint64_t& out_value) noexcept;
+    Status skip_bits(std::uint64_t bit_count) noexcept;
     Status byte_align() noexcept;
+    Status require_byte_aligned() const noexcept;
 
 private:
     std::span<const std::byte> data_;
@@ -26,4 +28,3 @@ private:
 };
 
 } // namespace ffv1::bitstream
-

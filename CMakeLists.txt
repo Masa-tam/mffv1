@@ -13,6 +13,7 @@ add_library(ffv1
     src/codec/decoder.cpp
     src/codec/encoder.cpp
     src/codec/frame_validator.cpp
+    src/ffv1/configuration_parser.cpp
     src/ffv1/predictor.cpp
     src/util/rfc_math.cpp
     src/util/status.cpp

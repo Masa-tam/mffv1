@@ -62,6 +62,15 @@ Status BitReader::read_bits(std::uint8_t bit_count, std::uint64_t& out_value) no
     return ok_status();
 }
 
+Status BitReader::skip_bits(std::uint64_t bit_count) noexcept
+{
+    if (remaining_bits() < bit_count) {
+        return make_error(ErrorCode::SyntaxError, "bitstream underflow while skipping bits");
+    }
+    bit_position_ += bit_count;
+    return ok_status();
+}
+
 Status BitReader::byte_align() noexcept
 {
     const auto remainder = bit_position_ % 8;
@@ -71,5 +80,12 @@ Status BitReader::byte_align() noexcept
     return ok_status();
 }
 
-} // namespace ffv1::bitstream
+Status BitReader::require_byte_aligned() const noexcept
+{
+    if ((bit_position_ % 8) != 0) {
+        return make_error(ErrorCode::SyntaxError, "bitstream is not byte aligned");
+    }
+    return ok_status();
+}
 
+} // namespace ffv1::bitstream

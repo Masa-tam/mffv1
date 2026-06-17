@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
+#include <cstddef>
 #include <vector>
 
 #include "ffv1/options.hpp"
@@ -8,7 +10,11 @@
 namespace ffv1::syntax {
 
 struct QuantTableSet {
-    std::vector<std::int32_t> table;
+    static constexpr std::size_t kContextInputs = 5;
+    static constexpr std::size_t kTableEntries = 256;
+
+    std::array<std::array<std::int32_t, kTableEntries>, kContextInputs> tables{};
+    std::uint32_t context_count = 0;
 };
 
 struct InitialState {
@@ -47,4 +53,3 @@ struct StreamParameters {
 }
 
 } // namespace ffv1::syntax
-

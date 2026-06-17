@@ -40,5 +40,24 @@ TEST(BitReaderTest, ReportsUnderflow)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
-} // namespace
+TEST(BitReaderTest, SkipsBitsAndRequiresByteAlignment)
+{
+    const std::array<std::byte, 2> data{
+        std::byte{0b1010'0101},
+        std::byte{0b1100'0011},
+    };
+    ffv1::bitstream::BitReader reader(data);
 
+    EXPECT_TRUE(reader.skip_bits(3).ok());
+    EXPECT_FALSE(reader.require_byte_aligned().ok());
+
+    EXPECT_TRUE(reader.byte_align().ok());
+    EXPECT_TRUE(reader.require_byte_aligned().ok());
+    EXPECT_EQ(reader.bit_position(), 8u);
+
+    std::uint64_t value = 0;
+    EXPECT_TRUE(reader.read_bits(8, value).ok());
+    EXPECT_EQ(value, 0b1100'0011u);
+}
+
+} // namespace

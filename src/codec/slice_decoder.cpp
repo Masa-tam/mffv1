@@ -63,6 +63,30 @@ void LineState::swap_lines() noexcept
 
 namespace ffv1::codec {
 
+namespace {
+
+void add_byte_offset(Status& status, std::uint64_t base_offset) noexcept
+{
+    if (status.location.has_byte_offset) {
+        status.location.byte_offset += base_offset;
+    } else {
+        set_byte_location_if_missing(status, base_offset);
+    }
+}
+
+void set_reader_byte_offset(Status& status,
+                            std::uint64_t content_offset,
+                            std::uint64_t reader_offset) noexcept
+{
+    if (status.location.has_byte_offset) {
+        status.location.byte_offset += content_offset;
+    } else {
+        set_byte_location_if_missing(status, content_offset + reader_offset);
+    }
+}
+
+} // namespace
+
 Status SliceState::reset(const syntax::StreamParameters& stream)
 {
     const auto planes = syntax::coded_plane_count(stream);
@@ -140,7 +164,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
 
     Status status = reader.reset(content_payload, context_model.context_count());
     if (!status.ok()) {
-        set_byte_location_if_missing(status, slice.content_byte_offset);
+        add_byte_offset(status, slice.content_byte_offset);
         return status;
     }
 
@@ -175,7 +199,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 std::int64_t difference64 = 0;
                 status = reader.read_signed(context.context, difference64);
                 if (!status.ok()) {
-                    set_byte_location_if_missing(status, slice.content_byte_offset + reader.byte_position());
+                    set_reader_byte_offset(status, slice.content_byte_offset, reader.byte_position());
                     return status;
                 }
                 if (context.invert_difference) {

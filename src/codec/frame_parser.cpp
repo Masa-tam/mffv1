@@ -31,7 +31,13 @@ void add_byte_offset(Status& status, std::uint64_t base_offset) noexcept
 } // namespace
 
 FrameParser::FrameParser(const syntax::StreamParameters& stream) noexcept
+    : FrameParser(stream, false)
+{
+}
+
+FrameParser::FrameParser(const syntax::StreamParameters& stream, bool verify_crc) noexcept
     : stream_(stream)
+    , verify_crc_(verify_crc)
 {
 }
 
@@ -136,7 +142,11 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
 
     std::vector<syntax::SliceDescriptor> located_slices;
     const SlicePayloadLocator payload_locator;
-    status = payload_locator.locate_slices(payload, stream_, expected_slice_count(stream_), located_slices);
+    status = payload_locator.locate_slices(payload,
+                                           stream_,
+                                           expected_slice_count(stream_),
+                                           located_slices,
+                                           verify_crc_);
     if (!status.ok()) {
         return status;
     }

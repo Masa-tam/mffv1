@@ -26,6 +26,7 @@ add_library(ffv1
     src/entropy/range_coder.cpp
     src/ffv1/configuration_parser.cpp
     src/ffv1/predictor.cpp
+    src/util/crc32.cpp
     src/util/rfc_math.cpp
     src/util/status.cpp
 )

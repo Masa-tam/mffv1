@@ -14,12 +14,14 @@ class SlicePayloadLocator {
 public:
     Status locate_trailing_slice(ByteSpan frame_payload,
                                  const syntax::StreamParameters& stream,
-                                 syntax::SliceDescriptor& descriptor) const;
+                                 syntax::SliceDescriptor& descriptor,
+                                 bool verify_crc = false) const;
 
     Status locate_slices(ByteSpan frame_payload,
                          const syntax::StreamParameters& stream,
                          std::size_t expected_slice_count,
-                         std::vector<syntax::SliceDescriptor>& descriptors) const;
+                         std::vector<syntax::SliceDescriptor>& descriptors,
+                         bool verify_crc = false) const;
 };
 
 } // namespace ffv1::codec

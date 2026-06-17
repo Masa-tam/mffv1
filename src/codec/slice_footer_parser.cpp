@@ -1,5 +1,6 @@
 #include "codec/slice_footer_parser.hpp"
 
+#include "util/crc32.hpp"
 #include "util/status.hpp"
 
 #include <cstddef>
@@ -64,7 +65,8 @@ Status SliceFooterParser::read(bitstream::BitReader& reader,
 
 Status SliceFooterParser::read_from_end(ByteSpan slice_payload,
                                         const syntax::StreamParameters& stream,
-                                        syntax::SliceDescriptor& descriptor) const
+                                        syntax::SliceDescriptor& descriptor,
+                                        bool verify_crc) const
 {
     const auto required_footer_size = footer_size(stream);
     if (slice_payload.size() < required_footer_size) {
@@ -91,6 +93,12 @@ Status SliceFooterParser::read_from_end(ByteSpan slice_payload,
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice footer size does not match slice payload size",
                                descriptor.footer_byte_offset);
+    }
+
+    if (verify_crc && descriptor.has_crc && util::crc32_ieee_msb(slice_payload) != 0) {
+        return make_byte_error(ErrorCode::CrcMismatch,
+                               "slice CRC remainder is non-zero",
+                               descriptor.footer_byte_offset + 4);
     }
 
     return ok_status();

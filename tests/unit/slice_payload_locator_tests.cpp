@@ -88,6 +88,62 @@ TEST(SlicePayloadLocatorTest, LocatesEcTrailingSlice)
     EXPECT_EQ(descriptor.expected_crc, 0x12345678u);
 }
 
+TEST(SlicePayloadLocatorTest, VerifiesEcTrailingSliceCrc)
+{
+    const std::array payload{
+        std::byte{0x99},
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+        std::byte{0x00},
+        std::byte{0x1f},
+        std::byte{0xfe},
+        std::byte{0xb9},
+        std::byte{0xe9},
+    };
+    ffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_trailing_slice(payload, stream, descriptor, true);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(descriptor.payload_byte_offset, 1u);
+    EXPECT_EQ(descriptor.footer_byte_offset, 3u);
+    EXPECT_EQ(descriptor.expected_crc, 0x1ffeb9e9u);
+}
+
+TEST(SlicePayloadLocatorTest, RejectsEcTrailingSliceCrcMismatch)
+{
+    const std::array payload{
+        std::byte{0x99},
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+        std::byte{0x00},
+        std::byte{0x1f},
+        std::byte{0xfe},
+        std::byte{0xb9},
+        std::byte{0xe8},
+    };
+    ffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_trailing_slice(payload, stream, descriptor, true);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 7u);
+}
+
 TEST(SlicePayloadLocatorTest, RejectsFrameTooSmallForFooter)
 {
     const std::array payload{

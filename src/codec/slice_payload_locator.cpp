@@ -2,6 +2,7 @@
 
 #include "bitstream/bit_reader.hpp"
 #include "codec/slice_footer_parser.hpp"
+#include "util/crc32.hpp"
 #include "util/status.hpp"
 
 #include <algorithm>
@@ -12,7 +13,8 @@ namespace ffv1::codec {
 
 Status SlicePayloadLocator::locate_trailing_slice(ByteSpan frame_payload,
                                                   const syntax::StreamParameters& stream,
-                                                  syntax::SliceDescriptor& descriptor) const
+                                                  syntax::SliceDescriptor& descriptor,
+                                                  bool verify_crc) const
 {
     const SliceFooterParser footer_parser;
     const auto footer_size = footer_parser.footer_size(stream);
@@ -51,13 +53,19 @@ Status SlicePayloadLocator::locate_trailing_slice(ByteSpan frame_payload,
     descriptor.payload = frame_payload.subspan(static_cast<std::size_t>(descriptor.payload_byte_offset),
                                                descriptor.slice_size);
     descriptor.footer_byte_offset = descriptor.payload_byte_offset + descriptor.slice_size - footer_size;
+    if (verify_crc && descriptor.has_crc && util::crc32_ieee_msb(descriptor.payload) != 0) {
+        return make_byte_error(ErrorCode::CrcMismatch,
+                               "slice CRC remainder is non-zero",
+                               descriptor.footer_byte_offset + 4);
+    }
     return ok_status();
 }
 
 Status SlicePayloadLocator::locate_slices(ByteSpan frame_payload,
                                           const syntax::StreamParameters& stream,
                                           std::size_t expected_slice_count,
-                                          std::vector<syntax::SliceDescriptor>& descriptors) const
+                                          std::vector<syntax::SliceDescriptor>& descriptors,
+                                          bool verify_crc) const
 {
     if (expected_slice_count == 0) {
         return make_error(ErrorCode::InvalidArgument, "expected slice count must be non-zero");
@@ -68,7 +76,10 @@ Status SlicePayloadLocator::locate_slices(ByteSpan frame_payload,
     auto remaining_size = frame_payload.size();
     for (std::size_t index = 0; index < expected_slice_count; ++index) {
         syntax::SliceDescriptor descriptor;
-        Status status = locate_trailing_slice(frame_payload.subspan(0, remaining_size), stream, descriptor);
+        Status status = locate_trailing_slice(frame_payload.subspan(0, remaining_size),
+                                              stream,
+                                              descriptor,
+                                              verify_crc);
         if (!status.ok()) {
             return status;
         }

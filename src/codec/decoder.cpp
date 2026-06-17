@@ -54,7 +54,7 @@ public:
             return make_error(ErrorCode::InvalidArgument, "frame payload is empty");
         }
         codec::FrameDecodeContext frame;
-        codec::FrameParser parser(*stream_);
+        codec::FrameParser parser(*stream_, options_.verify_crc);
         status = parse_frame(parser, frame_payload, frame);
         if (!status.ok()) {
             return status;
@@ -77,7 +77,7 @@ public:
         }
         codec::FrameDecodeContext frame;
         frame.output = output;
-        codec::FrameParser parser(*stream_);
+        codec::FrameParser parser(*stream_, options_.verify_crc);
         status = parse_frame(parser, frame_payload, frame);
         if (!status.ok()) {
             return status;

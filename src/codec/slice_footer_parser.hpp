@@ -17,7 +17,8 @@ public:
 
     Status read_from_end(ByteSpan slice_payload,
                          const syntax::StreamParameters& stream,
-                         syntax::SliceDescriptor& descriptor) const;
+                         syntax::SliceDescriptor& descriptor,
+                         bool verify_crc = false) const;
 };
 
 } // namespace ffv1::codec

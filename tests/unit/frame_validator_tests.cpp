@@ -30,6 +30,18 @@ ffv1::MutablePlaneView make_output_plane(std::array<std::uint8_t, 12>& storage)
     return plane;
 }
 
+ffv1::PlaneView make_input_plane(const std::array<std::uint8_t, 12>& storage)
+{
+    ffv1::PlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 4;
+    plane.info.height = 3;
+    plane.info.stride_bytes = 4;
+    return plane;
+}
+
 TEST(FrameValidatorTest, AcceptsValidOutputFrame)
 {
     const auto stream = make_y_stream();
@@ -39,6 +51,17 @@ TEST(FrameValidatorTest, AcceptsValidOutputFrame)
 
     const ffv1::codec::FrameValidator validator;
     EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
+TEST(FrameValidatorTest, AcceptsValidInputFrame)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    ffv1::FrameView frame{&plane, 1};
+
+    const ffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_input(stream, frame).ok());
 }
 
 TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
@@ -76,6 +99,20 @@ TEST(FrameValidatorTest, RejectsWrongPlaneRole)
 
     const ffv1::codec::FrameValidator validator;
     const auto status = validator.validate_output(stream, frame);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsWrongInputPlaneRole)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.role = ffv1::PlaneRole::Cr;
+    ffv1::FrameView frame{&plane, 1};
+
+    const ffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
 }

@@ -66,6 +66,17 @@ TEST(SliceExecutorTest, KeepsRequestedPositiveThreadCount)
     EXPECT_EQ(executor.thread_count(), 4u);
 }
 
+TEST(SliceExecutorTest, CapsWorkerCountToSliceCount)
+{
+    const auto stream = make_stream();
+    const ffv1::codec::SliceExecutor executor(stream, 8);
+
+    EXPECT_EQ(executor.worker_count_for(0), 0u);
+    EXPECT_EQ(executor.worker_count_for(1), 1u);
+    EXPECT_EQ(executor.worker_count_for(3), 3u);
+    EXPECT_EQ(executor.worker_count_for(9), 8u);
+}
+
 TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
 {
     const auto stream = make_stream();

@@ -5,6 +5,7 @@
 #include "util/status.hpp"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <future>
 #include <utility>
@@ -48,6 +49,14 @@ std::uint32_t SliceExecutor::thread_count() const noexcept
     return thread_count_;
 }
 
+std::size_t SliceExecutor::worker_count_for(std::size_t slice_count) const noexcept
+{
+    if (slice_count == 0) {
+        return 0;
+    }
+    return std::min<std::size_t>(thread_count_, slice_count);
+}
+
 Status SliceExecutor::decode_serial(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const
 {
     for (const auto& slice : slices) {
@@ -62,7 +71,7 @@ Status SliceExecutor::decode_serial(MutableFrameView output, std::span<const syn
 
 Status SliceExecutor::decode_parallel(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const
 {
-    const auto worker_count = std::min<std::size_t>(thread_count_, slices.size());
+    const auto worker_count = worker_count_for(slices.size());
     std::vector<std::future<Status>> futures;
     futures.reserve(worker_count);
     std::vector<Status> statuses;

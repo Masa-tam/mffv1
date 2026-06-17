@@ -119,9 +119,8 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
     }
-    if (stream_.chroma_planes || stream_.extra_plane || stream_.bits_per_raw_sample > 8
-        || output.plane_count() != 1) {
-        return make_error(ErrorCode::NotImplemented, "only 8-bit Y-only slice decoding is implemented");
+    if (stream_.chroma_planes || stream_.extra_plane || output.plane_count() != 1) {
+        return make_error(ErrorCode::NotImplemented, "only Y-only slice decoding is implemented");
     }
 
     entropy::RangeCoder reader;
@@ -145,9 +144,13 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
 
     auto& line = state.line_state(0);
     for (std::uint32_t y = 0; y < output.plane_height(0); ++y) {
-        auto* row = output.row_u8(0, y);
-        if (row == nullptr) {
+        auto* row_u8 = output.row_u8(0, y);
+        auto* row_u16 = output.row_u16(0, y);
+        if (stream_.bits_per_raw_sample <= 8 && row_u8 == nullptr) {
             return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint8");
+        }
+        if (stream_.bits_per_raw_sample > 8 && row_u16 == nullptr) {
+            return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint16");
         }
 
         std::int32_t left = 0;
@@ -184,7 +187,11 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 syntax::Predictor::reconstruct(prediction,
                                                static_cast<std::int32_t>(difference64),
                                                stream_.bits_per_raw_sample);
-            row[x] = static_cast<std::uint8_t>(sample);
+            if (stream_.bits_per_raw_sample <= 8) {
+                row_u8[x] = static_cast<std::uint8_t>(sample);
+            } else {
+                row_u16[x] = static_cast<std::uint16_t>(sample);
+            }
             line.mutable_current()[x] = sample;
             left = sample;
         }

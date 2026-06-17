@@ -31,6 +31,18 @@ ffv1::MutablePlaneView make_plane(std::array<std::uint8_t, 8>& storage)
     return plane;
 }
 
+ffv1::MutablePlaneView make_u16_plane(std::array<std::uint16_t, 8>& storage)
+{
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt16;
+    plane.info.width = 4;
+    plane.info.height = 2;
+    plane.info.stride_bytes = 8;
+    return plane;
+}
+
 TEST(LineStateTest, ResetsAndSwapsLines)
 {
     ffv1::syntax::LineState line;
@@ -121,6 +133,42 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly8BitSlice)
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
     auto plane = make_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 16> payload{
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+        std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
+    };
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.content_byte_offset = 0;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0u);
+    }
+}
+
+TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly16BitSlice)
+{
+    auto stream = make_stream();
+    stream.bits_per_raw_sample = 16;
+    std::array<std::uint16_t, 8> storage{};
+    storage.fill(0xffff);
+    auto plane = make_u16_plane(storage);
     ffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 16> payload{
         std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0xff},

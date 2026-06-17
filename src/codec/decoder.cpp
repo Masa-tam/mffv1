@@ -88,27 +88,7 @@ public:
         if (!status.ok()) {
             return status;
         }
-        for (const auto& slice : frame.slices) {
-            codec::SliceOutputWindow window;
-            status = window.validate(*stream_, output, slice);
-            if (!status.ok()) {
-                set_slice_location_if_missing(status, slice.index);
-                return status;
-            }
-            codec::SliceState state;
-            status = state.reset(*stream_);
-            if (!status.ok()) {
-                set_slice_location_if_missing(status, slice.index);
-                return status;
-            }
-            const codec::SliceDecoder decoder(*stream_);
-            status = decoder.decode(slice, window, state);
-            if (!status.ok()) {
-                set_slice_location_if_missing(status, slice.index);
-                return status;
-            }
-        }
-        return ok_status();
+        return decode_slices(frame, output);
     }
 
 private:
@@ -128,6 +108,36 @@ private:
             return parser.parse_with_range_header(frame_payload, frame);
         }
         return parser.parse(frame_payload, frame);
+    }
+
+    Status decode_slices(const codec::FrameDecodeContext& frame, MutableFrameView output) const
+    {
+        for (const auto& slice : frame.slices) {
+            Status status = decode_slice(slice, output);
+            if (!status.ok()) {
+                set_slice_location_if_missing(status, slice.index);
+                return status;
+            }
+        }
+        return ok_status();
+    }
+
+    Status decode_slice(const syntax::SliceDescriptor& slice, MutableFrameView output) const
+    {
+        codec::SliceOutputWindow window;
+        Status status = window.validate(*stream_, output, slice);
+        if (!status.ok()) {
+            return status;
+        }
+
+        codec::SliceState state;
+        status = state.reset(*stream_);
+        if (!status.ok()) {
+            return status;
+        }
+
+        const codec::SliceDecoder decoder(*stream_);
+        return decoder.decode(slice, window, state);
     }
 
     DecoderOptions options_;

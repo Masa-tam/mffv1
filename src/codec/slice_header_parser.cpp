@@ -52,6 +52,13 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     }
     out_values.height = static_cast<std::uint32_t>(value);
 
+    if (out_values.width > stream.width - out_values.x
+        || out_values.height > stream.height - out_values.y) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice header rectangle is outside the frame",
+                               reader.byte_position());
+    }
+
     status = reader.read_unsigned(value);
     if (!status.ok()) {
         return status;
@@ -73,6 +80,11 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
         if (index > std::numeric_limits<std::uint32_t>::max()) {
             return make_byte_error(ErrorCode::SyntaxError,
                                    "quant_table_set_index is too large",
+                                   reader.byte_position());
+        }
+        if (index >= static_cast<std::uint64_t>(stream.quant_table_sets.size())) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "slice header quantization table set index is out of range",
                                    reader.byte_position());
         }
         out_values.quant_table_set_indexes.push_back(static_cast<std::uint32_t>(index));

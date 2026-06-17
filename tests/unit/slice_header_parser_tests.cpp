@@ -114,6 +114,36 @@ TEST(SliceHeaderParserTest, ReadRejectsUnsupportedQuantTableIndexCount)
     EXPECT_EQ(status.location.byte_offset, 10u);
 }
 
+TEST(SliceHeaderParserTest, ReadRejectsOutOfFrameRectangleWithByteLocation)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({15, 0, 2, 1}, 2);
+    ffv1::codec::SliceHeaderValues values;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 8u);
+}
+
+TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({0, 0, 16, 8, 1, 2}, 2);
+    ffv1::codec::SliceHeaderValues values;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 12u);
+}
+
 TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)
 {
     const auto stream = make_stream();

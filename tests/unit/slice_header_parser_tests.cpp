@@ -104,6 +104,10 @@ TEST(SliceHeaderParserTest, AppliesRasterHeaderValuesAsPixelRectangle)
     EXPECT_EQ(descriptor.y, 3u);
     EXPECT_EQ(descriptor.width, 8u);
     EXPECT_EQ(descriptor.height, 7u);
+    EXPECT_EQ(descriptor.raster_x, 1u);
+    EXPECT_EQ(descriptor.raster_y, 1u);
+    EXPECT_EQ(descriptor.raster_width, 2u);
+    EXPECT_EQ(descriptor.raster_height, 2u);
     ASSERT_EQ(descriptor.quant_table_set_indexes.size(), 1u);
     EXPECT_EQ(descriptor.quant_table_set_indexes[0], 1u);
 }
@@ -207,6 +211,10 @@ TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)
     EXPECT_EQ(descriptor.y, 0u);
     EXPECT_EQ(descriptor.width, stream.width);
     EXPECT_EQ(descriptor.height, stream.height);
+    EXPECT_EQ(descriptor.raster_x, 0u);
+    EXPECT_EQ(descriptor.raster_y, 0u);
+    EXPECT_EQ(descriptor.raster_width, 1u);
+    EXPECT_EQ(descriptor.raster_height, 1u);
     ASSERT_EQ(descriptor.quant_table_set_indexes.size(), 1u);
     EXPECT_EQ(descriptor.quant_table_set_indexes[0], 1u);
     EXPECT_EQ(descriptor.header_byte_offset, 0u);

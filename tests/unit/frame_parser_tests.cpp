@@ -97,6 +97,10 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptor)
     EXPECT_EQ(frame.slices[0].y, 0u);
     EXPECT_EQ(frame.slices[0].width, stream.width);
     EXPECT_EQ(frame.slices[0].height, stream.height);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
     EXPECT_EQ(frame.slices[0].header_byte_offset, 0u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 0u);
@@ -129,6 +133,10 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     EXPECT_EQ(frame.slices[0].y, 0u);
     EXPECT_EQ(frame.slices[0].width, stream.width);
     EXPECT_EQ(frame.slices[0].height, stream.height);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 0u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 6u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
@@ -213,6 +221,10 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     EXPECT_EQ(frame.slices[0].y, 0u);
     EXPECT_EQ(frame.slices[0].width, stream.width);
     EXPECT_EQ(frame.slices[0].height, stream.height);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());

@@ -169,6 +169,10 @@ Status SliceHeaderParser::apply_raster(const syntax::StreamParameters& stream,
     descriptor.y = syntax::slice_pixel_y(stream, values.y);
     descriptor.width = syntax::slice_pixel_width(stream, values.x, values.width);
     descriptor.height = syntax::slice_pixel_height(stream, values.y, values.height);
+    descriptor.raster_x = values.x;
+    descriptor.raster_y = values.y;
+    descriptor.raster_width = values.width;
+    descriptor.raster_height = values.height;
     descriptor.quant_table_set_indexes = values.quant_table_set_indexes;
     return ok_status();
 }

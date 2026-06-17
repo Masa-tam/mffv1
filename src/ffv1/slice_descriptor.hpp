@@ -13,6 +13,10 @@ struct SliceDescriptor {
     std::uint32_t y = 0;
     std::uint32_t width = 0;
     std::uint32_t height = 0;
+    std::uint32_t raster_x = 0;
+    std::uint32_t raster_y = 0;
+    std::uint32_t raster_width = 0;
+    std::uint32_t raster_height = 0;
     ByteSpan payload;
     std::uint64_t header_byte_offset = 0;
     std::uint64_t content_byte_offset = 0;

@@ -12,6 +12,7 @@ public:
     Status reset(std::uint32_t width);
 
     [[nodiscard]] std::uint32_t width() const noexcept;
+    [[nodiscard]] const std::vector<std::int32_t>& second_previous() const noexcept;
     [[nodiscard]] const std::vector<std::int32_t>& previous() const noexcept;
     [[nodiscard]] const std::vector<std::int32_t>& current() const noexcept;
     [[nodiscard]] std::vector<std::int32_t>& mutable_previous() noexcept;
@@ -20,9 +21,9 @@ public:
     void swap_lines() noexcept;
 
 private:
+    std::vector<std::int32_t> second_previous_;
     std::vector<std::int32_t> previous_;
     std::vector<std::int32_t> current_;
 };
 
 } // namespace ffv1::syntax
-

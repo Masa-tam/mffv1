@@ -15,6 +15,7 @@ Status LineState::reset(std::uint32_t width)
         return make_error(ErrorCode::InvalidArgument, "line state width must be non-zero");
     }
     previous_.assign(width, 0);
+    second_previous_.assign(width, 0);
     current_.assign(width, 0);
     return ok_status();
 }
@@ -27,6 +28,11 @@ std::uint32_t LineState::width() const noexcept
 const std::vector<std::int32_t>& LineState::previous() const noexcept
 {
     return previous_;
+}
+
+const std::vector<std::int32_t>& LineState::second_previous() const noexcept
+{
+    return second_previous_;
 }
 
 const std::vector<std::int32_t>& LineState::current() const noexcept
@@ -46,6 +52,7 @@ std::vector<std::int32_t>& LineState::mutable_current() noexcept
 
 void LineState::swap_lines() noexcept
 {
+    second_previous_ = previous_;
     previous_.swap(current_);
     std::fill(current_.begin(), current_.end(), 0);
 }
@@ -130,22 +137,27 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
 
         std::int32_t left = 0;
         for (std::uint32_t x = 0; x < output.plane_width(0); ++x) {
+            const std::int32_t far_left = x > 1 ? line.current()[x - 2] : 0;
             const std::int32_t top = line.previous()[x];
             const std::int32_t top_left = x == 0 ? 0 : line.previous()[x - 1];
             const std::int32_t top_right =
                 (x + 1) < output.plane_width(0) ? line.previous()[x + 1] : top;
+            const std::int32_t top_top = line.second_previous()[x];
             const std::int32_t prediction = syntax::Predictor::median_predict(left, top, top_left);
 
-            std::uint32_t context_id = 0;
-            status = context_model.derive_context({left, top, top_left, top_right}, context_id);
+            syntax::ContextDecision context;
+            status = context_model.derive_context({far_left, left, top, top_left, top_right, top_top}, context);
             if (!status.ok()) {
                 return status;
             }
 
             std::int64_t difference64 = 0;
-            status = reader.read_signed(context_id, difference64);
+            status = reader.read_signed(context.context, difference64);
             if (!status.ok()) {
                 return status;
+            }
+            if (context.invert_difference) {
+                difference64 = -difference64;
             }
             if (difference64 < std::numeric_limits<std::int32_t>::min()
                 || difference64 > std::numeric_limits<std::int32_t>::max()) {

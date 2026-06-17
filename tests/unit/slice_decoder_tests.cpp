@@ -43,6 +43,10 @@ TEST(LineStateTest, ResetsAndSwapsLines)
 
     EXPECT_EQ(line.previous()[1], 42);
     EXPECT_EQ(line.current()[1], 0);
+    line.mutable_current()[2] = 7;
+    line.swap_lines();
+    EXPECT_EQ(line.second_previous()[1], 42);
+    EXPECT_EQ(line.previous()[2], 7);
 }
 
 TEST(SliceStateTest, ResetsOneLineStatePerCodedPlane)

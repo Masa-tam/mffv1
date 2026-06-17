@@ -27,18 +27,18 @@ std::uint32_t ContextModel::context_count() const noexcept
 }
 
 Status ContextModel::derive_context(const NeighborSamples& samples,
-                                    std::uint32_t& out_context) const
+                                    ContextDecision& out_decision) const
 {
     if (quant_tables_.context_count == 0) {
         return make_error(ErrorCode::InvalidState, "quantization table set has no contexts");
     }
 
     const std::array<std::int32_t, QuantTableSet::kContextInputs> gradients{
+        samples.far_left - samples.left,
         samples.left - samples.top_left,
         samples.top_left - samples.top,
+        samples.top_top - samples.top,
         samples.top - samples.top_right,
-        samples.left - samples.top,
-        samples.top_left - samples.top_right,
     };
 
     std::int64_t folded = 0;
@@ -47,12 +47,12 @@ Status ContextModel::derive_context(const NeighborSamples& samples,
         folded += quant_tables_.tables[i][table_index];
     }
 
-    if (folded < 0) {
+    out_decision.invert_difference = folded < 0;
+    if (out_decision.invert_difference) {
         folded = -folded;
     }
-    out_context = static_cast<std::uint32_t>(folded % quant_tables_.context_count);
+    out_decision.context = static_cast<std::uint32_t>(folded % quant_tables_.context_count);
     return ok_status();
 }
 
 } // namespace ffv1::syntax
-

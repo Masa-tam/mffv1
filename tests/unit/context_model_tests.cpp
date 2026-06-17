@@ -8,9 +8,9 @@ TEST(ContextModelTest, RejectsMissingContextCount)
 {
     ffv1::syntax::QuantTableSet tables;
     const ffv1::syntax::ContextModel model(tables);
-    std::uint32_t context = 99;
+    ffv1::syntax::ContextDecision decision;
 
-    const auto status = model.derive_context({}, context);
+    const auto status = model.derive_context({}, decision);
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
@@ -21,12 +21,13 @@ TEST(ContextModelTest, DerivesZeroContextForZeroTables)
     ffv1::syntax::QuantTableSet tables;
     tables.context_count = 4;
     const ffv1::syntax::ContextModel model(tables);
-    std::uint32_t context = 99;
+    ffv1::syntax::ContextDecision decision;
 
-    const auto status = model.derive_context({10, 10, 10, 10}, context);
+    const auto status = model.derive_context({0, 10, 10, 10, 10, 10}, decision);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(context, 0u);
+    EXPECT_EQ(decision.context, 0u);
+    EXPECT_FALSE(decision.invert_difference);
 }
 
 TEST(ContextModelTest, FoldsQuantizedGradientsIntoContextRange)
@@ -36,12 +37,13 @@ TEST(ContextModelTest, FoldsQuantizedGradientsIntoContextRange)
     tables.tables[0][1] = 3;
     tables.tables[1][1] = 4;
     const ffv1::syntax::ContextModel model(tables);
-    std::uint32_t context = 99;
+    ffv1::syntax::ContextDecision decision;
 
-    const auto status = model.derive_context({12, 10, 11, 10}, context);
+    const auto status = model.derive_context({12, 11, 10, 10, 10, 10}, decision);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(context, 7u);
+    EXPECT_EQ(decision.context, 7u);
+    EXPECT_FALSE(decision.invert_difference);
 }
 
 TEST(ContextModelTest, NegativeFoldUsesMagnitude)
@@ -51,12 +53,13 @@ TEST(ContextModelTest, NegativeFoldUsesMagnitude)
     tables.tables[0][255] = -3;
     tables.tables[1][1] = -4;
     const ffv1::syntax::ContextModel model(tables);
-    std::uint32_t context = 99;
+    ffv1::syntax::ContextDecision decision;
 
-    const auto status = model.derive_context({10, 10, 11, 11}, context);
+    const auto status = model.derive_context({10, 11, 10, 10, 10, 10}, decision);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(context, 7u);
+    EXPECT_EQ(decision.context, 7u);
+    EXPECT_TRUE(decision.invert_difference);
 }
 
 } // namespace

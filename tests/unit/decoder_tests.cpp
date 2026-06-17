@@ -2,10 +2,35 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 
 #include <gtest/gtest.h>
 
 namespace {
+
+std::array<std::byte, 3> minimal_v0_y_only_configuration_record()
+{
+    return {
+        std::byte{0x95},
+        std::byte{0x36},
+        std::byte{0xe9},
+    };
+}
+
+ffv1::MutablePlaneView make_y_plane(std::uint8_t* data,
+                                    std::uint32_t width,
+                                    std::uint32_t height,
+                                    std::ptrdiff_t stride_bytes)
+{
+    ffv1::MutablePlaneView plane;
+    plane.data = data;
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = width;
+    plane.info.height = height;
+    plane.info.stride_bytes = stride_bytes;
+    return plane;
+}
 
 TEST(DecoderTest, FactoryCreatesDecoder)
 {
@@ -85,11 +110,7 @@ TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const std::array<std::byte, 3> configuration_record{
-        std::byte{0x95},
-        std::byte{0x36},
-        std::byte{0xe9},
-    };
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
     ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
 
     const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
@@ -106,21 +127,11 @@ TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const std::array<std::byte, 3> configuration_record{
-        std::byte{0x95},
-        std::byte{0x36},
-        std::byte{0xe9},
-    };
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
     ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
 
     std::array<std::uint8_t, 1> storage{};
-    ffv1::MutablePlaneView plane;
-    plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
-    plane.info.width = 1;
-    plane.info.height = 1;
-    plane.info.stride_bytes = 1;
+    auto plane = make_y_plane(storage.data(), 1, 1, 1);
     ffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{std::byte{0xff}, std::byte{0x00}};
 
@@ -139,11 +150,7 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const std::array<std::byte, 3> configuration_record{
-        std::byte{0x95},
-        std::byte{0x36},
-        std::byte{0xe9},
-    };
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
     ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
 
     const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
@@ -167,22 +174,12 @@ TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const std::array<std::byte, 3> configuration_record{
-        std::byte{0x95},
-        std::byte{0x36},
-        std::byte{0xe9},
-    };
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
     ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
 
     std::array<std::uint8_t, 8> storage{};
     storage.fill(0xee);
-    ffv1::MutablePlaneView plane;
-    plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
-    plane.info.width = options.frame_width;
-    plane.info.height = options.frame_height;
-    plane.info.stride_bytes = 4;
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 4);
     ffv1::MutableFrameView output{&plane, 1};
 
     const std::array<std::byte, 16> frame_payload{
@@ -209,21 +206,11 @@ TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const std::array<std::byte, 3> configuration_record{
-        std::byte{0x95},
-        std::byte{0x36},
-        std::byte{0xe9},
-    };
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
     ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
 
     std::array<std::uint8_t, 1> storage{0xee};
-    ffv1::MutablePlaneView plane;
-    plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
-    plane.info.width = options.frame_width;
-    plane.info.height = options.frame_height;
-    plane.info.stride_bytes = 1;
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     ffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
         std::byte{0x14},
@@ -234,6 +221,32 @@ TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(storage[0], 1u);
+}
+
+TEST(DecoderTest, DecodeFrameWrapsNegativeDifference)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto configuration_record = minimal_v0_y_only_configuration_record();
+    ASSERT_TRUE(result.decoder->configure(configuration_record).ok());
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> frame_payload{
+        std::byte{0x21},
+        std::byte{0xcf},
+    };
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 255u);
 }
 
 } // namespace

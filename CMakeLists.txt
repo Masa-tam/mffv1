@@ -19,6 +19,7 @@ add_library(ffv1
     src/codec/slice_footer_parser.cpp
     src/codec/slice_header_parser.cpp
     src/codec/slice_output_window.cpp
+    src/codec/slice_payload_locator.cpp
     src/codec/slice_raster_validator.cpp
     src/ffv1/context_model.cpp
     src/entropy/range_coder.cpp

@@ -288,6 +288,72 @@ TEST(FrameParserTest, RejectsMultiSliceRangePayloadWithTooFewSlices)
     EXPECT_TRUE(frame.slices.empty());
 }
 
+TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{
+        std::byte{0xbc},
+        std::byte{0xd3},
+        std::byte{0x3d},
+        std::byte{0x65},
+        std::byte{0x43},
+        std::byte{0x7d},
+        std::byte{0x38},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+        std::byte{0x21},
+        std::byte{0xe0},
+        std::byte{0xa6},
+        std::byte{0x35},
+        std::byte{0x02},
+        std::byte{0x6b},
+        std::byte{0xf9},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_EQ(frame.slices[0].index, 0u);
+    EXPECT_EQ(frame.slices[0].x, 0u);
+    EXPECT_EQ(frame.slices[0].y, 0u);
+    EXPECT_EQ(frame.slices[0].width, 8u);
+    EXPECT_EQ(frame.slices[0].height, stream.height);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
+    EXPECT_EQ(frame.slices[0].payload_byte_offset, 0u);
+    EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[0].slice_size, 10u);
+    EXPECT_EQ(frame.slices[0].payload.size(), 10u);
+
+    EXPECT_EQ(frame.slices[1].index, 1u);
+    EXPECT_EQ(frame.slices[1].x, 8u);
+    EXPECT_EQ(frame.slices[1].y, 0u);
+    EXPECT_EQ(frame.slices[1].width, 8u);
+    EXPECT_EQ(frame.slices[1].height, stream.height);
+    EXPECT_EQ(frame.slices[1].raster_x, 1u);
+    EXPECT_EQ(frame.slices[1].raster_y, 0u);
+    EXPECT_EQ(frame.slices[1].raster_width, 1u);
+    EXPECT_EQ(frame.slices[1].raster_height, 1u);
+    EXPECT_EQ(frame.slices[1].payload_byte_offset, 10u);
+    EXPECT_EQ(frame.slices[1].header_byte_offset, 12u);
+    EXPECT_EQ(frame.slices[1].content_byte_offset, 13u);
+    EXPECT_EQ(frame.slices[1].footer_byte_offset, 17u);
+    EXPECT_EQ(frame.slices[1].slice_size, 10u);
+    EXPECT_EQ(frame.slices[1].payload.size(), 10u);
+}
+
 TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
 {
     auto stream = make_stream();

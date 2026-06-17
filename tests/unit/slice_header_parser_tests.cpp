@@ -81,6 +81,53 @@ TEST(SliceHeaderParserTest, AppliesValidHeaderValues)
     EXPECT_EQ(descriptor.quant_table_set_indexes[0], 1u);
 }
 
+TEST(SliceHeaderParserTest, AppliesRasterHeaderValuesAsPixelRectangle)
+{
+    auto stream = make_stream();
+    stream.width = 17;
+    stream.height = 10;
+    stream.num_h_slices = 4;
+    stream.num_v_slices = 3;
+    ffv1::codec::SliceHeaderValues values;
+    values.x = 1;
+    values.y = 1;
+    values.width = 2;
+    values.height = 2;
+    values.quant_table_set_indexes = {1};
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.apply_raster(stream, values, descriptor);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(descriptor.x, 4u);
+    EXPECT_EQ(descriptor.y, 3u);
+    EXPECT_EQ(descriptor.width, 8u);
+    EXPECT_EQ(descriptor.height, 7u);
+    ASSERT_EQ(descriptor.quant_table_set_indexes.size(), 1u);
+    EXPECT_EQ(descriptor.quant_table_set_indexes[0], 1u);
+}
+
+TEST(SliceHeaderParserTest, RejectsOutOfRasterRectangle)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 4;
+    stream.num_v_slices = 3;
+    ffv1::codec::SliceHeaderValues values;
+    values.x = 3;
+    values.y = 0;
+    values.width = 2;
+    values.height = 1;
+    values.quant_table_set_indexes = {0};
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.apply_raster(stream, values, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
 TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
 {
     const auto stream = make_stream();

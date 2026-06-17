@@ -144,4 +144,33 @@ Status SliceHeaderParser::apply(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
+Status SliceHeaderParser::apply_raster(const syntax::StreamParameters& stream,
+                                       const SliceHeaderValues& values,
+                                       syntax::SliceDescriptor& descriptor) const
+{
+    if (values.width == 0 || values.height == 0) {
+        return make_error(ErrorCode::SyntaxError, "slice header dimensions must be non-zero");
+    }
+    if (values.x > stream.num_h_slices || values.y > stream.num_v_slices
+        || values.width > stream.num_h_slices - values.x
+        || values.height > stream.num_v_slices - values.y) {
+        return make_error(ErrorCode::SyntaxError, "slice header rectangle is outside the slice raster");
+    }
+    if (values.quant_table_set_indexes.empty()) {
+        return make_error(ErrorCode::SyntaxError, "slice header has no quantization table set indexes");
+    }
+    for (const auto index : values.quant_table_set_indexes) {
+        if (index >= stream.quant_table_sets.size()) {
+            return make_error(ErrorCode::SyntaxError, "slice header quantization table set index is out of range");
+        }
+    }
+
+    descriptor.x = syntax::slice_pixel_x(stream, values.x);
+    descriptor.y = syntax::slice_pixel_y(stream, values.y);
+    descriptor.width = syntax::slice_pixel_width(stream, values.x, values.width);
+    descriptor.height = syntax::slice_pixel_height(stream, values.y, values.height);
+    descriptor.quant_table_set_indexes = values.quant_table_set_indexes;
+    return ok_status();
+}
+
 } // namespace ffv1::codec

@@ -31,6 +31,10 @@ public:
     Status apply(const syntax::StreamParameters& stream,
                  const SliceHeaderValues& values,
                  syntax::SliceDescriptor& descriptor) const;
+
+    Status apply_raster(const syntax::StreamParameters& stream,
+                        const SliceHeaderValues& values,
+                        syntax::SliceDescriptor& descriptor) const;
 };
 
 } // namespace ffv1::codec

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include "ffv1/frame.hpp"
 
@@ -14,9 +15,9 @@ struct SliceDescriptor {
     std::uint32_t height = 0;
     ByteSpan payload;
     std::uint64_t payload_byte_offset = 0;
+    std::vector<std::uint32_t> quant_table_set_indexes;
     std::uint32_t expected_crc = 0;
     bool has_crc = false;
 };
 
 } // namespace ffv1::syntax
-

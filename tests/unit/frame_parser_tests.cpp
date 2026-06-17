@@ -54,6 +54,8 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptor)
     EXPECT_EQ(frame.slices[0].width, stream.width);
     EXPECT_EQ(frame.slices[0].height, stream.height);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
+    ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 1u);
+    EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
     EXPECT_EQ(frame.frame_info.width, stream.width);
     EXPECT_EQ(frame.frame_info.height, stream.height);
     EXPECT_EQ(frame.frame_info.plane_count, 1u);
@@ -74,4 +76,3 @@ TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
 }
 
 } // namespace
-

@@ -70,6 +70,7 @@ TEST(SliceDecoderTest, RejectsEmptyPayload)
     ffv1::syntax::SliceDescriptor slice;
     slice.width = 4;
     slice.height = 2;
+    slice.quant_table_set_indexes.push_back(0);
 
     ffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
@@ -100,6 +101,7 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly8BitSlice)
     slice.width = 4;
     slice.height = 2;
     slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
 
     ffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
@@ -139,6 +141,7 @@ TEST(SliceDecoderTest, ReportsUnsupportedChromaPath)
     slice.width = 4;
     slice.height = 2;
     slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
 
     ffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
@@ -150,6 +153,57 @@ TEST(SliceDecoderTest, ReportsUnsupportedChromaPath)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::NotImplemented);
+}
+
+TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
+TEST(SliceDecoderTest, RejectsOutOfRangeQuantTableSetIndex)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(1);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
 } // namespace

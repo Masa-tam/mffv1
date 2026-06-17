@@ -41,10 +41,10 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     slice.height = stream_.height;
     slice.payload = payload;
     slice.payload_byte_offset = 0;
+    slice.quant_table_set_indexes.push_back(0);
     out_frame.slices.push_back(slice);
 
     return ok_status();
 }
 
 } // namespace ffv1::codec
-

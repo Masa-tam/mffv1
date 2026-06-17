@@ -121,7 +121,14 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (stream_.quant_table_sets.empty()) {
         return make_error(ErrorCode::InvalidState, "stream has no quantization table sets");
     }
-    const syntax::ContextModel context_model(stream_.quant_table_sets.front());
+    if (slice.quant_table_set_indexes.empty()) {
+        return make_error(ErrorCode::SyntaxError, "slice has no quantization table set indexes");
+    }
+    const auto quant_table_set_index = slice.quant_table_set_indexes[0];
+    if (quant_table_set_index >= stream_.quant_table_sets.size()) {
+        return make_error(ErrorCode::SyntaxError, "slice quantization table set index is out of range");
+    }
+    const syntax::ContextModel context_model(stream_.quant_table_sets[quant_table_set_index]);
 
     Status status = reader.reset(slice.payload, context_model.context_count());
     if (!status.ok()) {

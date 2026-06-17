@@ -8,11 +8,11 @@
 
 namespace {
 
-ffv1::syntax::StreamParameters make_stream()
+ffv1::syntax::StreamParameters make_stream(std::uint32_t width = 1, std::uint32_t height = 1)
 {
     ffv1::syntax::StreamParameters stream;
-    stream.width = 1;
-    stream.height = 1;
+    stream.width = width;
+    stream.height = height;
     stream.bits_per_raw_sample = 8;
     stream.chroma_planes = false;
     stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
@@ -28,6 +28,18 @@ ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 1>& storage)
     plane.info.width = 1;
     plane.info.height = 1;
     plane.info.stride_bytes = 1;
+    return plane;
+}
+
+ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 3>& storage)
+{
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 3;
+    plane.info.height = 1;
+    plane.info.stride_bytes = 3;
     return plane;
 }
 
@@ -129,6 +141,34 @@ TEST(SliceExecutorTest, ParallelDecodeReportsFirstFailingSliceInInputOrder)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 3u);
+}
+
+TEST(SliceExecutorTest, ParallelDecodeProcessesAllBatches)
+{
+    const auto stream = make_stream(3, 1);
+    std::array<std::uint8_t, 3> storage{0xee, 0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    std::array<ffv1::syntax::SliceDescriptor, 3> slices;
+    for (std::uint32_t i = 0; i < slices.size(); ++i) {
+        auto& slice = slices[i];
+        slice.index = i;
+        slice.x = i;
+        slice.width = 1;
+        slice.height = 1;
+        slice.payload = payload;
+        slice.quant_table_set_indexes.push_back(0);
+    }
+
+    const ffv1::codec::SliceExecutor executor(stream, 2);
+    const auto status = executor.decode(output, slices);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[1], 0u);
+    EXPECT_EQ(storage[2], 0u);
 }
 
 } // namespace

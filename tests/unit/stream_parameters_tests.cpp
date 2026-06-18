@@ -37,6 +37,37 @@ TEST(StreamParametersTest, SubsamplesMaximumExtentWithoutWrapping)
     EXPECT_EQ(ffv1::syntax::subsampled_extent(0, 32), 0u);
 }
 
+TEST(StreamParametersTest, DerivesVersionThreeQuantTableIndexSlots)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.version = 3;
+    stream.chroma_planes = false;
+
+    EXPECT_EQ(ffv1::syntax::quant_table_set_index_count(stream), 2u);
+    EXPECT_EQ(ffv1::syntax::plane_quant_table_set_index_slot(stream, 0), 0u);
+
+    stream.chroma_planes = true;
+    stream.extra_plane = true;
+
+    EXPECT_EQ(ffv1::syntax::quant_table_set_index_count(stream), 3u);
+    EXPECT_EQ(ffv1::syntax::plane_quant_table_set_index_slot(stream, 0), 0u);
+    EXPECT_EQ(ffv1::syntax::plane_quant_table_set_index_slot(stream, 1), 1u);
+    EXPECT_EQ(ffv1::syntax::plane_quant_table_set_index_slot(stream, 2), 1u);
+    EXPECT_EQ(ffv1::syntax::plane_quant_table_set_index_slot(stream, 3), 2u);
+}
+
+TEST(StreamParametersTest, OmitsLegacyChromaSlotAfterVersionThree)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.version = 4;
+    stream.chroma_planes = false;
+    stream.extra_plane = true;
+
+    EXPECT_EQ(ffv1::syntax::quant_table_set_index_count(stream), 2u);
+    EXPECT_EQ(ffv1::syntax::plane_quant_table_set_index_slot(stream, 0), 0u);
+    EXPECT_EQ(ffv1::syntax::plane_quant_table_set_index_slot(stream, 1), 1u);
+}
+
 TEST(StreamParametersTest, MapsSingleSliceRasterCellToFullFrame)
 {
     ffv1::syntax::StreamParameters stream;

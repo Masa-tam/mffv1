@@ -73,6 +73,24 @@ struct StreamParameters {
     return stream.chroma_planes && (plane_index == 1 || plane_index == 2);
 }
 
+[[nodiscard]] inline std::size_t quant_table_set_index_count(const StreamParameters& stream) noexcept
+{
+    return 1 + ((stream.chroma_planes || stream.version <= 3) ? 1 : 0)
+        + (stream.extra_plane ? 1 : 0);
+}
+
+[[nodiscard]] inline std::size_t plane_quant_table_set_index_slot(const StreamParameters& stream,
+                                                                  std::size_t plane_index) noexcept
+{
+    if (plane_index == 0) {
+        return 0;
+    }
+    if (is_chroma_plane(stream, plane_index)) {
+        return 1;
+    }
+    return (stream.version <= 3 || stream.chroma_planes) ? 2 : 1;
+}
+
 [[nodiscard]] inline std::uint32_t plane_width(const StreamParameters& stream,
                                                std::size_t plane_index) noexcept
 {

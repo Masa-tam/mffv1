@@ -1,11 +1,16 @@
 #include "codec/slice_decoder.hpp"
 
 #include "codec/slice_header_parser.hpp"
+#include "bitstream/bit_reader.hpp"
+#include "entropy/golomb_rice_context.hpp"
+#include "entropy/golomb_rice_reader.hpp"
+#include "entropy/golomb_rice_run.hpp"
 #include "entropy/range_coder.hpp"
 #include "ffv1/context_model.hpp"
 #include "ffv1/predictor.hpp"
 #include "util/status.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -99,6 +104,147 @@ void set_reader_byte_offset(Status& status,
     }
 }
 
+Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
+                                ByteSpan payload,
+                                std::uint64_t payload_offset,
+                                const std::vector<syntax::ContextModel>& context_models,
+                                SliceOutputWindow& output,
+                                SliceState& state)
+{
+    std::vector<std::size_t> context_counts;
+    context_counts.reserve(context_models.size());
+    for (const auto& model : context_models) {
+        context_counts.push_back(model.context_count());
+    }
+    Status status = state.reset_golomb_rice(context_counts);
+    if (!status.ok()) {
+        return status;
+    }
+
+    bitstream::BitReader bit_reader(payload);
+    entropy::GolombRiceReader reader(bit_reader);
+    for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
+        auto& line = state.line_state(plane);
+        auto& run_state = state.golomb_rice_run_state(plane);
+        const auto width = output.plane_width(plane);
+        for (std::uint32_t y = 0; y < output.plane_height(plane); ++y) {
+            auto* row_u8 = output.row_u8(plane, y);
+            auto* row_u16 = output.row_u16(plane, y);
+            if (stream.bits_per_raw_sample <= 8 && row_u8 == nullptr) {
+                return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint8");
+            }
+            if (stream.bits_per_raw_sample > 8 && row_u16 == nullptr) {
+                return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint16");
+            }
+
+            const auto write_sample = [&](std::uint32_t x, std::int32_t sample) {
+                if (stream.bits_per_raw_sample <= 8) {
+                    row_u8[x] = static_cast<std::uint8_t>(sample);
+                } else {
+                    row_u16[x] = static_cast<std::uint16_t>(sample);
+                }
+                line.mutable_current()[x] = sample;
+            };
+
+            std::uint32_t x = 0;
+            while (x < width) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = syntax::Predictor::median_predict(
+                    neighbors.left, neighbors.top, neighbors.top_left);
+                syntax::ContextDecision context;
+                status = context_models[plane].derive_context(neighbors, context);
+                if (!status.ok()) {
+                    return status;
+                }
+
+                if (context.context == 0) {
+                    entropy::GolombRiceRunSegment segment;
+                    status = entropy::read_golomb_rice_run_segment(bit_reader,
+                                                                    run_state,
+                                                                    x,
+                                                                    width,
+                                                                    segment);
+                    if (!status.ok()) {
+                        set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
+                        return status;
+                    }
+                    const auto run_end = std::min<std::uint64_t>(
+                        static_cast<std::uint64_t>(width),
+                        static_cast<std::uint64_t>(x) + segment.count);
+                    while (x < run_end) {
+                        const auto run_neighbors = line.neighbors(x);
+                        const auto run_prediction = syntax::Predictor::median_predict(
+                            run_neighbors.left, run_neighbors.top, run_neighbors.top_left);
+                        write_sample(x, run_prediction);
+                        ++x;
+                    }
+                    if (!segment.interrupted || x == width) {
+                        continue;
+                    }
+
+                    std::int32_t difference = 0;
+                    status = entropy::read_golomb_rice_run_interruption(
+                        reader,
+                        state.golomb_rice_context(plane, 0),
+                        stream.bits_per_raw_sample,
+                        difference);
+                    if (!status.ok()) {
+                        set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
+                        return status;
+                    }
+                    const auto interruption_neighbors = line.neighbors(x);
+                    const auto interruption_prediction = syntax::Predictor::median_predict(
+                        interruption_neighbors.left,
+                        interruption_neighbors.top,
+                        interruption_neighbors.top_left);
+                    write_sample(x,
+                                 syntax::Predictor::reconstruct(interruption_prediction,
+                                                                difference,
+                                                                stream.bits_per_raw_sample));
+                    ++x;
+                    continue;
+                }
+
+                std::int32_t difference = 0;
+                status = entropy::read_golomb_rice_symbol(
+                    reader,
+                    state.golomb_rice_context(plane, context.context),
+                    stream.bits_per_raw_sample,
+                    difference);
+                if (!status.ok()) {
+                    set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
+                    return status;
+                }
+                if (context.invert_difference) {
+                    difference = -difference;
+                }
+                write_sample(x,
+                             syntax::Predictor::reconstruct(prediction,
+                                                            difference,
+                                                            stream.bits_per_raw_sample));
+                ++x;
+            }
+            line.swap_lines();
+        }
+    }
+
+    while ((bit_reader.bit_position() % 8) != 0) {
+        const auto padding_byte_offset = bit_reader.byte_position();
+        std::uint8_t padding = 0;
+        status = bit_reader.read_bit(padding);
+        if (!status.ok()) {
+            set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
+            return status;
+        }
+        if (padding != 0) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "Golomb-Rice alignment padding must be zero",
+                                   payload_offset + padding_byte_offset);
+        }
+    }
+    return ok_status();
+}
+
 } // namespace
 
 Status SliceState::reset(const syntax::StreamParameters& stream)
@@ -140,6 +286,37 @@ syntax::LineState& SliceState::line_state(std::size_t plane_index) noexcept
 const syntax::LineState& SliceState::line_state(std::size_t plane_index) const noexcept
 {
     return line_states_[plane_index];
+}
+
+Status SliceState::reset_golomb_rice(std::span<const std::size_t> context_counts)
+{
+    if (context_counts.size() != line_states_.size()) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "Golomb-Rice context bank count does not match slice plane count");
+    }
+    golomb_rice_contexts_.resize(context_counts.size());
+    golomb_rice_run_states_.assign(context_counts.size(), {});
+    for (std::size_t plane = 0; plane < context_counts.size(); ++plane) {
+        if (context_counts[plane] == 0) {
+            return make_error(ErrorCode::InvalidState,
+                              "Golomb-Rice context bank must not be empty");
+        }
+        golomb_rice_contexts_[plane].assign(context_counts[plane], {});
+    }
+    return ok_status();
+}
+
+entropy::GolombRiceContextState& SliceState::golomb_rice_context(
+    std::size_t plane_index,
+    std::size_t context) noexcept
+{
+    return golomb_rice_contexts_[plane_index][context];
+}
+
+entropy::GolombRiceRunState& SliceState::golomb_rice_run_state(
+    std::size_t plane_index) noexcept
+{
+    return golomb_rice_run_states_[plane_index];
 }
 
 SliceDecoder::SliceDecoder(const syntax::StreamParameters& stream) noexcept
@@ -206,10 +383,6 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
     if (stream_.bits_per_raw_sample == 0 || stream_.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
-    if (stream_.entropy_mode != EntropyMode::Range) {
-        return make_error(ErrorCode::UnsupportedFeature,
-                          "Golomb-Rice slice decoding is not implemented yet");
-    }
     if (stream_.quant_table_sets.empty()) {
         return make_error(ErrorCode::InvalidState, "stream has no quantization table sets");
     }
@@ -227,7 +400,7 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
         if (quant_table_set_index >= stream_.quant_table_sets.size()) {
             return make_error(ErrorCode::SyntaxError, "slice quantization table set index is out of range");
         }
-        if (!stream_.initial_states.empty()) {
+        if (stream_.entropy_mode == EntropyMode::Range && !stream_.initial_states.empty()) {
             if (stream_.initial_states.size() != stream_.quant_table_sets.size()) {
                 return make_error(ErrorCode::InvalidState,
                                   "range coder initial state set count does not match quantization table set count");
@@ -278,6 +451,15 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         } else {
             initial_state_banks.emplace_back(stream_.initial_states[quant_table_set_index].contexts);
         }
+    }
+
+    if (stream_.entropy_mode == EntropyMode::GolombRice) {
+        return decode_golomb_rice_slice(stream_,
+                                        content_payload,
+                                        slice.content_byte_offset,
+                                        context_models,
+                                        output,
+                                        state);
     }
 
     entropy::RangeCoder reader;

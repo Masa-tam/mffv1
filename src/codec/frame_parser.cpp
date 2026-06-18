@@ -52,6 +52,10 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
     }
+    if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
+        return make_error(ErrorCode::UnsupportedFeature,
+                          "legacy Golomb-Rice frame header transition is not implemented yet");
+    }
 
     entropy::RangeCoder frame_reader;
     const bool parse_legacy_range_header = stream_.version <= 1

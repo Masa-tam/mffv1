@@ -105,4 +105,21 @@ Status read_golomb_rice_symbol(GolombRiceReader& reader,
     return ok_status();
 }
 
+Status read_golomb_rice_run_interruption(GolombRiceReader& reader,
+                                         GolombRiceContextState& state,
+                                         std::uint8_t bits_per_raw_sample,
+                                         std::int32_t& out_value) noexcept
+{
+    std::int32_t value = 0;
+    Status status = read_golomb_rice_symbol(reader, state, bits_per_raw_sample, value);
+    if (!status.ok()) {
+        return status;
+    }
+    if (value >= 0) {
+        ++value;
+    }
+    out_value = value;
+    return ok_status();
+}
+
 } // namespace ffv1::entropy

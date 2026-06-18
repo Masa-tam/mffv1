@@ -19,5 +19,9 @@ Status read_golomb_rice_symbol(GolombRiceReader& reader,
                                GolombRiceContextState& state,
                                std::uint8_t bits_per_raw_sample,
                                std::int32_t& out_value) noexcept;
+Status read_golomb_rice_run_interruption(GolombRiceReader& reader,
+                                         GolombRiceContextState& state,
+                                         std::uint8_t bits_per_raw_sample,
+                                         std::int32_t& out_value) noexcept;
 
 } // namespace ffv1::entropy

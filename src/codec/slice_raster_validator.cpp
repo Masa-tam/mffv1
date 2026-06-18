@@ -11,6 +11,8 @@ namespace ffv1::codec {
 
 namespace {
 
+constexpr std::uint64_t kCifPixelCount = 352u * 288u;
+
 Status make_slice_error(ErrorCode code, const char* message, std::uint32_t slice_index)
 {
     Status status = make_error(code, message);
@@ -35,6 +37,10 @@ Status validate_slice_raster_coverage(const syntax::StreamParameters& stream,
 
     std::vector<bool> covered(static_cast<std::size_t>(cell_count64), false);
     std::size_t covered_count = 0;
+    const std::uint64_t frame_pixel_count =
+        static_cast<std::uint64_t>(stream.width) * static_cast<std::uint64_t>(stream.height);
+    const bool enforce_parallel_slice_area = stream.version >= 3 && frame_pixel_count > kCifPixelCount;
+    const std::uint64_t maximum_slice_area = cell_count64 / 4;
 
     for (const auto& slice : slices) {
         if (slice.raster_width == 0 || slice.raster_height == 0) {
@@ -47,6 +53,13 @@ Status validate_slice_raster_coverage(const syntax::StreamParameters& stream,
             || slice.raster_height > stream.num_v_slices - slice.raster_y) {
             return make_slice_error(ErrorCode::SyntaxError,
                                     "slice raster rectangle is outside the frame raster",
+                                    slice.index);
+        }
+        const std::uint64_t slice_area =
+            static_cast<std::uint64_t>(slice.raster_width) * slice.raster_height;
+        if (enforce_parallel_slice_area && slice_area > maximum_slice_area) {
+            return make_slice_error(ErrorCode::SyntaxError,
+                                    "slice raster area exceeds the version 3 parallel decoding limit",
                                     slice.index);
         }
 

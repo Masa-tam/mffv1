@@ -57,6 +57,71 @@ TEST(SliceRasterValidatorTest, AcceptsSingleSliceCoveringWholeRaster)
     EXPECT_TRUE(status.ok()) << status.message;
 }
 
+TEST(SliceRasterValidatorTest, AcceptsLargeFrameSlicesAtParallelAreaLimit)
+{
+    auto stream = make_stream();
+    stream.width = 353;
+    stream.height = 288;
+    stream.num_h_slices = 4;
+    stream.num_v_slices = 4;
+    const std::array slices{
+        make_slice(0, 0, 0, 2, 2),
+        make_slice(1, 2, 0, 2, 2),
+        make_slice(2, 0, 2, 2, 2),
+        make_slice(3, 2, 2, 2, 2),
+    };
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+}
+
+TEST(SliceRasterValidatorTest, RejectsLargeFrameSliceAboveParallelAreaLimit)
+{
+    auto stream = make_stream();
+    stream.width = 353;
+    stream.height = 288;
+    stream.num_h_slices = 4;
+    stream.num_v_slices = 4;
+    const std::array slices{
+        make_slice(7, 0, 0, 4, 2),
+        make_slice(8, 0, 2, 2, 2),
+        make_slice(9, 2, 2, 2, 2),
+    };
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 7u);
+}
+
+TEST(SliceRasterValidatorTest, DoesNotApplyParallelAreaLimitAtCifThreshold)
+{
+    auto stream = make_stream();
+    stream.width = 352;
+    stream.height = 288;
+    const std::array slices{make_slice(0, 0, 0, 2, 2)};
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+}
+
+TEST(SliceRasterValidatorTest, DoesNotApplyParallelAreaLimitBeforeVersionThree)
+{
+    auto stream = make_stream();
+    stream.version = 1;
+    stream.width = 353;
+    stream.height = 288;
+    const std::array slices{make_slice(0, 0, 0, 2, 2)};
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+}
+
 TEST(SliceRasterValidatorTest, RejectsMissingRasterCell)
 {
     const auto stream = make_stream();

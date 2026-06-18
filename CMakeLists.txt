@@ -22,6 +22,7 @@ add_library(ffv1
     src/codec/slice_output_window.cpp
     src/codec/slice_payload_locator.cpp
     src/codec/slice_raster_validator.cpp
+    src/ffv1/color_transform.cpp
     src/ffv1/context_model.cpp
     src/entropy/golomb_rice_context.cpp
     src/entropy/golomb_rice_reader.cpp

@@ -13,6 +13,11 @@ std::uint32_t plane_x(const syntax::StreamParameters& stream,
                       std::size_t plane_index) noexcept
 {
     if (syntax::is_chroma_plane(stream, plane_index)) {
+        if (slice.raster_width != 0) {
+            return syntax::scaled_grid_position(syntax::plane_width(stream, plane_index),
+                                                stream.num_h_slices,
+                                                slice.raster_x);
+        }
         return slice.x >> stream.log2_h_chroma_subsample;
     }
     return slice.x;
@@ -23,6 +28,11 @@ std::uint32_t plane_y(const syntax::StreamParameters& stream,
                       std::size_t plane_index) noexcept
 {
     if (syntax::is_chroma_plane(stream, plane_index)) {
+        if (slice.raster_height != 0) {
+            return syntax::scaled_grid_position(syntax::plane_height(stream, plane_index),
+                                                stream.num_v_slices,
+                                                slice.raster_y);
+        }
         return slice.y >> stream.log2_v_chroma_subsample;
     }
     return slice.y;
@@ -33,6 +43,16 @@ std::uint32_t slice_plane_width(const syntax::StreamParameters& stream,
                                 std::size_t plane_index) noexcept
 {
     if (syntax::is_chroma_plane(stream, plane_index)) {
+        if (slice.raster_width != 0) {
+            const auto start = syntax::scaled_grid_position(syntax::plane_width(stream, plane_index),
+                                                            stream.num_h_slices,
+                                                            slice.raster_x);
+            const auto end = syntax::scaled_grid_position(
+                syntax::plane_width(stream, plane_index),
+                stream.num_h_slices,
+                static_cast<std::uint64_t>(slice.raster_x) + slice.raster_width);
+            return end - start;
+        }
         return syntax::subsampled_extent(slice.width, stream.log2_h_chroma_subsample);
     }
     return slice.width;
@@ -43,6 +63,16 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
                                  std::size_t plane_index) noexcept
 {
     if (syntax::is_chroma_plane(stream, plane_index)) {
+        if (slice.raster_height != 0) {
+            const auto start = syntax::scaled_grid_position(syntax::plane_height(stream, plane_index),
+                                                            stream.num_v_slices,
+                                                            slice.raster_y);
+            const auto end = syntax::scaled_grid_position(
+                syntax::plane_height(stream, plane_index),
+                stream.num_v_slices,
+                static_cast<std::uint64_t>(slice.raster_y) + slice.raster_height);
+            return end - start;
+        }
         return syntax::subsampled_extent(slice.height, stream.log2_v_chroma_subsample);
     }
     return slice.height;

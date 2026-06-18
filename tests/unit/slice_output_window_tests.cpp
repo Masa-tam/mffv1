@@ -116,6 +116,53 @@ TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
     EXPECT_EQ(window.row_u8(2, 1), cr.data() + 5);
 }
 
+TEST(SliceOutputWindowTest, PartitionsChromaBySliceRasterWithoutOverlap)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 8;
+    stream.height = 2;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.num_h_slices = 3;
+
+    std::array<std::uint8_t, 16> y{};
+    std::array<std::uint8_t, 8> cb{};
+    std::array<std::uint8_t, 8> cr{};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 2, 8};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    ffv1::syntax::SliceDescriptor middle;
+    middle.x = 2;
+    middle.width = 3;
+    middle.height = 2;
+    middle.raster_x = 1;
+    middle.raster_width = 1;
+    middle.raster_height = 1;
+    ffv1::codec::SliceOutputWindow middle_window;
+    ASSERT_TRUE(middle_window.validate(stream, frame, middle).ok());
+
+    ffv1::syntax::SliceDescriptor right;
+    right.x = 5;
+    right.width = 3;
+    right.height = 2;
+    right.raster_x = 2;
+    right.raster_width = 1;
+    right.raster_height = 1;
+    ffv1::codec::SliceOutputWindow right_window;
+    ASSERT_TRUE(right_window.validate(stream, frame, right).ok());
+
+    EXPECT_EQ(middle_window.row_u8(1, 0), cb.data() + 1);
+    EXPECT_EQ(middle_window.plane_width(1), 1u);
+    EXPECT_EQ(right_window.row_u8(1, 0), cb.data() + 2);
+    EXPECT_EQ(right_window.plane_width(1), 2u);
+}
+
 TEST(SliceOutputWindowTest, RejectsSwappedChromaPlaneRoles)
 {
     ffv1::syntax::StreamParameters stream;

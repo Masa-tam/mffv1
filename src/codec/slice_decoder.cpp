@@ -194,6 +194,10 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (slice.quant_table_set_indexes.empty()) {
         return make_error(ErrorCode::SyntaxError, "slice has no quantization table set indexes");
     }
+    if (slice.quant_table_set_indexes.size() != 1) {
+        return make_error(ErrorCode::UnsupportedFeature,
+                          "multiple slice quantization table set indexes are not implemented yet");
+    }
     const auto quant_table_set_index = slice.quant_table_set_indexes[0];
     if (quant_table_set_index >= stream_.quant_table_sets.size()) {
         return make_error(ErrorCode::SyntaxError, "slice quantization table set index is out of range");

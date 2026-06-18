@@ -444,4 +444,34 @@ TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
     EXPECT_TRUE(status.location.has_byte_offset);
 }
 
+TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{
+        std::byte{0xbc},
+        std::byte{0xd3},
+        std::byte{0x3d},
+        std::byte{0x65},
+        std::byte{0x43},
+        std::byte{0x7d},
+        std::byte{0x38},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x03},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 1u);
+    EXPECT_TRUE(frame.slices.empty());
+}
+
 } // namespace

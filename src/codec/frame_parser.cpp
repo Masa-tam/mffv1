@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace ffv1::codec {
@@ -142,6 +143,8 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
     }
 
     const SliceHeaderParser header_parser;
+    std::vector<syntax::SliceDescriptor> parsed_slices;
+    parsed_slices.reserve(located_slices.size());
     for (const auto& located_slice : located_slices) {
         entropy::RangeCoder header_reader;
         status = header_reader.reset(located_slice.payload);
@@ -177,13 +180,14 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
         parsed_slice.error_status = located_slice.error_status;
         parsed_slice.expected_crc = located_slice.expected_crc;
         parsed_slice.has_crc = located_slice.has_crc;
-        out_frame.slices.push_back(parsed_slice);
+        parsed_slices.push_back(parsed_slice);
     }
 
-    status = validate_slice_raster_coverage(stream_, out_frame.slices);
+    status = validate_slice_raster_coverage(stream_, parsed_slices);
     if (!status.ok()) {
         return status;
     }
+    out_frame.slices = std::move(parsed_slices);
     return ok_status();
 }
 

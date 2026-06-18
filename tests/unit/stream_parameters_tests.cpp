@@ -45,6 +45,27 @@ TEST(StreamParametersTest, ComputesPlaneGeometryForChromaOnly)
     EXPECT_EQ(ffv1::syntax::plane_height(stream, 3), 9u);
 }
 
+TEST(StreamParametersTest, KeepsRgbPlanesFullResolutionAndOrdered)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.colorspace_type = 1;
+    stream.width = 17;
+    stream.height = 9;
+    stream.chroma_planes = true;
+    stream.extra_plane = true;
+    stream.log2_h_chroma_subsample = 2;
+    stream.log2_v_chroma_subsample = 2;
+
+    EXPECT_EQ(ffv1::syntax::expected_plane_role(stream, 0), ffv1::PlaneRole::R);
+    EXPECT_EQ(ffv1::syntax::expected_plane_role(stream, 1), ffv1::PlaneRole::G);
+    EXPECT_EQ(ffv1::syntax::expected_plane_role(stream, 2), ffv1::PlaneRole::B);
+    EXPECT_EQ(ffv1::syntax::expected_plane_role(stream, 3), ffv1::PlaneRole::Alpha);
+    for (std::size_t plane = 0; plane < 4; ++plane) {
+        EXPECT_EQ(ffv1::syntax::plane_width(stream, plane), 17u);
+        EXPECT_EQ(ffv1::syntax::plane_height(stream, plane), 9u);
+    }
+}
+
 TEST(StreamParametersTest, SubsamplesMaximumExtentWithoutWrapping)
 {
     const auto maximum = std::numeric_limits<std::uint32_t>::max();

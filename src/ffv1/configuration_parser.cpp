@@ -108,8 +108,8 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         return make_error(ErrorCode::SyntaxError, "colorspace_type is too large");
     }
     stream.colorspace_type = static_cast<int>(value);
-    if (stream.colorspace_type != 0) {
-        return make_error(ErrorCode::UnsupportedFeature, "only YCbCr colorspace is supported in the base parser");
+    if (stream.colorspace_type > 1) {
+        return make_error(ErrorCode::UnsupportedFeature, "unsupported colorspace_type");
     }
 
     if (stream.version >= 1) {
@@ -153,6 +153,14 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         return status;
     }
     stream.extra_plane = flag;
+
+    if (stream.colorspace_type == 1
+        && (!stream.chroma_planes
+            || stream.log2_h_chroma_subsample != 0
+            || stream.log2_v_chroma_subsample != 0)) {
+        return make_error(ErrorCode::SyntaxError,
+                          "RGB streams require chroma planes without subsampling");
+    }
 
     std::uint64_t quant_table_set_count = 1;
     if (stream.version >= 3) {

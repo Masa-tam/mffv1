@@ -390,7 +390,7 @@ TEST(ConfigurationParserTest, RejectsUnrepresentableSliceCountsBeforeIncrement)
 TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)
 {
     auto symbols = minimal_v3_y_only_symbols();
-    symbols[3] = u(1);
+    symbols[3] = u(2);
     ScriptedSymbolReader reader(std::move(symbols));
     ffv1::syntax::ConfigurationParser parser;
     ffv1::syntax::StreamParameters stream;
@@ -399,6 +399,43 @@ TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+}
+
+TEST(ConfigurationParserTest, ParsesRgbParameters)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[3] = u(1);
+    symbols[5] = b(true);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(stream.colorspace_type, 1);
+    EXPECT_TRUE(stream.chroma_planes);
+    EXPECT_EQ(stream.log2_h_chroma_subsample, 0u);
+    EXPECT_EQ(stream.log2_v_chroma_subsample, 0u);
+}
+
+TEST(ConfigurationParserTest, RejectsInvalidRgbPlaneLayout)
+{
+    for (const std::size_t symbol_index : {std::size_t{5}, std::size_t{6}, std::size_t{7}}) {
+        auto symbols = minimal_v3_y_only_symbols();
+        symbols[3] = u(1);
+        symbols[5] = b(true);
+        symbols[symbol_index] = symbol_index == 5 ? b(false) : u(1);
+        ScriptedSymbolReader reader(std::move(symbols));
+        ffv1::syntax::ConfigurationParser parser;
+        ffv1::syntax::StreamParameters stream;
+
+        const auto status = parser.parse(reader, stream);
+
+        EXPECT_FALSE(status.ok()) << "symbol_index=" << symbol_index;
+        EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError)
+            << "symbol_index=" << symbol_index;
+    }
 }
 
 TEST(ConfigurationParserTest, ParsesCustomRangeCoderInitialStates)

@@ -398,6 +398,10 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
                                "range-coded slice content must be byte aligned",
                                slice.content_byte_offset);
     }
+    if (stream_.colorspace_type == 1) {
+        return make_error(ErrorCode::UnsupportedFeature,
+                          "RGB slice decoding is not implemented yet");
+    }
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
     }

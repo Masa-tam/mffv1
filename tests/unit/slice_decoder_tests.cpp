@@ -773,6 +773,44 @@ TEST(SliceDecoderTest, RejectsUnsupportedBitDepth)
     EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
 }
 
+TEST(SliceDecoderTest, RejectsRgbBeforeWritingOutput)
+{
+    auto stream = make_stream();
+    stream.width = 1;
+    stream.height = 1;
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    std::array<std::uint8_t, 1> r{0xee};
+    std::array<std::uint8_t, 1> g{0xee};
+    std::array<std::uint8_t, 1> b{0xee};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0] = {r.data(), {ffv1::PlaneRole::R, ffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt8, 1, 1, 1}};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(r[0], 0xee);
+    EXPECT_EQ(g[0], 0xee);
+    EXPECT_EQ(b[0], 0xee);
+}
+
 TEST(SliceDecoderTest, DecodesGolombRiceZeroRun)
 {
     auto stream = make_stream();

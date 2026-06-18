@@ -255,4 +255,40 @@ TEST(FrameValidatorTest, RequiresChromaPlanesWhenStreamHasChroma)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
 }
 
+TEST(FrameValidatorTest, AcceptsFullResolutionRgbPlaneRoles)
+{
+    auto stream = make_y_stream();
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+
+    std::array<std::uint8_t, 12> r{};
+    std::array<std::uint8_t, 12> g{};
+    std::array<std::uint8_t, 12> b{};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0] = {r.data(), {ffv1::PlaneRole::R, ffv1::SampleFormat::UInt8, 4, 3, 4}};
+    planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt8, 4, 3, 4}};
+    planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt8, 4, 3, 4}};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    const ffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
+TEST(FrameValidatorTest, RejectsSubsampledRgbStream)
+{
+    auto stream = make_y_stream();
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+
+    const ffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
 } // namespace

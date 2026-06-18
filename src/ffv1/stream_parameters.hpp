@@ -105,7 +105,7 @@ struct StreamParameters {
 [[nodiscard]] inline std::uint32_t plane_width(const StreamParameters& stream,
                                                std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (stream.colorspace_type == 0 && is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(stream.width, stream.log2_h_chroma_subsample);
     }
     return stream.width;
@@ -114,7 +114,7 @@ struct StreamParameters {
 [[nodiscard]] inline std::uint32_t plane_height(const StreamParameters& stream,
                                                 std::size_t plane_index) noexcept
 {
-    if (is_chroma_plane(stream, plane_index)) {
+    if (stream.colorspace_type == 0 && is_chroma_plane(stream, plane_index)) {
         return subsampled_extent(stream.height, stream.log2_v_chroma_subsample);
     }
     return stream.height;
@@ -168,6 +168,18 @@ struct StreamParameters {
 [[nodiscard]] inline PlaneRole expected_plane_role(const StreamParameters& stream,
                                                    std::size_t plane_index) noexcept
 {
+    if (stream.colorspace_type == 1) {
+        if (plane_index == 0) {
+            return PlaneRole::R;
+        }
+        if (plane_index == 1) {
+            return PlaneRole::G;
+        }
+        if (plane_index == 2) {
+            return PlaneRole::B;
+        }
+        return PlaneRole::Alpha;
+    }
     if (plane_index == 0) {
         return PlaneRole::Y;
     }

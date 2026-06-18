@@ -16,6 +16,16 @@ Status validate_stream_shape(const syntax::StreamParameters& stream)
     if (stream.bits_per_raw_sample == 0 || stream.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
+    if (stream.colorspace_type < 0 || stream.colorspace_type > 1) {
+        return make_error(ErrorCode::UnsupportedFeature, "unsupported colorspace_type");
+    }
+    if (stream.colorspace_type == 1
+        && (!stream.chroma_planes
+            || stream.log2_h_chroma_subsample != 0
+            || stream.log2_v_chroma_subsample != 0)) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "RGB streams require chroma planes without subsampling");
+    }
     if (stream.num_h_slices == 0 || stream.num_v_slices == 0) {
         return make_error(ErrorCode::InvalidArgument, "slice grid dimensions must be non-zero");
     }

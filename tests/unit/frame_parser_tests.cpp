@@ -129,7 +129,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({0, 0, 1, 1, 1, 0}, 1);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 1);
     const std::array<std::byte, 16> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
         std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
@@ -152,8 +152,9 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     EXPECT_EQ(frame.slices[0].header_byte_offset, 0u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 6u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
-    ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 1u);
+    ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 2u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
+    EXPECT_EQ(frame.slices[0].quant_table_set_indexes[1], 0u);
 }
 
 TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
@@ -161,7 +162,7 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({0, 0, 1, 1, 1, 0}, 2);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 2);
     const std::array<std::byte, 8> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
         std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
@@ -215,17 +216,14 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    const std::array<std::byte, 10> payload{
-        std::byte{0xbc},
-        std::byte{0xd3},
-        std::byte{0x3d},
-        std::byte{0x65},
-        std::byte{0x43},
-        std::byte{0x7d},
-        std::byte{0x38},
+    const std::array<std::byte, 7> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x00},
+        std::byte{0x07},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -241,12 +239,13 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     EXPECT_EQ(frame.slices[0].raster_width, 1u);
     EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
-    EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
-    EXPECT_EQ(frame.slices[0].footer_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
     EXPECT_EQ(frame.slices[0].slice_size, payload.size());
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
-    ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 1u);
+    ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 2u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
+    EXPECT_EQ(frame.slices[0].quant_table_set_indexes[1], 0u);
 }
 
 TEST(FrameParserTest, VerifiesSingleSliceCrc)
@@ -255,11 +254,11 @@ TEST(FrameParserTest, VerifiesSingleSliceCrc)
     stream.error_status_enabled = true;
     ffv1::codec::FrameParser parser(stream, true);
     ffv1::codec::FrameDecodeContext frame;
-    std::array<std::byte, 15> payload{
-        std::byte{0xbc}, std::byte{0xd3}, std::byte{0x3d}, std::byte{0x65},
-        std::byte{0x43}, std::byte{0x7d}, std::byte{0x38}, std::byte{0x00},
-        std::byte{0x00}, std::byte{0x0f}, std::byte{0x00}, std::byte{0x00},
+    std::array<std::byte, 12> payload{
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x0c}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00},
     };
     write_crc_parity(payload);
 
@@ -268,7 +267,7 @@ TEST(FrameParserTest, VerifiesSingleSliceCrc)
     EXPECT_TRUE(status.ok()) << status.message;
     ASSERT_EQ(frame.slices.size(), 1u);
     EXPECT_TRUE(frame.slices[0].has_crc);
-    EXPECT_EQ(frame.slices[0].footer_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
     EXPECT_EQ(frame.slices[0].slice_size, payload.size());
 }
 
@@ -278,11 +277,11 @@ TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
     stream.error_status_enabled = true;
     ffv1::codec::FrameParser parser(stream, true);
     ffv1::codec::FrameDecodeContext frame;
-    std::array<std::byte, 15> payload{
-        std::byte{0xbc}, std::byte{0xd3}, std::byte{0x3d}, std::byte{0x65},
-        std::byte{0x43}, std::byte{0x7d}, std::byte{0x38}, std::byte{0x00},
-        std::byte{0x00}, std::byte{0x0f}, std::byte{0x00}, std::byte{0x00},
+    std::array<std::byte, 12> payload{
+        std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x0c}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00},
     };
     write_crc_parity(payload);
     payload.back() ^= std::byte{0x01};
@@ -294,7 +293,7 @@ TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 11u);
+    EXPECT_EQ(status.location.byte_offset, 8u);
     EXPECT_TRUE(frame.slices.empty());
 }
 
@@ -361,26 +360,20 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
     const std::array payload{
-        std::byte{0xbc},
-        std::byte{0xd3},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
         std::byte{0x3d},
-        std::byte{0x65},
-        std::byte{0x43},
-        std::byte{0x7d},
-        std::byte{0x38},
+        std::byte{0x34},
+        std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
-        std::byte{0x21},
-        std::byte{0xe0},
-        std::byte{0xa6},
-        std::byte{0x35},
-        std::byte{0x02},
-        std::byte{0x6b},
-        std::byte{0xf9},
         std::byte{0x00},
-        std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x07},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -398,10 +391,10 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].payload_byte_offset, 0u);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
-    EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
-    EXPECT_EQ(frame.slices[0].footer_byte_offset, 7u);
-    EXPECT_EQ(frame.slices[0].slice_size, 10u);
-    EXPECT_EQ(frame.slices[0].payload.size(), 10u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
+    EXPECT_EQ(frame.slices[0].slice_size, 7u);
+    EXPECT_EQ(frame.slices[0].payload.size(), 7u);
 
     EXPECT_EQ(frame.slices[1].index, 1u);
     EXPECT_EQ(frame.slices[1].x, 8u);
@@ -412,12 +405,12 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     EXPECT_EQ(frame.slices[1].raster_y, 0u);
     EXPECT_EQ(frame.slices[1].raster_width, 1u);
     EXPECT_EQ(frame.slices[1].raster_height, 1u);
-    EXPECT_EQ(frame.slices[1].payload_byte_offset, 10u);
-    EXPECT_EQ(frame.slices[1].header_byte_offset, 12u);
-    EXPECT_EQ(frame.slices[1].content_byte_offset, 13u);
-    EXPECT_EQ(frame.slices[1].footer_byte_offset, 17u);
-    EXPECT_EQ(frame.slices[1].slice_size, 10u);
-    EXPECT_EQ(frame.slices[1].payload.size(), 10u);
+    EXPECT_EQ(frame.slices[1].payload_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[1].header_byte_offset, 9u);
+    EXPECT_EQ(frame.slices[1].content_byte_offset, 9u);
+    EXPECT_EQ(frame.slices[1].footer_byte_offset, 11u);
+    EXPECT_EQ(frame.slices[1].slice_size, 7u);
+    EXPECT_EQ(frame.slices[1].payload.size(), 7u);
 }
 
 TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
@@ -451,16 +444,13 @@ TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
     const std::array payload{
-        std::byte{0xbc},
-        std::byte{0xd3},
-        std::byte{0x3d},
-        std::byte{0x65},
-        std::byte{0x43},
-        std::byte{0x7d},
-        std::byte{0x38},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x00},
+        std::byte{0x07},
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x03},

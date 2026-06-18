@@ -763,7 +763,7 @@ TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
-TEST(SliceDecoderTest, RejectsMultipleQuantTableSetIndexesWithoutWritingOutput)
+TEST(SliceDecoderTest, AcceptsUnusedVersionThreeChromaCompatibilityIndex)
 {
     auto stream = make_stream();
     stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
@@ -787,10 +787,9 @@ TEST(SliceDecoderTest, RejectsMultipleQuantTableSetIndexesWithoutWritingOutput)
     const ffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_TRUE(status.ok()) << status.message;
     for (const auto sample : storage) {
-        EXPECT_EQ(sample, 0xee);
+        EXPECT_EQ(sample, 0u);
     }
 }
 

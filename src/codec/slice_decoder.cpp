@@ -199,7 +199,11 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
     if (slice.quant_table_set_indexes.empty()) {
         return make_error(ErrorCode::SyntaxError, "slice has no quantization table set indexes");
     }
-    if (slice.quant_table_set_indexes.size() != 1) {
+    const auto expected_index_count = syntax::quant_table_set_index_count(stream_);
+    const bool has_legacy_single_index = slice.quant_table_set_indexes.size() == 1;
+    const bool has_y_only_compatible_indexes = !stream_.chroma_planes && !stream_.extra_plane
+        && slice.quant_table_set_indexes.size() == expected_index_count;
+    if (!has_legacy_single_index && !has_y_only_compatible_indexes) {
         return make_error(ErrorCode::UnsupportedFeature,
                           "multiple slice quantization table set indexes are not implemented yet");
     }

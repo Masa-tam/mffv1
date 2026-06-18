@@ -34,23 +34,23 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     if (!status.ok()) {
         return status;
     }
-    if (value == 0 || value > std::numeric_limits<std::uint32_t>::max()) {
+    if (value >= std::numeric_limits<std::uint32_t>::max()) {
         return make_byte_error(ErrorCode::SyntaxError,
-                               "slice_width must be non-zero and fit uint32",
+                               "slice_width_minus_one is too large",
                                reader.byte_position());
     }
-    out_values.width = static_cast<std::uint32_t>(value);
+    out_values.width = static_cast<std::uint32_t>(value + 1);
 
     status = reader.read_unsigned(value);
     if (!status.ok()) {
         return status;
     }
-    if (value == 0 || value > std::numeric_limits<std::uint32_t>::max()) {
+    if (value >= std::numeric_limits<std::uint32_t>::max()) {
         return make_byte_error(ErrorCode::SyntaxError,
-                               "slice_height must be non-zero and fit uint32",
+                               "slice_height_minus_one is too large",
                                reader.byte_position());
     }
-    out_values.height = static_cast<std::uint32_t>(value);
+    out_values.height = static_cast<std::uint32_t>(value + 1);
 
     if (out_values.width > stream.num_h_slices - out_values.x
         || out_values.height > stream.num_v_slices - out_values.y) {
@@ -59,19 +59,10 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
                                reader.byte_position());
     }
 
-    status = reader.read_unsigned(value);
-    if (!status.ok()) {
-        return status;
-    }
-    if (value == 0 || value > 3) {
-        return make_byte_error(ErrorCode::UnsupportedFeature,
-                               "unsupported quant_table_set_index_count",
-                               reader.byte_position());
-    }
-
+    const auto index_count = syntax::quant_table_set_index_count(stream);
     out_values.quant_table_set_indexes.clear();
-    out_values.quant_table_set_indexes.reserve(static_cast<std::size_t>(value));
-    for (std::uint64_t i = 0; i < value; ++i) {
+    out_values.quant_table_set_indexes.reserve(index_count);
+    for (std::size_t i = 0; i < index_count; ++i) {
         std::uint64_t index = 0;
         status = reader.read_unsigned(index);
         if (!status.ok()) {

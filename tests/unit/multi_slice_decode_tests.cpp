@@ -37,22 +37,20 @@ TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
 {
     const auto stream = make_two_slice_stream();
     const std::array frame_payload{
-        std::byte{0xbc},
-        std::byte{0xd3},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
         std::byte{0x3d},
+        std::byte{0x34},
         std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x08},
-        std::byte{0x21},
-        std::byte{0xe0},
-        std::byte{0xa6},
-        std::byte{0xff},
-        std::byte{0x00},
-        std::byte{0x00},
-        std::byte{0x00},
-        std::byte{0x08},
+        std::byte{0x07},
     };
 
     ffv1::codec::FrameParser parser(stream);
@@ -61,10 +59,10 @@ TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
 
     ASSERT_TRUE(status.ok()) << status.message;
     ASSERT_EQ(frame.slices.size(), 2u);
-    EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
-    EXPECT_EQ(frame.slices[0].footer_byte_offset, 5u);
-    EXPECT_EQ(frame.slices[1].content_byte_offset, 11u);
-    EXPECT_EQ(frame.slices[1].footer_byte_offset, 13u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
+    EXPECT_EQ(frame.slices[1].content_byte_offset, 9u);
+    EXPECT_EQ(frame.slices[1].footer_byte_offset, 11u);
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage);

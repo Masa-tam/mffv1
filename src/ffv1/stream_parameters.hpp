@@ -59,6 +59,13 @@ struct StreamParameters {
     return count;
 }
 
+[[nodiscard]] inline bool uses_signed_16bit_predictor(const StreamParameters& stream) noexcept
+{
+    return stream.colorspace_type == 0
+        && stream.bits_per_raw_sample == 16
+        && stream.entropy_mode == EntropyMode::Range;
+}
+
 [[nodiscard]] inline std::uint32_t subsampled_extent(std::uint32_t value,
                                                      std::uint8_t log2_subsample) noexcept
 {

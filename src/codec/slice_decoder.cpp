@@ -273,6 +273,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         add_byte_offset(status, slice.content_byte_offset);
         return status;
     }
+    const bool use_signed_16bit_prediction = syntax::uses_signed_16bit_predictor(stream_);
 
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
         const auto& context_model = context_models[plane_index];
@@ -295,7 +296,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 const std::int32_t top_right =
                     (x + 1) < output.plane_width(plane_index) ? line.previous()[x + 1] : top;
                 const std::int32_t top_top = line.second_previous()[x];
-                const std::int32_t prediction = syntax::Predictor::median_predict(left, top, top_left);
+                const std::int32_t prediction = use_signed_16bit_prediction
+                    ? syntax::Predictor::median_predict_signed_16bit(left, top, top_left)
+                    : syntax::Predictor::median_predict(left, top, top_left);
 
                 syntax::ContextDecision context;
                 status = context_model.derive_context({far_left, left, top, top_left, top_right, top_top}, context);

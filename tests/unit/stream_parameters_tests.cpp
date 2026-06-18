@@ -7,6 +7,24 @@
 
 namespace {
 
+TEST(StreamParametersTest, SelectsSigned16BitPredictorOnlyForYcbcrRangeCoding)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.colorspace_type = 0;
+    stream.bits_per_raw_sample = 16;
+    stream.entropy_mode = ffv1::EntropyMode::Range;
+    EXPECT_TRUE(ffv1::syntax::uses_signed_16bit_predictor(stream));
+
+    stream.bits_per_raw_sample = 15;
+    EXPECT_FALSE(ffv1::syntax::uses_signed_16bit_predictor(stream));
+    stream.bits_per_raw_sample = 16;
+    stream.colorspace_type = 1;
+    EXPECT_FALSE(ffv1::syntax::uses_signed_16bit_predictor(stream));
+    stream.colorspace_type = 0;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    EXPECT_FALSE(ffv1::syntax::uses_signed_16bit_predictor(stream));
+}
+
 TEST(StreamParametersTest, ComputesPlaneGeometryForChromaOnly)
 {
     ffv1::syntax::StreamParameters stream;

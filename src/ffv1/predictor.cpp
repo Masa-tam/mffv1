@@ -4,11 +4,32 @@
 
 namespace ffv1::syntax {
 
+namespace {
+
+std::int32_t as_signed_16bit(std::int32_t sample) noexcept
+{
+    return sample >= 32768 ? sample - 65536 : sample;
+}
+
+} // namespace
+
 std::int32_t Predictor::median_predict(std::int32_t left,
                                        std::int32_t top,
                                        std::int32_t top_left) noexcept
 {
     return util::median3(left, top, left + top - top_left);
+}
+
+std::int32_t Predictor::median_predict_signed_16bit(std::int32_t left,
+                                                    std::int32_t top,
+                                                    std::int32_t top_left) noexcept
+{
+    const auto signed_left = as_signed_16bit(left);
+    const auto signed_top = as_signed_16bit(top);
+    const auto signed_top_left = as_signed_16bit(top_left);
+    return util::median3(signed_left,
+                         signed_top,
+                         signed_left + signed_top - signed_top_left);
 }
 
 std::int32_t Predictor::reconstruct(std::int32_t prediction,
@@ -29,4 +50,3 @@ std::int32_t Predictor::reconstruct(std::int32_t prediction,
 }
 
 } // namespace ffv1::syntax
-

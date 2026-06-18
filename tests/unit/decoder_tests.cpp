@@ -17,6 +17,15 @@ std::array<std::byte, 3> minimal_v0_y_only_configuration_record()
     };
 }
 
+std::array<std::byte, 3> minimal_v0_golomb_rice_y_only_configuration_record()
+{
+    return {
+        std::byte{0xe7},
+        std::byte{0x7a},
+        std::byte{0xe2},
+    };
+}
+
 std::array<std::byte, 18> minimal_v3_y_only_configuration_record()
 {
     return {
@@ -49,6 +58,12 @@ std::array<std::byte, 16> zero_frame_payload()
 ffv1::Status configure_minimal_v0_y_only(ffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v0_y_only_configuration_record();
+    return decoder.configure(configuration_record);
+}
+
+ffv1::Status configure_minimal_v0_golomb_rice_y_only(ffv1::IDecoder& decoder)
+{
+    const auto configuration_record = minimal_v0_golomb_rice_y_only_configuration_record();
     return decoder.configure(configuration_record);
 }
 
@@ -521,6 +536,33 @@ TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
     EXPECT_TRUE(status.ok()) << status.message;
     for (const auto sample : storage) {
         EXPECT_EQ(sample, 0u);
+    }
+}
+
+TEST(DecoderTest, DecodeFrameWritesLegacyGolombRiceFrame)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 4;
+    options.frame_height = 2;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_golomb_rice_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 10> storage{};
+    storage.fill(0xee);
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 5);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array frame_payload{std::byte{0xfe}};
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (std::size_t y = 0; y < 2; ++y) {
+        for (std::size_t x = 0; x < 4; ++x) {
+            EXPECT_EQ(storage[y * 5 + x], 0u);
+        }
+        EXPECT_EQ(storage[y * 5 + 4], 0xee);
     }
 }
 

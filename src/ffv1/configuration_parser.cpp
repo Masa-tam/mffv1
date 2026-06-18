@@ -113,10 +113,10 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         if (!status.ok()) {
             return status;
         }
-        if (value == 0 || value > 16) {
+        if (value > 16) {
             return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
         }
-        stream.bits_per_raw_sample = static_cast<std::uint8_t>(value);
+        stream.bits_per_raw_sample = value == 0 ? std::uint8_t{8} : static_cast<std::uint8_t>(value);
     }
 
     bool flag = false;
@@ -130,8 +130,8 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
     if (!status.ok()) {
         return status;
     }
-    if (value > 4) {
-        return make_error(ErrorCode::UnsupportedFeature, "horizontal chroma subsampling is too large");
+    if (value > std::numeric_limits<std::uint8_t>::max()) {
+        return make_error(ErrorCode::SyntaxError, "horizontal chroma subsampling exponent is too large");
     }
     stream.log2_h_chroma_subsample = static_cast<std::uint8_t>(value);
 
@@ -139,8 +139,8 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
     if (!status.ok()) {
         return status;
     }
-    if (value > 4) {
-        return make_error(ErrorCode::UnsupportedFeature, "vertical chroma subsampling is too large");
+    if (value > std::numeric_limits<std::uint8_t>::max()) {
+        return make_error(ErrorCode::SyntaxError, "vertical chroma subsampling exponent is too large");
     }
     stream.log2_v_chroma_subsample = static_cast<std::uint8_t>(value);
 

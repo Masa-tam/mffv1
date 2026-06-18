@@ -158,6 +158,50 @@ TEST(ConfigurationParserTest, ParsesMinimalVersion3YOnlyParameters)
     EXPECT_EQ(stream.quant_table_sets[0].tables[0][128], 0);
 }
 
+TEST(ConfigurationParserTest, InterpretsReservedZeroBitDepthAsEight)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[4] = u(0);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(stream.bits_per_raw_sample, 8u);
+}
+
+TEST(ConfigurationParserTest, ParsesLargeChromaSubsamplingExponents)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[6] = u(40);
+    symbols[7] = u(255);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(stream.log2_h_chroma_subsample, 40u);
+    EXPECT_EQ(stream.log2_v_chroma_subsample, 255u);
+}
+
+TEST(ConfigurationParserTest, RejectsUnrepresentableChromaSubsamplingExponent)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[6] = u(256);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
 TEST(ConfigurationParserTest, RejectsUnsupportedVersion)
 {
     auto symbols = minimal_v3_y_only_symbols();

@@ -201,8 +201,9 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         if (!status.ok()) {
             return status;
         }
-        if (value > 1) {
-            return make_error(ErrorCode::UnsupportedFeature, "unsupported intra flag value");
+        if (value != 1) {
+            return make_error(ErrorCode::UnsupportedFeature,
+                              "non-intra FFV1 streams are not implemented yet");
         }
     }
 

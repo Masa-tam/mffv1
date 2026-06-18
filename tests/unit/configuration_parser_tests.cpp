@@ -200,6 +200,22 @@ TEST(ConfigurationParserTest, RejectsCustomRangeCoderInitialStates)
     EXPECT_EQ(stream.version, 1);
 }
 
+TEST(ConfigurationParserTest, RejectsNonIntraStream)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols.back() = u(0);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+    stream.version = 1;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(stream.version, 1);
+}
+
 TEST(ConfigurationParserTest, Version0UsesDefaultZeroQuantTableSet)
 {
     std::deque<Symbol> symbols{

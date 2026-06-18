@@ -803,6 +803,90 @@ TEST(SliceDecoderTest, DecodesGolombRiceZeroRun)
     }
 }
 
+TEST(SliceDecoderTest, DecodesGolombRiceChromaPlanesInOrder)
+{
+    auto stream = make_stream();
+    stream.version = 3;
+    stream.width = 1;
+    stream.height = 1;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    stream.chroma_planes = true;
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
+
+    std::array<std::uint8_t, 1> y{0xee};
+    std::array<std::uint8_t, 1> cb{0xee};
+    std::array<std::uint8_t, 1> cr{0xee};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 1, 1, 1};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 1, 1, 1};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 1, 1, 1};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 2> payload{std::byte{0x45}, std::byte{0x60}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes = {0, 1};
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(y[0], 1u);
+    EXPECT_EQ(cb[0], 255u);
+    EXPECT_EQ(cr[0], 2u);
+}
+
+TEST(SliceDecoderTest, DecodesGolombRice16BitExtraPlane)
+{
+    auto stream = make_stream();
+    stream.version = 3;
+    stream.width = 1;
+    stream.height = 1;
+    stream.bits_per_raw_sample = 16;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    stream.extra_plane = true;
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
+
+    std::array<std::uint16_t, 1> y{0xeeee};
+    std::array<std::uint16_t, 1> alpha{0xeeee};
+    std::array<ffv1::MutablePlaneView, 2> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt16, 1, 1, 2};
+    planes[1].data = alpha.data();
+    planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt16, 1, 1, 2};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 1> payload{std::byte{0x45}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes = {0, 1, 2};
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(y[0], 1u);
+    EXPECT_EQ(alpha[0], 65535u);
+}
+
 TEST(SliceDecoderTest, DecodesPositiveGolombRiceRunInterruption)
 {
     auto stream = make_stream();

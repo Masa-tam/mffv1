@@ -21,7 +21,6 @@ namespace {
 
 constexpr std::uint64_t kMaxQuantTableSetCount = 8;
 constexpr std::uint64_t kMaxContextCount = 32768;
-constexpr std::size_t kContextSize = 32;
 
 Status read_u(entropy::SymbolReader& reader, std::uint64_t& out_value)
 {
@@ -31,11 +30,6 @@ Status read_u(entropy::SymbolReader& reader, std::uint64_t& out_value)
 Status read_b(entropy::SymbolReader& reader, bool& out_value)
 {
     return reader.read_bool(out_value);
-}
-
-Status read_s(entropy::SymbolReader& reader, std::int64_t& out_value)
-{
-    return reader.read_signed(out_value);
 }
 
 Status checked_u32(std::uint64_t value, const char* name, std::uint32_t& out_value)
@@ -189,16 +183,8 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
                 return status;
             }
             if (flag) {
-                const auto context_count = stream.quant_table_sets[i].context_count;
-                for (std::uint32_t j = 0; j < context_count; ++j) {
-                    for (std::size_t k = 0; k < kContextSize; ++k) {
-                        std::int64_t ignored_delta = 0;
-                        status = read_s(reader, ignored_delta);
-                        if (!status.ok()) {
-                            return status;
-                        }
-                    }
-                }
+                return make_error(ErrorCode::UnsupportedFeature,
+                                  "custom range coder initial states are not implemented yet");
             }
         }
 

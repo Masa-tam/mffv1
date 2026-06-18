@@ -87,6 +87,40 @@ TEST(SliceStateTest, KeepsExtraPlaneFullWidthWhenChromaIsAbsent)
     EXPECT_EQ(state.line_state(1).width(), stream.width);
 }
 
+TEST(SliceStateTest, UsesSliceOutputPlaneWidths)
+{
+    auto stream = make_stream();
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 8> y{};
+    std::array<std::uint8_t, 4> cb{};
+    std::array<std::uint8_t, 4> cr{};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[1].data = cb.data();
+    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 2, 2, 2};
+    planes[2].data = cr.data();
+    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 2, 2, 2};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 2;
+    slice.height = 2;
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+
+    ffv1::codec::SliceState state;
+    const auto status = state.reset(window);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(state.plane_count(), 3u);
+    EXPECT_EQ(state.line_state(0).width(), 2u);
+    EXPECT_EQ(state.line_state(1).width(), 1u);
+    EXPECT_EQ(state.line_state(2).width(), 1u);
+}
+
 TEST(SliceDecoderTest, RejectsEmptyPayload)
 {
     const auto stream = make_stream();

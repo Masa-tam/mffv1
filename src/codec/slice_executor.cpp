@@ -118,7 +118,7 @@ Status SliceExecutor::decode_slice(MutableFrameView output, const syntax::SliceD
     }
 
     SliceState state;
-    status = state.reset(stream_);
+    status = state.reset(window);
     if (!status.ok()) {
         return status;
     }

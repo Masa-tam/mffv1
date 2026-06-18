@@ -9,9 +9,12 @@
 
 namespace ffv1::codec {
 
+class SliceOutputWindow;
+
 class SliceState {
 public:
     Status reset(const syntax::StreamParameters& stream);
+    Status reset(const SliceOutputWindow& output);
 
     [[nodiscard]] std::size_t plane_count() const noexcept;
     [[nodiscard]] syntax::LineState& line_state(std::size_t plane_index) noexcept;
@@ -22,4 +25,3 @@ private:
 };
 
 } // namespace ffv1::codec
-

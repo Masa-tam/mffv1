@@ -101,6 +101,18 @@ Status SliceState::reset(const syntax::StreamParameters& stream)
     return ok_status();
 }
 
+Status SliceState::reset(const SliceOutputWindow& output)
+{
+    line_states_.resize(output.plane_count());
+    for (std::size_t i = 0; i < line_states_.size(); ++i) {
+        Status status = line_states_[i].reset(output.plane_width(i));
+        if (!status.ok()) {
+            return status;
+        }
+    }
+    return ok_status();
+}
+
 std::size_t SliceState::plane_count() const noexcept
 {
     return line_states_.size();

@@ -1,4 +1,5 @@
 #include "codec/frame_parser.hpp"
+#include "util/crc32.hpp"
 
 #include <array>
 #include <cstddef>
@@ -61,6 +62,17 @@ ffv1::syntax::StreamParameters make_stream()
     stream.num_v_slices = 1;
     stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
     return stream;
+}
+
+template <std::size_t Size>
+void write_crc_parity(std::array<std::byte, Size>& payload)
+{
+    static_assert(Size >= 4);
+    const auto crc = ffv1::util::crc32_ieee_msb(ffv1::ByteSpan(payload.data(), Size - 4));
+    payload[Size - 4] = static_cast<std::byte>((crc >> 24) & 0xffu);
+    payload[Size - 3] = static_cast<std::byte>((crc >> 16) & 0xffu);
+    payload[Size - 2] = static_cast<std::byte>((crc >> 8) & 0xffu);
+    payload[Size - 1] = static_cast<std::byte>(crc & 0xffu);
 }
 
 TEST(FrameParserTest, RejectsEmptyPayload)
@@ -203,7 +215,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    const std::array<std::byte, 7> payload{
+    const std::array<std::byte, 10> payload{
         std::byte{0xbc},
         std::byte{0xd3},
         std::byte{0x3d},
@@ -211,6 +223,9 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
         std::byte{0x43},
         std::byte{0x7d},
         std::byte{0x38},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -227,9 +242,60 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 3u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[0].slice_size, payload.size());
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
     ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 1u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
+}
+
+TEST(FrameParserTest, VerifiesSingleSliceCrc)
+{
+    auto stream = make_stream();
+    stream.error_status_enabled = true;
+    ffv1::codec::FrameParser parser(stream, true);
+    ffv1::codec::FrameDecodeContext frame;
+    std::array<std::byte, 15> payload{
+        std::byte{0xbc}, std::byte{0xd3}, std::byte{0x3d}, std::byte{0x65},
+        std::byte{0x43}, std::byte{0x7d}, std::byte{0x38}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x0f}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+    };
+    write_crc_parity(payload);
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_TRUE(frame.slices[0].has_crc);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[0].slice_size, payload.size());
+}
+
+TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
+{
+    auto stream = make_stream();
+    stream.error_status_enabled = true;
+    ffv1::codec::FrameParser parser(stream, true);
+    ffv1::codec::FrameDecodeContext frame;
+    std::array<std::byte, 15> payload{
+        std::byte{0xbc}, std::byte{0xd3}, std::byte{0x3d}, std::byte{0x65},
+        std::byte{0x43}, std::byte{0x7d}, std::byte{0x38}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x0f}, std::byte{0x00}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
+    };
+    write_crc_parity(payload);
+    payload.back() ^= std::byte{0x01};
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 11u);
+    EXPECT_TRUE(frame.slices.empty());
 }
 
 TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)

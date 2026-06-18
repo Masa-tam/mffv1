@@ -82,17 +82,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
 
 Status FrameParser::parse_with_range_header(ByteSpan payload, FrameDecodeContext& out_frame) const
 {
-    if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
-        return parse_located_range_slices(payload, out_frame);
-    }
-
-    entropy::RangeCoder header_reader;
-    Status status = header_reader.reset(payload);
-    if (!status.ok()) {
-        set_slice_location_if_missing(status, 0);
-        return status;
-    }
-    return parse_with_header_reader(payload, header_reader, out_frame);
+    return parse_located_range_slices(payload, out_frame);
 }
 
 Status FrameParser::parse_with_header_reader(ByteSpan payload,

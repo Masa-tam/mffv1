@@ -81,6 +81,8 @@ Status SlicePayloadLocator::locate_slices(ByteSpan frame_payload,
                                               descriptor,
                                               verify_crc);
         if (!status.ok()) {
+            const auto slice_index = static_cast<std::uint32_t>(expected_slice_count - index - 1);
+            set_slice_location_if_missing(status, slice_index);
             return status;
         }
 

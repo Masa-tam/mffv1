@@ -183,7 +183,9 @@ Status SliceDecoder::resolve_content_payload(const syntax::SliceDescriptor& slic
     }
     out_payload = slice.payload.subspan(static_cast<std::size_t>(local_content_offset),
                                         static_cast<std::size_t>(local_content_end - local_content_offset));
-    const bool has_continuous_range_state = stream_.version >= 3 && slice.slice_size != 0;
+    const bool has_continuous_range_state = stream_.entropy_mode == EntropyMode::Range
+        && ((stream_.version >= 3 && slice.slice_size != 0)
+            || slice.continues_frame_range_state);
     if (out_payload.empty() && !has_continuous_range_state) {
         return make_byte_error(ErrorCode::SyntaxError, "slice payload is empty", slice.content_byte_offset);
     }
@@ -281,6 +283,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     entropy::RangeCoder reader;
     std::uint64_t reader_base_offset = slice.content_byte_offset;
     const bool continue_from_slice_header = stream_.version >= 3 && slice.slice_size != 0;
+    const bool continue_from_legacy_frame_header = slice.continues_frame_range_state;
     if (continue_from_slice_header) {
         const auto local_footer_offset = slice.footer_byte_offset - slice.payload_byte_offset;
         const auto entropy_payload = slice.payload.first(static_cast<std::size_t>(local_footer_offset));
@@ -326,6 +329,31 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                    slice.header_byte_offset);
         }
 
+        status = reader.reconfigure_contexts(context_counts, initial_state_banks);
+        reader_base_offset = slice.payload_byte_offset;
+    } else if (continue_from_legacy_frame_header) {
+        status = reader.reset(slice.payload, stream_.state_transition);
+        if (!status.ok()) {
+            add_byte_offset(status, slice.payload_byte_offset);
+            return status;
+        }
+        bool keyframe = false;
+        status = reader.read_bool(keyframe);
+        if (!status.ok()) {
+            add_byte_offset(status, slice.payload_byte_offset);
+            return status;
+        }
+        if (!keyframe) {
+            return make_byte_error(ErrorCode::UnsupportedFeature,
+                                   "legacy non-keyframes are not implemented yet",
+                                   slice.payload_byte_offset);
+        }
+        const auto local_content_offset = slice.content_byte_offset - slice.payload_byte_offset;
+        if (reader.byte_position() != local_content_offset) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "slice descriptor does not match the legacy frame header",
+                                   slice.header_byte_offset);
+        }
         status = reader.reconfigure_contexts(context_counts, initial_state_banks);
         reader_base_offset = slice.payload_byte_offset;
     } else {

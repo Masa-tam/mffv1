@@ -30,6 +30,7 @@ struct SliceDescriptor {
     std::uint8_t error_status = 0;
     std::uint32_t expected_crc = 0;
     bool has_crc = false;
+    bool continues_frame_range_state = false;
 };
 
 } // namespace ffv1::syntax

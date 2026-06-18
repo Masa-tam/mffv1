@@ -135,6 +135,42 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptor)
     EXPECT_EQ(frame.frame_info.plane_count, 1u);
 }
 
+TEST(FrameParserTest, ParsesLegacyRangeKeyframeAndContentOffset)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{std::byte{0xff}, std::byte{0x00}};
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].header_byte_offset, 0u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
+    EXPECT_EQ(frame.slices[0].payload_byte_offset, 0u);
+    EXPECT_TRUE(frame.slices[0].continues_frame_range_state);
+}
+
+TEST(FrameParserTest, RejectsLegacyRangeNonKeyframe)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{std::byte{0x00}, std::byte{0x00}};
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(frame.slices.empty());
+}
+
 TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
 {
     const auto stream = make_stream();

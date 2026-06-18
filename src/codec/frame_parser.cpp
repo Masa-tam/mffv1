@@ -53,6 +53,27 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
     }
 
+    entropy::RangeCoder frame_reader;
+    const bool parse_legacy_range_header = stream_.version <= 1
+        && stream_.entropy_mode == EntropyMode::Range;
+    if (parse_legacy_range_header) {
+        status = frame_reader.reset(payload, stream_.state_transition);
+        if (!status.ok()) {
+            return status;
+        }
+        bool keyframe = false;
+        status = frame_reader.read_bool(keyframe);
+        if (!status.ok()) {
+            return status;
+        }
+        if (!keyframe) {
+            return make_byte_error(ErrorCode::UnsupportedFeature,
+                                   "legacy non-keyframes are not implemented yet",
+                                   0);
+        }
+        out_frame.keyframe = true;
+    }
+
     syntax::SliceDescriptor slice;
     slice.index = 0;
     SliceHeaderValues header;
@@ -69,8 +90,9 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     }
     slice.payload = payload;
     slice.header_byte_offset = 0;
-    slice.content_byte_offset = 0;
+    slice.content_byte_offset = parse_legacy_range_header ? frame_reader.byte_position() : 0;
     slice.payload_byte_offset = 0;
+    slice.continues_frame_range_state = parse_legacy_range_header;
     out_frame.slices.push_back(slice);
 
     status = validate_slice_raster_coverage(stream_, out_frame.slices);

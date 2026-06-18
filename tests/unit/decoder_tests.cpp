@@ -437,8 +437,7 @@ TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
-    EXPECT_TRUE(status.location.has_slice_index);
-    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_FALSE(status.location.has_slice_index);
 }
 
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)
@@ -452,7 +451,7 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
+    const auto frame_payload = zero_scalar_payload();
     ffv1::FrameInfo info;
     const auto status = result.decoder->inspect_frame(frame_payload, info);
 
@@ -525,6 +524,28 @@ TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
     }
 }
 
+TEST(DecoderTest, DecodeFrameRejectsLegacyRangeNonKeyframe)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), 1, 1, 1);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array frame_payload{std::byte{0x00}, std::byte{0x00}};
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(storage[0], 0xee);
+}
+
 TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
 {
     ffv1::DecoderOptions options;
@@ -540,8 +561,8 @@ TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     ffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
-        std::byte{0x14},
-        std::byte{0x46},
+        std::byte{0x7f},
+        std::byte{0x80},
     };
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
@@ -565,8 +586,8 @@ TEST(DecoderTest, DecodeFrameWrapsNegativeDifference)
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     ffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
-        std::byte{0x21},
-        std::byte{0xcf},
+        std::byte{0x8f},
+        std::byte{0x70},
     };
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
@@ -590,8 +611,8 @@ TEST(DecoderTest, DecodeFrameUsesLeftPrediction)
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 2);
     ffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
-        std::byte{0x1c},
-        std::byte{0xf0},
+        std::byte{0x8b},
+        std::byte{0x38},
     };
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
@@ -616,8 +637,8 @@ TEST(DecoderTest, DecodeFrameUsesTopPrediction)
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     ffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
-        std::byte{0x1c},
-        std::byte{0xf0},
+        std::byte{0x8b},
+        std::byte{0x38},
     };
 
     const auto status = result.decoder->decode_frame(frame_payload, output);

@@ -172,6 +172,30 @@ TEST(DecoderTest, ConfigureRejectsVersionThreeRecordWithCrcMismatch)
     EXPECT_EQ(status.location.byte_offset, 14u);
 }
 
+TEST(DecoderTest, ConfigureChecksVersionThreeCrcBeforeParameterSyntax)
+{
+    const auto original = minimal_v3_y_only_configuration_record();
+    constexpr std::size_t range_coder_initial_bytes = 2;
+    constexpr std::size_t crc_size = 4;
+
+    for (std::size_t offset = range_coder_initial_bytes;
+         offset < original.size() - crc_size;
+         ++offset) {
+        const auto result = ffv1::create_decoder({});
+        ASSERT_TRUE(result.status.ok());
+        ASSERT_NE(result.decoder, nullptr);
+        auto damaged = original;
+        damaged[offset] ^= std::byte{0xff};
+
+        const auto status = result.decoder->configure(damaged);
+
+        EXPECT_FALSE(status.ok()) << "offset=" << offset;
+        EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch) << "offset=" << offset;
+        EXPECT_TRUE(status.location.has_byte_offset) << "offset=" << offset;
+        EXPECT_EQ(status.location.byte_offset, original.size() - crc_size) << "offset=" << offset;
+    }
+}
+
 TEST(DecoderTest, DecodeRequiresConfiguration)
 {
     const auto result = ffv1::create_decoder({});

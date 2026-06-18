@@ -15,6 +15,7 @@ namespace ffv1::entropy {
 class RangeCoder final : public SymbolReader {
 public:
     static constexpr std::size_t kScalarContextSize = 32;
+    static constexpr std::size_t kMaxScalarContextCount = 32768;
     static constexpr std::uint8_t kDefaultInitialState = 128;
 
     Status reset(ByteSpan payload,

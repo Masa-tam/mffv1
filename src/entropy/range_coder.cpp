@@ -61,6 +61,10 @@ Status RangeCoder::reset(ByteSpan payload,
     if (scalar_context_count == 0) {
         return make_error(ErrorCode::InvalidArgument, "range coder must have at least one scalar context");
     }
+    if (scalar_context_count > kMaxScalarContextCount) {
+        return make_error(ErrorCode::ResourceExhausted,
+                          "range coder scalar context count exceeds the supported limit");
+    }
 
     payload_ = payload;
     range_ = 0xff00;

@@ -114,4 +114,19 @@ TEST(RangeCoderTest, RejectsOutOfRangeScalarContext)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
 }
 
+TEST(RangeCoderTest, RejectsExcessiveScalarContextCount)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    ffv1::entropy::RangeCoder coder;
+
+    const auto status = coder.reset(
+        payload, ffv1::entropy::RangeCoder::kMaxScalarContextCount + 1);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
+}
+
 } // namespace

@@ -183,6 +183,10 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (stream_.bits_per_raw_sample == 0 || stream_.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
+    if (stream_.entropy_mode != EntropyMode::Range) {
+        return make_error(ErrorCode::UnsupportedFeature,
+                          "Golomb-Rice slice decoding is not implemented yet");
+    }
     entropy::RangeCoder reader;
     if (stream_.quant_table_sets.empty()) {
         return make_error(ErrorCode::InvalidState, "stream has no quantization table sets");

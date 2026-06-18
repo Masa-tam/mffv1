@@ -147,7 +147,7 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
     parsed_slices.reserve(located_slices.size());
     for (const auto& located_slice : located_slices) {
         entropy::RangeCoder header_reader;
-        status = header_reader.reset(located_slice.payload);
+        status = header_reader.reset(located_slice.payload, stream_.state_transition);
         if (!status.ok()) {
             add_byte_offset(status, located_slice.payload_byte_offset);
             set_slice_location_if_missing(status, located_slice.index);

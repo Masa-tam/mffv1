@@ -9,6 +9,7 @@
 #include "entropy/symbol_reader.hpp"
 #include "ffv1/frame.hpp"
 #include "ffv1/result.hpp"
+#include "ffv1/state_transition.hpp"
 
 namespace ffv1::entropy {
 
@@ -29,6 +30,11 @@ public:
     Status reset(ByteSpan payload,
                  std::span<const std::size_t> scalar_context_counts,
                  std::span<const std::span<const ScalarContextStates>> initial_state_banks);
+    Status reset(ByteSpan payload, const syntax::StateTransitionTable& state_transition);
+    Status reset(ByteSpan payload,
+                 std::span<const std::size_t> scalar_context_counts,
+                 std::span<const std::span<const ScalarContextStates>> initial_state_banks,
+                 const syntax::StateTransitionTable& state_transition);
 
     [[nodiscard]] std::uint64_t byte_position() const noexcept override;
 
@@ -45,7 +51,8 @@ private:
     Status reset_impl(ByteSpan payload,
                       std::span<const std::size_t> scalar_context_counts,
                       std::span<const std::span<const ScalarContextStates>> initial_state_banks,
-                      std::uint8_t initial_state);
+                      std::uint8_t initial_state,
+                      const syntax::StateTransitionTable& state_transition);
     Status read_rac(std::uint8_t& state, bool& out_bit);
     Status read_symbol(std::size_t context_bank,
                        ContextId context,
@@ -60,6 +67,7 @@ private:
     bool end_ = false;
     bool initialized_ = false;
     std::uint8_t bool_state_ = kDefaultInitialState;
+    syntax::StateTransitionTable state_transition_ = syntax::kDefaultStateTransition;
     std::vector<std::size_t> scalar_context_bank_offsets_;
     std::vector<std::size_t> scalar_context_bank_sizes_;
     std::vector<ScalarContextStates> scalar_contexts_;

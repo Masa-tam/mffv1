@@ -50,6 +50,37 @@ TEST(RangeCoderTest, DecodesHighInitialStateAsTrueBinary)
     EXPECT_TRUE(value);
 }
 
+TEST(RangeCoderTest, CustomStateTransitionChangesBinaryDecoding)
+{
+    auto custom_transition = ffv1::syntax::kDefaultStateTransition;
+    custom_transition[128] = 0;
+    bool observed_difference = false;
+
+    for (std::uint32_t low = 0; low < 0xff00 && !observed_difference; low += 257) {
+        const std::array<std::byte, 2> payload{
+            static_cast<std::byte>((low >> 8) & 0xffu),
+            static_cast<std::byte>(low & 0xffu),
+        };
+        ffv1::entropy::RangeCoder default_coder;
+        ffv1::entropy::RangeCoder custom_coder;
+        ASSERT_TRUE(default_coder.reset(payload).ok());
+        ASSERT_TRUE(custom_coder.reset(payload, custom_transition).ok());
+
+        for (int bit_index = 0; bit_index < 8; ++bit_index) {
+            bool default_bit = false;
+            bool custom_bit = false;
+            ASSERT_TRUE(default_coder.read_bool(default_bit).ok());
+            ASSERT_TRUE(custom_coder.read_bool(custom_bit).ok());
+            if (default_bit != custom_bit) {
+                observed_difference = true;
+                break;
+            }
+        }
+    }
+
+    EXPECT_TRUE(observed_difference);
+}
+
 TEST(RangeCoderTest, DecodesHighInitialStateAsZeroUnsignedSymbol)
 {
     const std::array<std::byte, 2> payload{

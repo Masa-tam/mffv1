@@ -7,6 +7,7 @@
 
 #include "ffv1/frame.hpp"
 #include "ffv1/options.hpp"
+#include "ffv1/state_transition.hpp"
 
 namespace ffv1::syntax {
 
@@ -42,6 +43,7 @@ struct StreamParameters {
     std::uint32_t num_v_slices = 1;
     std::vector<QuantTableSet> quant_table_sets;
     std::vector<InitialStateSet> initial_states;
+    StateTransitionTable state_transition = kDefaultStateTransition;
     bool error_status_enabled = false;
 };
 

@@ -172,6 +172,86 @@ TEST(ConfigurationParserTest, RejectsUnsupportedVersion)
     EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
 }
 
+TEST(ConfigurationParserTest, ParsesCustomRangeCoderStateTransitions)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[2] = u(2);
+    for (int state = 1; state < 256; ++state) {
+        symbols.insert(symbols.begin() + 2 + state, s(state == 8 ? 5 : 0));
+    }
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(stream.entropy_mode, ffv1::EntropyMode::Range);
+    EXPECT_EQ(stream.state_transition[0], 0u);
+    EXPECT_EQ(stream.state_transition[8], 25u);
+    EXPECT_EQ(stream.state_transition[255], 0u);
+}
+
+TEST(ConfigurationParserTest, RejectsOutOfRangeCustomStateTransition)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[2] = u(2);
+    symbols.insert(symbols.begin() + 3, s(-1));
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
+TEST(ConfigurationParserTest, RejectsCustomStateTransitionAboveByteRange)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[2] = u(2);
+    symbols.insert(symbols.begin() + 3, s(256));
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
+TEST(ConfigurationParserTest, RejectsReservedCoderType)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[2] = u(3);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+}
+
+TEST(ConfigurationParserTest, RejectsTruncatedCustomStateTransitions)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[2] = u(2);
+    symbols.erase(symbols.begin() + 3, symbols.end());
+    symbols.push_back(s(0));
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
 TEST(ConfigurationParserTest, RejectsOversizedQuantTableRun)
 {
     auto symbols = minimal_v3_y_only_symbols();

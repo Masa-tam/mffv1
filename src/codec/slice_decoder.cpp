@@ -265,7 +265,10 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     }
 
     entropy::RangeCoder reader;
-    status = reader.reset(content_payload, context_counts, initial_state_banks);
+    status = reader.reset(content_payload,
+                          context_counts,
+                          initial_state_banks,
+                          stream_.state_transition);
     if (!status.ok()) {
         add_byte_offset(status, slice.content_byte_offset);
         return status;

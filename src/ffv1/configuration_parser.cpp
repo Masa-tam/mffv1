@@ -77,8 +77,23 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         stream.entropy_mode = EntropyMode::GolombRice;
     } else if (value == 1) {
         stream.entropy_mode = EntropyMode::Range;
+    } else if (value == 2) {
+        stream.entropy_mode = EntropyMode::Range;
+        for (std::size_t state = 1; state < stream.state_transition.size(); ++state) {
+            std::int64_t delta = 0;
+            status = reader.read_signed(delta);
+            if (!status.ok()) {
+                return status;
+            }
+            const auto transition = static_cast<std::int64_t>(stream.state_transition[state]) + delta;
+            if (transition < 0 || transition > 255) {
+                return make_error(ErrorCode::SyntaxError,
+                                  "custom range coder state transition is outside 0..255");
+            }
+            stream.state_transition[state] = static_cast<std::uint8_t>(transition);
+        }
     } else {
-        return make_error(ErrorCode::UnsupportedFeature, "custom range coder state transitions are not supported yet");
+        return make_error(ErrorCode::UnsupportedFeature, "unsupported range coder type");
     }
 
     status = read_u(reader, value);

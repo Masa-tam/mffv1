@@ -6,11 +6,13 @@
 #include "entropy/golomb_rice_reader.hpp"
 #include "entropy/golomb_rice_run.hpp"
 #include "entropy/range_coder.hpp"
+#include "ffv1/color_transform.hpp"
 #include "ffv1/context_model.hpp"
 #include "ffv1/predictor.hpp"
 #include "util/status.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -398,9 +400,9 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
                                "range-coded slice content must be byte aligned",
                                slice.content_byte_offset);
     }
-    if (stream_.colorspace_type == 1) {
+    if (stream_.colorspace_type == 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
         return make_error(ErrorCode::UnsupportedFeature,
-                          "RGB slice decoding is not implemented yet");
+                          "Golomb-Rice RGB slice decoding is not implemented yet");
     }
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
@@ -574,6 +576,93 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         add_byte_offset(status, reader_base_offset);
         return status;
     }
+
+    if (stream_.colorspace_type == 1) {
+        const auto coded_bits = static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
+        const auto width = output.plane_width(0);
+        const auto height = output.plane_height(0);
+        for (std::uint32_t y = 0; y < height; ++y) {
+            std::array<std::uint8_t*, 4> rows_u8{};
+            std::array<std::uint16_t*, 4> rows_u16{};
+            for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
+                rows_u8[plane_index] = output.row_u8(plane_index, y);
+                rows_u16[plane_index] = output.row_u16(plane_index, y);
+                if (stream_.bits_per_raw_sample <= 8 && rows_u8[plane_index] == nullptr) {
+                    return make_error(ErrorCode::InvalidArgument,
+                                      "RGB slice output row is not writable as uint8");
+                }
+                if (stream_.bits_per_raw_sample > 8 && rows_u16[plane_index] == nullptr) {
+                    return make_error(ErrorCode::InvalidArgument,
+                                      "RGB slice output row is not writable as uint16");
+                }
+
+                auto& line = state.line_state(plane_index);
+                const auto reconstruction_bits = plane_index < 3
+                    ? coded_bits
+                    : stream_.bits_per_raw_sample;
+                for (std::uint32_t x = 0; x < width; ++x) {
+                    const auto neighbors = line.neighbors(x);
+                    const auto prediction = syntax::Predictor::median_predict(
+                        neighbors.left, neighbors.top, neighbors.top_left);
+                    syntax::ContextDecision context;
+                    status = context_models[plane_index].derive_context(neighbors, context);
+                    if (!status.ok()) {
+                        return status;
+                    }
+
+                    std::int64_t difference64 = 0;
+                    status = reader.read_signed(plane_index, context.context, difference64);
+                    if (!status.ok()) {
+                        set_reader_byte_offset(status, reader_base_offset, reader.byte_position());
+                        return status;
+                    }
+                    if (context.invert_difference) {
+                        difference64 = -difference64;
+                    }
+                    if (difference64 < std::numeric_limits<std::int32_t>::min()
+                        || difference64 > std::numeric_limits<std::int32_t>::max()) {
+                        return make_error(ErrorCode::SyntaxError,
+                                          "RGB sample difference is outside int32 range");
+                    }
+                    line.mutable_current()[x] = syntax::Predictor::reconstruct(
+                        prediction,
+                        static_cast<std::int32_t>(difference64),
+                        reconstruction_bits);
+                }
+            }
+
+            for (std::uint32_t x = 0; x < width; ++x) {
+                const auto rgb = syntax::inverse_jpeg2000_rct(
+                    state.line_state(0).current()[x],
+                    state.line_state(1).current()[x],
+                    state.line_state(2).current()[x],
+                    stream_.bits_per_raw_sample,
+                    stream_.extra_plane);
+                if (stream_.bits_per_raw_sample <= 8) {
+                    rows_u8[0][x] = static_cast<std::uint8_t>(rgb.r);
+                    rows_u8[1][x] = static_cast<std::uint8_t>(rgb.g);
+                    rows_u8[2][x] = static_cast<std::uint8_t>(rgb.b);
+                    if (stream_.extra_plane) {
+                        rows_u8[3][x] = static_cast<std::uint8_t>(
+                            state.line_state(3).current()[x]);
+                    }
+                } else {
+                    rows_u16[0][x] = rgb.r;
+                    rows_u16[1][x] = rgb.g;
+                    rows_u16[2][x] = rgb.b;
+                    if (stream_.extra_plane) {
+                        rows_u16[3][x] = static_cast<std::uint16_t>(
+                            state.line_state(3).current()[x]);
+                    }
+                }
+            }
+            for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
+                state.line_state(plane_index).swap_lines();
+            }
+        }
+        return ok_status();
+    }
+
     const bool use_signed_16bit_prediction = syntax::uses_signed_16bit_predictor(stream_);
 
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {

@@ -43,6 +43,10 @@ SliceExecutor::SliceExecutor(const syntax::StreamParameters& stream, int thread_
 
 Status SliceExecutor::decode(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const
 {
+    Status status = validate_slices(output, slices);
+    if (!status.ok()) {
+        return status;
+    }
     if (thread_count_ <= 1 || slices.size() < 2) {
         return decode_serial(output, slices);
     }
@@ -60,6 +64,24 @@ std::size_t SliceExecutor::worker_count_for(std::size_t slice_count) const noexc
         return 0;
     }
     return std::min<std::size_t>(thread_count_, slice_count);
+}
+
+Status SliceExecutor::validate_slices(MutableFrameView output,
+                                      std::span<const syntax::SliceDescriptor> slices) const
+{
+    const SliceDecoder decoder(stream_);
+    for (const auto& slice : slices) {
+        SliceOutputWindow window;
+        Status status = window.validate(stream_, output, slice);
+        if (status.ok()) {
+            status = decoder.validate(slice, window);
+        }
+        if (!status.ok()) {
+            set_slice_location_if_missing(status, slice.index);
+            return status;
+        }
+    }
+    return ok_status();
 }
 
 Status SliceExecutor::decode_serial(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const

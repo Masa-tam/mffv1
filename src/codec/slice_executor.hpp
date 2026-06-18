@@ -21,6 +21,8 @@ public:
     [[nodiscard]] std::size_t worker_count_for(std::size_t slice_count) const noexcept;
 
 private:
+    Status validate_slices(MutableFrameView output,
+                           std::span<const syntax::SliceDescriptor> slices) const;
     Status decode_serial(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const;
     Status decode_parallel(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const;
     Status decode_slice(MutableFrameView output, const syntax::SliceDescriptor& slice) const;

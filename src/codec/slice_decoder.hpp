@@ -12,13 +12,17 @@ class SliceDecoder {
 public:
     explicit SliceDecoder(const syntax::StreamParameters& stream) noexcept;
 
+    Status validate(const syntax::SliceDescriptor& slice,
+                    const SliceOutputWindow& output) const;
     Status decode(const syntax::SliceDescriptor& slice,
                   SliceOutputWindow& output,
                   SliceState& state) const;
 
 private:
+    Status resolve_content_payload(const syntax::SliceDescriptor& slice,
+                                   ByteSpan& out_payload) const;
+
     const syntax::StreamParameters& stream_;
 };
 
 } // namespace ffv1::codec
-

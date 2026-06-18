@@ -31,6 +31,18 @@ ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 1>& storage)
     return plane;
 }
 
+ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 2>& storage)
+{
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 2;
+    plane.info.height = 1;
+    plane.info.stride_bytes = 2;
+    return plane;
+}
+
 ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 3>& storage)
 {
     ffv1::MutablePlaneView plane;
@@ -176,6 +188,38 @@ TEST(SliceExecutorTest, ParallelDecodeProcessesAllBatches)
     EXPECT_EQ(storage[0], 0u);
     EXPECT_EQ(storage[1], 0u);
     EXPECT_EQ(storage[2], 0u);
+}
+
+TEST(SliceExecutorTest, ValidatesAllSlicesBeforeWritingOutput)
+{
+    const auto stream = make_stream(2, 1);
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    ffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    ffv1::syntax::SliceDescriptor first;
+    first.index = 0;
+    first.width = 1;
+    first.height = 1;
+    first.payload = payload;
+    first.quant_table_set_indexes.push_back(0);
+
+    ffv1::syntax::SliceDescriptor second = first;
+    second.index = 1;
+    second.x = 1;
+    second.quant_table_set_indexes[0] = 1;
+    const std::array slices{first, second};
+
+    const ffv1::codec::SliceExecutor executor(stream);
+    const auto status = executor.decode(output, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 1u);
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0xee);
 }
 
 } // namespace

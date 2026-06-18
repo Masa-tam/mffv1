@@ -133,9 +133,8 @@ SliceDecoder::SliceDecoder(const syntax::StreamParameters& stream) noexcept
 {
 }
 
-Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
-                            SliceOutputWindow& output,
-                            SliceState& state) const
+Status SliceDecoder::resolve_content_payload(const syntax::SliceDescriptor& slice,
+                                             ByteSpan& out_payload) const
 {
     if (slice.content_byte_offset < slice.payload_byte_offset) {
         return make_byte_error(ErrorCode::SyntaxError,
@@ -168,14 +167,21 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         }
         local_content_end = local_footer_offset;
     }
-    const auto content_payload = slice.payload.subspan(static_cast<std::size_t>(local_content_offset),
-                                                       static_cast<std::size_t>(local_content_end
-                                                                                - local_content_offset));
-    if (content_payload.empty()) {
+    out_payload = slice.payload.subspan(static_cast<std::size_t>(local_content_offset),
+                                        static_cast<std::size_t>(local_content_end - local_content_offset));
+    if (out_payload.empty()) {
         return make_byte_error(ErrorCode::SyntaxError, "slice payload is empty", slice.content_byte_offset);
     }
-    if (output.plane_count() != state.plane_count()) {
-        return make_error(ErrorCode::InvalidArgument, "slice output and state plane counts differ");
+    return ok_status();
+}
+
+Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
+                              const SliceOutputWindow& output) const
+{
+    ByteSpan payload;
+    Status status = resolve_content_payload(slice, payload);
+    if (!status.ok()) {
+        return status;
     }
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
@@ -187,7 +193,6 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         return make_error(ErrorCode::UnsupportedFeature,
                           "Golomb-Rice slice decoding is not implemented yet");
     }
-    entropy::RangeCoder reader;
     if (stream_.quant_table_sets.empty()) {
         return make_error(ErrorCode::InvalidState, "stream has no quantization table sets");
     }
@@ -202,9 +207,31 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (quant_table_set_index >= stream_.quant_table_sets.size()) {
         return make_error(ErrorCode::SyntaxError, "slice quantization table set index is out of range");
     }
+    return ok_status();
+}
+
+Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
+                            SliceOutputWindow& output,
+                            SliceState& state) const
+{
+    Status status = validate(slice, output);
+    if (!status.ok()) {
+        return status;
+    }
+    if (output.plane_count() != state.plane_count()) {
+        return make_error(ErrorCode::InvalidArgument, "slice output and state plane counts differ");
+    }
+
+    ByteSpan content_payload;
+    status = resolve_content_payload(slice, content_payload);
+    if (!status.ok()) {
+        return status;
+    }
+    const auto quant_table_set_index = slice.quant_table_set_indexes[0];
     const syntax::ContextModel context_model(stream_.quant_table_sets[quant_table_set_index]);
 
-    Status status = reader.reset(content_payload, context_model.context_count());
+    entropy::RangeCoder reader;
+    status = reader.reset(content_payload, context_model.context_count());
     if (!status.ok()) {
         add_byte_offset(status, slice.content_byte_offset);
         return status;

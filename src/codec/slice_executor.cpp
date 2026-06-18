@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <future>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -17,8 +18,12 @@ namespace {
 
 std::uint32_t normalize_thread_count(int thread_count) noexcept
 {
-    if (thread_count <= 1) {
+    if (thread_count < 0) {
         return 1;
+    }
+    if (thread_count == 0) {
+        const auto hardware_threads = std::thread::hardware_concurrency();
+        return hardware_threads == 0 ? 1 : hardware_threads;
     }
     return static_cast<std::uint32_t>(thread_count);
 }

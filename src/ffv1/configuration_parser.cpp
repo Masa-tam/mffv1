@@ -66,6 +66,10 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         if (value > std::numeric_limits<int>::max()) {
             return make_error(ErrorCode::SyntaxError, "micro_version is too large");
         }
+        if (value < 4) {
+            return make_error(ErrorCode::UnsupportedFeature,
+                              "unstable FFV1 version 3 micro-version is not supported");
+        }
         stream.micro_version = static_cast<int>(value);
     }
 

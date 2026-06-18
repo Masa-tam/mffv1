@@ -158,6 +158,40 @@ TEST(ConfigurationParserTest, ParsesMinimalVersion3YOnlyParameters)
     EXPECT_EQ(stream.quant_table_sets[0].tables[0][128], 0);
 }
 
+TEST(ConfigurationParserTest, RejectsUnstableVersion3MicroVersions)
+{
+    for (std::int64_t micro_version = 0; micro_version < 4; ++micro_version) {
+        auto symbols = minimal_v3_y_only_symbols();
+        symbols[1] = u(micro_version);
+        ScriptedSymbolReader reader(std::move(symbols));
+        ffv1::syntax::ConfigurationParser parser;
+        ffv1::syntax::StreamParameters stream;
+        stream.version = 1;
+
+        const auto status = parser.parse(reader, stream);
+
+        EXPECT_FALSE(status.ok()) << "micro_version=" << micro_version;
+        EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature)
+            << "micro_version=" << micro_version;
+        EXPECT_EQ(stream.version, 1) << "micro_version=" << micro_version;
+    }
+}
+
+TEST(ConfigurationParserTest, AcceptsFutureStableVersion3MicroVersion)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[1] = u(5);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(stream.version, 3);
+    EXPECT_EQ(stream.micro_version, 5);
+}
+
 TEST(ConfigurationParserTest, InterpretsReservedZeroBitDepthAsEight)
 {
     auto symbols = minimal_v3_y_only_symbols();

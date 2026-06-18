@@ -54,6 +54,18 @@ std::vector<std::int32_t>& LineState::mutable_current() noexcept
     return current_;
 }
 
+NeighborSamples LineState::neighbors(std::uint32_t x) const noexcept
+{
+    NeighborSamples samples;
+    samples.far_left = x > 1 ? current_[x - 2] : (x == 1 ? previous_[0] : 0);
+    samples.left = x > 0 ? current_[x - 1] : previous_[0];
+    samples.top = previous_[x];
+    samples.top_left = x > 0 ? previous_[x - 1] : second_previous_[0];
+    samples.top_right = (x + 1) < current_.size() ? previous_[x + 1] : previous_[x];
+    samples.top_top = second_previous_[x];
+    return samples;
+}
+
 void LineState::swap_lines() noexcept
 {
     second_previous_ = previous_;
@@ -341,20 +353,16 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint16");
             }
 
-            std::int32_t left = 0;
             for (std::uint32_t x = 0; x < output.plane_width(plane_index); ++x) {
-                const std::int32_t far_left = x > 1 ? line.current()[x - 2] : 0;
-                const std::int32_t top = line.previous()[x];
-                const std::int32_t top_left = x == 0 ? 0 : line.previous()[x - 1];
-                const std::int32_t top_right =
-                    (x + 1) < output.plane_width(plane_index) ? line.previous()[x + 1] : top;
-                const std::int32_t top_top = line.second_previous()[x];
+                const auto neighbors = line.neighbors(x);
                 const std::int32_t prediction = use_signed_16bit_prediction
-                    ? syntax::Predictor::median_predict_signed_16bit(left, top, top_left)
-                    : syntax::Predictor::median_predict(left, top, top_left);
+                    ? syntax::Predictor::median_predict_signed_16bit(
+                        neighbors.left, neighbors.top, neighbors.top_left)
+                    : syntax::Predictor::median_predict(
+                        neighbors.left, neighbors.top, neighbors.top_left);
 
                 syntax::ContextDecision context;
-                status = context_model.derive_context({far_left, left, top, top_left, top_right, top_top}, context);
+                status = context_model.derive_context(neighbors, context);
                 if (!status.ok()) {
                     return status;
                 }
@@ -383,7 +391,6 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                     row_u16[x] = static_cast<std::uint16_t>(sample);
                 }
                 line.mutable_current()[x] = sample;
-                left = sample;
             }
             line.swap_lines();
         }

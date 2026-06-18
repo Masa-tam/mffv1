@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "ffv1/context_model.hpp"
 #include "ffv1/result.hpp"
 
 namespace ffv1::syntax {
@@ -17,6 +18,7 @@ public:
     [[nodiscard]] const std::vector<std::int32_t>& current() const noexcept;
     [[nodiscard]] std::vector<std::int32_t>& mutable_previous() noexcept;
     [[nodiscard]] std::vector<std::int32_t>& mutable_current() noexcept;
+    [[nodiscard]] NeighborSamples neighbors(std::uint32_t x) const noexcept;
 
     void swap_lines() noexcept;
 

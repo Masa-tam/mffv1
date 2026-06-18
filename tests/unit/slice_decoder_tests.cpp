@@ -61,6 +61,39 @@ TEST(LineStateTest, ResetsAndSwapsLines)
     EXPECT_EQ(line.previous()[2], 7);
 }
 
+TEST(LineStateTest, DerivesRfcSliceBorderNeighbors)
+{
+    ffv1::syntax::LineState line;
+    ASSERT_TRUE(line.reset(3).ok());
+    line.mutable_current() = {10, 20, 30};
+    line.swap_lines();
+
+    line.mutable_current()[0] = 40;
+    auto neighbors = line.neighbors(0);
+    EXPECT_EQ(neighbors.far_left, 0);
+    EXPECT_EQ(neighbors.left, 10);
+    EXPECT_EQ(neighbors.top, 10);
+    EXPECT_EQ(neighbors.top_left, 0);
+    EXPECT_EQ(neighbors.top_right, 20);
+    EXPECT_EQ(neighbors.top_top, 0);
+
+    neighbors = line.neighbors(1);
+    EXPECT_EQ(neighbors.far_left, 10);
+    EXPECT_EQ(neighbors.left, 40);
+    EXPECT_EQ(neighbors.top, 20);
+    EXPECT_EQ(neighbors.top_left, 10);
+    EXPECT_EQ(neighbors.top_right, 30);
+    EXPECT_EQ(neighbors.top_top, 0);
+
+    line.mutable_current()[1] = 50;
+    line.mutable_current()[2] = 60;
+    line.swap_lines();
+    neighbors = line.neighbors(0);
+    EXPECT_EQ(neighbors.left, 40);
+    EXPECT_EQ(neighbors.top_left, 10);
+    EXPECT_EQ(neighbors.top_top, 10);
+}
+
 TEST(SliceStateTest, ResetsOneLineStatePerCodedPlane)
 {
     const auto stream = make_stream();

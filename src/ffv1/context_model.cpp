@@ -9,9 +9,9 @@ namespace ffv1::syntax {
 
 namespace {
 
-std::uint8_t context_input_index(std::int32_t value) noexcept
+std::uint8_t context_input_index(std::int64_t value) noexcept
 {
-    return static_cast<std::uint8_t>(static_cast<std::uint32_t>(value) & 0xffu);
+    return static_cast<std::uint8_t>(static_cast<std::uint64_t>(value) & 0xffu);
 }
 
 } // namespace
@@ -33,12 +33,12 @@ Status ContextModel::derive_context(const NeighborSamples& samples,
         return make_error(ErrorCode::InvalidState, "quantization table set has no contexts");
     }
 
-    const std::array<std::int32_t, QuantTableSet::kContextInputs> gradients{
-        samples.far_left - samples.left,
-        samples.left - samples.top_left,
-        samples.top_left - samples.top,
-        samples.top_top - samples.top,
-        samples.top - samples.top_right,
+    const std::array<std::int64_t, QuantTableSet::kContextInputs> gradients{
+        static_cast<std::int64_t>(samples.far_left) - samples.left,
+        static_cast<std::int64_t>(samples.left) - samples.top_left,
+        static_cast<std::int64_t>(samples.top_left) - samples.top,
+        static_cast<std::int64_t>(samples.top_top) - samples.top,
+        static_cast<std::int64_t>(samples.top) - samples.top_right,
     };
 
     std::int64_t folded = 0;
@@ -51,7 +51,11 @@ Status ContextModel::derive_context(const NeighborSamples& samples,
     if (out_decision.invert_difference) {
         folded = -folded;
     }
-    out_decision.context = static_cast<std::uint32_t>(folded % quant_tables_.context_count);
+    if (folded >= quant_tables_.context_count) {
+        return make_error(ErrorCode::InvalidState,
+                          "quantized context is outside the configured context range");
+    }
+    out_decision.context = static_cast<std::uint32_t>(folded);
     return ok_status();
 }
 

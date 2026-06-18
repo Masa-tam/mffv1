@@ -1134,6 +1134,41 @@ TEST(SliceDecoderTest, RejectsNonzeroGolombRicePadding)
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
 
+TEST(SliceDecoderTest, RejectsTrailingGolombRiceByte)
+{
+    auto stream = make_stream();
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_plane(storage);
+    ffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 4> payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0xfc},
+        std::byte{0x00},
+    };
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.content_byte_offset = 2;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 3u);
+}
+
 TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
 {
     const auto stream = make_stream();

@@ -248,6 +248,11 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                    payload_offset + padding_byte_offset);
         }
     }
+    if (bit_reader.remaining_bits() != 0) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "Golomb-Rice payload contains trailing bytes",
+                               payload_offset + bit_reader.byte_position());
+    }
     return ok_status();
 }
 

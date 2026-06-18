@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -306,6 +307,32 @@ TEST(SlicePayloadLocatorTest, RejectsExpectedCountLargerThanPayload)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_EQ(descriptors.size(), 1u);
+}
+
+TEST(SlicePayloadLocatorTest, RejectsUnrepresentableSliceCountBeforeAllocation)
+{
+    const std::array payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+    ffv1::syntax::StreamParameters stream;
+    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+
+    const ffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(
+        payload,
+        stream,
+        static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) + 1,
+        descriptors);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
     EXPECT_EQ(descriptors.size(), 1u);
 }
 

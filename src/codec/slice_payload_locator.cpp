@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <utility>
 
 namespace ffv1::codec {
@@ -69,6 +70,20 @@ Status SlicePayloadLocator::locate_slices(ByteSpan frame_payload,
 {
     if (expected_slice_count == 0) {
         return make_error(ErrorCode::InvalidArgument, "expected slice count must be non-zero");
+    }
+    if (expected_slice_count > std::numeric_limits<std::uint32_t>::max()) {
+        return make_error(ErrorCode::ResourceExhausted,
+                          "expected slice count exceeds the supported index range");
+    }
+
+    const SliceFooterParser footer_parser;
+    const auto footer_size = footer_parser.footer_size(stream);
+    if (expected_slice_count > frame_payload.size() / footer_size) {
+        Status status = make_byte_error(ErrorCode::SyntaxError,
+                                        "frame payload is too small for the expected slice footers",
+                                        0);
+        set_slice_location_if_missing(status, 0);
+        return status;
     }
 
     std::vector<syntax::SliceDescriptor> located;

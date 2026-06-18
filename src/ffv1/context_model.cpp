@@ -34,11 +34,11 @@ Status ContextModel::derive_context(const NeighborSamples& samples,
     }
 
     const std::array<std::int64_t, QuantTableSet::kContextInputs> gradients{
-        static_cast<std::int64_t>(samples.far_left) - samples.left,
         static_cast<std::int64_t>(samples.left) - samples.top_left,
         static_cast<std::int64_t>(samples.top_left) - samples.top,
-        static_cast<std::int64_t>(samples.top_top) - samples.top,
         static_cast<std::int64_t>(samples.top) - samples.top_right,
+        static_cast<std::int64_t>(samples.far_left) - samples.left,
+        static_cast<std::int64_t>(samples.top_top) - samples.top,
     };
 
     std::int64_t folded = 0;

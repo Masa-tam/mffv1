@@ -3,6 +3,7 @@
 #include "codec/slice_header_parser.hpp"
 #include "codec/slice_payload_locator.hpp"
 #include "codec/slice_raster_validator.hpp"
+#include "bitstream/bit_reader.hpp"
 #include "entropy/range_coder.hpp"
 #include "util/status.hpp"
 
@@ -52,11 +53,6 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
     }
-    if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
-        return make_error(ErrorCode::UnsupportedFeature,
-                          "legacy Golomb-Rice frame header transition is not implemented yet");
-    }
-
     entropy::RangeCoder frame_reader;
     const bool parse_legacy_range_header = stream_.version <= 1
         && stream_.entropy_mode == EntropyMode::Range;
@@ -71,6 +67,19 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
             return status;
         }
         if (!keyframe) {
+            return make_byte_error(ErrorCode::UnsupportedFeature,
+                                   "legacy non-keyframes are not implemented yet",
+                                   0);
+        }
+        out_frame.keyframe = true;
+    } else if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
+        bitstream::BitReader frame_bits(payload);
+        std::uint8_t keyframe = 0;
+        status = frame_bits.read_bit(keyframe);
+        if (!status.ok()) {
+            return status;
+        }
+        if (keyframe == 0) {
             return make_byte_error(ErrorCode::UnsupportedFeature,
                                    "legacy non-keyframes are not implemented yet",
                                    0);
@@ -95,6 +104,10 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     slice.payload = payload;
     slice.header_byte_offset = 0;
     slice.content_byte_offset = parse_legacy_range_header ? frame_reader.byte_position() : 0;
+    slice.content_bit_offset = stream_.version <= 1
+            && stream_.entropy_mode == EntropyMode::GolombRice
+        ? 1
+        : 0;
     slice.payload_byte_offset = 0;
     slice.continues_frame_range_state = parse_legacy_range_header;
     out_frame.slices.push_back(slice);

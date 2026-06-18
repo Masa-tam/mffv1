@@ -107,6 +107,7 @@ void set_reader_byte_offset(Status& status,
 Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                 ByteSpan payload,
                                 std::uint64_t payload_offset,
+                                std::uint8_t content_bit_offset,
                                 const std::vector<syntax::ContextModel>& context_models,
                                 SliceOutputWindow& output,
                                 SliceState& state)
@@ -122,6 +123,11 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
     }
 
     bitstream::BitReader bit_reader(payload);
+    status = bit_reader.skip_bits(content_bit_offset);
+    if (!status.ok()) {
+        set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
+        return status;
+    }
     entropy::GolombRiceReader reader(bit_reader);
     for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
         auto& line = state.line_state(plane);
@@ -377,6 +383,16 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
     if (!status.ok()) {
         return status;
     }
+    if (slice.content_bit_offset > 7) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice content bit offset is outside a byte",
+                               slice.content_byte_offset);
+    }
+    if (stream_.entropy_mode != EntropyMode::GolombRice && slice.content_bit_offset != 0) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "range-coded slice content must be byte aligned",
+                               slice.content_byte_offset);
+    }
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
     }
@@ -457,6 +473,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         return decode_golomb_rice_slice(stream_,
                                         content_payload,
                                         slice.content_byte_offset,
+                                        slice.content_bit_offset,
                                         context_models,
                                         output,
                                         state);

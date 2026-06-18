@@ -1,4 +1,5 @@
 #include "codec/frame_parser.hpp"
+#include "codec/slice_decoder.hpp"
 #include "util/crc32.hpp"
 
 #include <array>
@@ -161,6 +162,80 @@ TEST(FrameParserTest, RejectsLegacyRangeNonKeyframe)
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
     const std::array payload{std::byte{0x00}, std::byte{0x00}};
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(frame.slices.empty());
+}
+
+TEST(FrameParserTest, ParsesLegacyGolombRiceKeyframeBit)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{std::byte{0xfe}};
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 0u);
+    EXPECT_EQ(frame.slices[0].content_bit_offset, 1u);
+    EXPECT_FALSE(frame.slices[0].continues_frame_range_state);
+}
+
+TEST(FrameParserTest, ParsesAndDecodesLegacyGolombRiceKeyframe)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.width = 4;
+    stream.height = 2;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{std::byte{0xfe}};
+    ASSERT_TRUE(parser.parse(payload, frame).ok());
+    ASSERT_EQ(frame.slices.size(), 1u);
+
+    std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 4;
+    plane.info.height = 2;
+    plane.info.stride_bytes = 4;
+    ffv1::MutableFrameView output{&plane, 1};
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, output, frame.slices[0]).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(frame.slices[0], window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0u);
+    }
+}
+
+TEST(FrameParserTest, RejectsLegacyGolombRiceNonKeyframe)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{std::byte{0x00}};
 
     const auto status = parser.parse(payload, frame);
 

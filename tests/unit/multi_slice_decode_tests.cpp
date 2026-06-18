@@ -33,7 +33,7 @@ ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 2>& storage)
     return plane;
 }
 
-TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
+TEST(MultiSliceDecodeTest, ContinuesRangeStateFromEachSliceHeader)
 {
     const auto stream = make_two_slice_stream();
     const std::array frame_payload{
@@ -73,7 +73,45 @@ TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
     ASSERT_TRUE(status.ok()) << status.message;
 
     EXPECT_EQ(storage[0], 0u);
-    EXPECT_EQ(storage[1], 0u);
+    EXPECT_EQ(storage[1], 1u);
+}
+
+TEST(MultiSliceDecodeTest, DecodesBufferedSymbolWhenHeaderConsumesAllEntropyBytes)
+{
+    auto stream = make_two_slice_stream();
+    stream.width = 1;
+    stream.num_h_slices = 1;
+    const std::array frame_payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    auto status = parser.parse_with_range_header(frame_payload, frame);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, frame.slices[0].footer_byte_offset);
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    ffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = ffv1::PlaneRole::Y;
+    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.width = 1;
+    plane.info.height = 1;
+    plane.info.stride_bytes = 1;
+    ffv1::MutableFrameView output{&plane, 1};
+    const ffv1::codec::SliceExecutor executor(stream, 1);
+
+    status = executor.decode(output, frame.slices);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
 }
 
 } // namespace

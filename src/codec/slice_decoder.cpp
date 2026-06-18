@@ -1,5 +1,6 @@
 #include "codec/slice_decoder.hpp"
 
+#include "codec/slice_header_parser.hpp"
 #include "entropy/range_coder.hpp"
 #include "ffv1/context_model.hpp"
 #include "ffv1/predictor.hpp"
@@ -170,7 +171,8 @@ Status SliceDecoder::resolve_content_payload(const syntax::SliceDescriptor& slic
     }
     out_payload = slice.payload.subspan(static_cast<std::size_t>(local_content_offset),
                                         static_cast<std::size_t>(local_content_end - local_content_offset));
-    if (out_payload.empty()) {
+    const bool has_continuous_range_state = stream_.version >= 3 && slice.slice_size != 0;
+    if (out_payload.empty() && !has_continuous_range_state) {
         return make_byte_error(ErrorCode::SyntaxError, "slice payload is empty", slice.content_byte_offset);
     }
     return ok_status();
@@ -265,12 +267,60 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     }
 
     entropy::RangeCoder reader;
-    status = reader.reset(content_payload,
-                          context_counts,
-                          initial_state_banks,
-                          stream_.state_transition);
+    std::uint64_t reader_base_offset = slice.content_byte_offset;
+    const bool continue_from_slice_header = stream_.version >= 3 && slice.slice_size != 0;
+    if (continue_from_slice_header) {
+        const auto local_footer_offset = slice.footer_byte_offset - slice.payload_byte_offset;
+        const auto entropy_payload = slice.payload.first(static_cast<std::size_t>(local_footer_offset));
+        status = reader.reset(entropy_payload, stream_.state_transition);
+        if (!status.ok()) {
+            add_byte_offset(status, slice.payload_byte_offset);
+            return status;
+        }
+
+        if (slice.index == 0) {
+            bool keyframe = false;
+            status = reader.read_bool(keyframe);
+            if (!status.ok()) {
+                add_byte_offset(status, slice.payload_byte_offset);
+                return status;
+            }
+            if (!keyframe) {
+                return make_byte_error(ErrorCode::SyntaxError,
+                                       "non-keyframe is invalid for an intra-only stream",
+                                       slice.payload_byte_offset);
+            }
+        }
+
+        syntax::SliceDescriptor encoded_slice;
+        const SliceHeaderParser header_parser;
+        status = header_parser.read_descriptor(reader, stream_, encoded_slice);
+        if (!status.ok()) {
+            add_byte_offset(status, slice.payload_byte_offset);
+            return status;
+        }
+        const auto local_content_offset = slice.content_byte_offset - slice.payload_byte_offset;
+        if (encoded_slice.raster_x != slice.raster_x
+            || encoded_slice.raster_y != slice.raster_y
+            || encoded_slice.raster_width != slice.raster_width
+            || encoded_slice.raster_height != slice.raster_height
+            || encoded_slice.quant_table_set_indexes != slice.quant_table_set_indexes
+            || encoded_slice.content_byte_offset != local_content_offset) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "slice descriptor does not match its encoded header",
+                                   slice.header_byte_offset);
+        }
+
+        status = reader.reconfigure_contexts(context_counts, initial_state_banks);
+        reader_base_offset = slice.payload_byte_offset;
+    } else {
+        status = reader.reset(content_payload,
+                              context_counts,
+                              initial_state_banks,
+                              stream_.state_transition);
+    }
     if (!status.ok()) {
-        add_byte_offset(status, slice.content_byte_offset);
+        add_byte_offset(status, reader_base_offset);
         return status;
     }
     const bool use_signed_16bit_prediction = syntax::uses_signed_16bit_predictor(stream_);
@@ -309,7 +359,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 std::int64_t difference64 = 0;
                 status = reader.read_signed(plane_index, context.context, difference64);
                 if (!status.ok()) {
-                    set_reader_byte_offset(status, slice.content_byte_offset, reader.byte_position());
+                    set_reader_byte_offset(status, reader_base_offset, reader.byte_position());
                     return status;
                 }
                 if (context.invert_difference) {

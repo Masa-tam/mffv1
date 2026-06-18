@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <vector>
 
 namespace ffv1::syntax {
 
@@ -199,17 +200,17 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
     if (slice.quant_table_set_indexes.empty()) {
         return make_error(ErrorCode::SyntaxError, "slice has no quantization table set indexes");
     }
-    const auto expected_index_count = syntax::quant_table_set_index_count(stream_);
-    const bool has_legacy_single_index = slice.quant_table_set_indexes.size() == 1;
-    const bool has_y_only_compatible_indexes = !stream_.chroma_planes && !stream_.extra_plane
-        && slice.quant_table_set_indexes.size() == expected_index_count;
-    if (!has_legacy_single_index && !has_y_only_compatible_indexes) {
-        return make_error(ErrorCode::UnsupportedFeature,
-                          "multiple slice quantization table set indexes are not implemented yet");
+    const auto expected_index_count = stream_.version >= 3
+        ? syntax::quant_table_set_index_count(stream_)
+        : std::size_t{1};
+    if (slice.quant_table_set_indexes.size() != expected_index_count) {
+        return make_error(ErrorCode::SyntaxError,
+                          "slice quantization table set index count does not match the stream");
     }
-    const auto quant_table_set_index = slice.quant_table_set_indexes[0];
-    if (quant_table_set_index >= stream_.quant_table_sets.size()) {
-        return make_error(ErrorCode::SyntaxError, "slice quantization table set index is out of range");
+    for (const auto quant_table_set_index : slice.quant_table_set_indexes) {
+        if (quant_table_set_index >= stream_.quant_table_sets.size()) {
+            return make_error(ErrorCode::SyntaxError, "slice quantization table set index is out of range");
+        }
     }
     return ok_status();
 }
@@ -231,17 +232,28 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (!status.ok()) {
         return status;
     }
-    const auto quant_table_set_index = slice.quant_table_set_indexes[0];
-    const syntax::ContextModel context_model(stream_.quant_table_sets[quant_table_set_index]);
+    std::vector<syntax::ContextModel> context_models;
+    std::vector<std::size_t> context_counts;
+    context_models.reserve(output.plane_count());
+    context_counts.reserve(output.plane_count());
+    for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
+        const auto index_slot = stream_.version >= 3
+            ? syntax::plane_quant_table_set_index_slot(stream_, plane_index)
+            : std::size_t{0};
+        const auto quant_table_set_index = slice.quant_table_set_indexes[index_slot];
+        context_models.emplace_back(stream_.quant_table_sets[quant_table_set_index]);
+        context_counts.push_back(context_models.back().context_count());
+    }
 
     entropy::RangeCoder reader;
-    status = reader.reset(content_payload, context_model.context_count());
+    status = reader.reset(content_payload, context_counts);
     if (!status.ok()) {
         add_byte_offset(status, slice.content_byte_offset);
         return status;
     }
 
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
+        const auto& context_model = context_models[plane_index];
         auto& line = state.line_state(plane_index);
         for (std::uint32_t y = 0; y < output.plane_height(plane_index); ++y) {
             auto* row_u8 = output.row_u8(plane_index, y);
@@ -270,7 +282,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 }
 
                 std::int64_t difference64 = 0;
-                status = reader.read_signed(context.context, difference64);
+                status = reader.read_signed(plane_index, context.context, difference64);
                 if (!status.ok()) {
                     set_reader_byte_offset(status, slice.content_byte_offset, reader.byte_position());
                     return status;

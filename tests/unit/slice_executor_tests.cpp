@@ -11,6 +11,7 @@ namespace {
 ffv1::syntax::StreamParameters make_stream(std::uint32_t width = 1, std::uint32_t height = 1)
 {
     ffv1::syntax::StreamParameters stream;
+    stream.version = 0;
     stream.width = width;
     stream.height = height;
     stream.bits_per_raw_sample = 8;

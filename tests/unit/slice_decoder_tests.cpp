@@ -13,6 +13,7 @@ ffv1::syntax::StreamParameters make_stream()
     ffv1::syntax::StreamParameters stream;
     stream.width = 4;
     stream.height = 2;
+    stream.version = 0;
     stream.bits_per_raw_sample = 8;
     stream.chroma_planes = false;
     stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
@@ -529,7 +530,9 @@ TEST(SliceDecoderTest, DecodesWrappedNegativeDifferenceForYOnly16BitSlice)
 TEST(SliceDecoderTest, DecodesZeroDifferencesFor8BitChromaSlice)
 {
     auto stream = make_stream();
+    stream.version = 3;
     stream.chroma_planes = true;
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
     stream.log2_h_chroma_subsample = 1;
     stream.log2_v_chroma_subsample = 1;
 
@@ -556,7 +559,7 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor8BitChromaSlice)
     slice.height = 2;
     slice.payload = payload;
     slice.content_byte_offset = 0;
-    slice.quant_table_set_indexes.push_back(0);
+    slice.quant_table_set_indexes = {0, 1};
 
     ffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
@@ -637,7 +640,10 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor16BitChromaSlice)
 TEST(SliceDecoderTest, DecodesZeroDifferencesForExtraPlaneSlice)
 {
     auto stream = make_stream();
+    stream.version = 3;
     stream.extra_plane = true;
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
+    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
 
     std::array<std::uint8_t, 8> y{};
     std::array<std::uint8_t, 8> alpha{};
@@ -659,7 +665,7 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesForExtraPlaneSlice)
     slice.height = 2;
     slice.payload = payload;
     slice.content_byte_offset = 0;
-    slice.quant_table_set_indexes.push_back(0);
+    slice.quant_table_set_indexes = {0, 1, 2};
 
     ffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
@@ -766,6 +772,7 @@ TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
 TEST(SliceDecoderTest, AcceptsUnusedVersionThreeChromaCompatibilityIndex)
 {
     auto stream = make_stream();
+    stream.version = 3;
     stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
     std::array<std::uint8_t, 8> storage{};
     storage.fill(0xee);

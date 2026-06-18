@@ -83,6 +83,32 @@ std::uint32_t bytes_per_sample(SampleFormat format) noexcept
     return format == SampleFormat::UInt16 ? 2u : 1u;
 }
 
+Status checked_plane_offset(const PlaneInfo& info,
+                            std::uint32_t x,
+                            std::uint32_t y,
+                            std::ptrdiff_t& out_offset)
+{
+    const auto max_offset = static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
+    const auto sample_bytes = static_cast<std::uint64_t>(bytes_per_sample(info.sample_format));
+    const auto minimum_stride = static_cast<std::uint64_t>(info.width) * sample_bytes;
+    if (minimum_stride > max_offset) {
+        return make_error(ErrorCode::ResourceExhausted, "output plane row size exceeds ptrdiff_t");
+    }
+
+    const auto stride = static_cast<std::uint64_t>(info.stride_bytes);
+    if (y != 0 && stride > max_offset / y) {
+        return make_error(ErrorCode::ResourceExhausted, "output plane row offset exceeds ptrdiff_t");
+    }
+    const auto row_offset = stride * y;
+    const auto column_offset = static_cast<std::uint64_t>(x) * sample_bytes;
+    if (column_offset > max_offset - row_offset) {
+        return make_error(ErrorCode::ResourceExhausted, "output plane sample offset exceeds ptrdiff_t");
+    }
+
+    out_offset = static_cast<std::ptrdiff_t>(row_offset + column_offset);
+    return ok_status();
+}
+
 } // namespace
 
 Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
@@ -134,19 +160,24 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
             return make_error(ErrorCode::InvalidArgument, "slice plane rectangle is outside output plane");
         }
 
-        const std::ptrdiff_t min_stride =
-            static_cast<std::ptrdiff_t>(plane.info.width * bytes_per_sample(plane.info.sample_format));
-        if (plane.info.stride_bytes < min_stride) {
+        const auto sample_bytes = static_cast<std::uint64_t>(bytes_per_sample(plane.info.sample_format));
+        const auto minimum_stride = static_cast<std::uint64_t>(plane.info.width) * sample_bytes;
+        if (minimum_stride > static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
+            return make_error(ErrorCode::ResourceExhausted, "output plane row size exceeds ptrdiff_t");
+        }
+        if (plane.info.stride_bytes < static_cast<std::ptrdiff_t>(minimum_stride)) {
             return make_error(ErrorCode::InvalidArgument, "output plane stride is too small");
         }
 
-        const auto row_offset = static_cast<std::ptrdiff_t>(py) * plane.info.stride_bytes;
-        const auto column_offset =
-            static_cast<std::ptrdiff_t>(px * bytes_per_sample(plane.info.sample_format));
+        std::ptrdiff_t plane_offset = 0;
+        Status status = checked_plane_offset(plane.info, px, py, plane_offset);
+        if (!status.ok()) {
+            return status;
+        }
         auto* base = static_cast<std::byte*>(plane.data);
 
         PlaneWindow window;
-        window.data = base + row_offset + column_offset;
+        window.data = base + plane_offset;
         window.stride_bytes = plane.info.stride_bytes;
         window.width = pw;
         window.height = ph;

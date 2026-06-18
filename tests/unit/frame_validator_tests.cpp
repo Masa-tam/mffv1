@@ -131,6 +131,30 @@ TEST(FrameValidatorTest, RejectsShortStride)
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
 }
 
+TEST(FrameValidatorTest, ComputesWideMinimumStrideWithoutWrapping)
+{
+    auto stream = make_y_stream();
+    stream.width = 0xffffffffu;
+    stream.height = 1;
+    stream.bits_per_raw_sample = 16;
+
+    std::uint16_t storage = 0;
+    ffv1::MutablePlaneView plane;
+    plane.data = &storage;
+    plane.info = {ffv1::PlaneRole::Y,
+                  ffv1::SampleFormat::UInt16,
+                  stream.width,
+                  stream.height,
+                  static_cast<std::ptrdiff_t>(5'000'000'000ull)};
+    ffv1::MutableFrameView frame{&plane, 1};
+
+    const ffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
 TEST(FrameValidatorTest, AcceptsChromaPlaneRoles)
 {
     auto stream = make_y_stream();

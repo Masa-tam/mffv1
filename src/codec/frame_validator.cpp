@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace ffv1::codec {
 
@@ -26,11 +27,18 @@ SampleFormat expected_sample_format(const syntax::StreamParameters& stream) noex
     return stream.bits_per_raw_sample <= 8 ? SampleFormat::UInt8 : SampleFormat::UInt16;
 }
 
-std::ptrdiff_t minimum_stride_bytes(const syntax::StreamParameters& stream,
-                                    std::size_t plane_index) noexcept
+Status minimum_stride_bytes(const syntax::StreamParameters& stream,
+                            std::size_t plane_index,
+                            std::ptrdiff_t& out_stride)
 {
-    const auto bytes_per_sample = stream.bits_per_raw_sample <= 8 ? 1u : 2u;
-    return static_cast<std::ptrdiff_t>(syntax::plane_width(stream, plane_index) * bytes_per_sample);
+    const std::uint64_t bytes_per_sample = stream.bits_per_raw_sample <= 8 ? 1u : 2u;
+    const auto required = static_cast<std::uint64_t>(syntax::plane_width(stream, plane_index))
+        * bytes_per_sample;
+    if (required > static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
+        return make_error(ErrorCode::ResourceExhausted, "plane row size exceeds ptrdiff_t");
+    }
+    out_stride = static_cast<std::ptrdiff_t>(required);
+    return ok_status();
 }
 
 Status validate_plane_info(const syntax::StreamParameters& stream,
@@ -47,7 +55,12 @@ Status validate_plane_info(const syntax::StreamParameters& stream,
         || info.height < syntax::plane_height(stream, plane_index)) {
         return make_error(ErrorCode::InvalidArgument, "plane dimensions are smaller than the stream requires");
     }
-    if (info.stride_bytes < minimum_stride_bytes(stream, plane_index)) {
+    std::ptrdiff_t minimum_stride = 0;
+    Status status = minimum_stride_bytes(stream, plane_index, minimum_stride);
+    if (!status.ok()) {
+        return status;
+    }
+    if (info.stride_bytes < minimum_stride) {
         return make_error(ErrorCode::InvalidArgument, "plane stride is smaller than the stream requires");
     }
     return ok_status();

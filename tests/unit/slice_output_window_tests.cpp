@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 
 #include <gtest/gtest.h>
 
@@ -72,6 +73,35 @@ TEST(SliceOutputWindowTest, RejectsOutOfFrameSlice)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(SliceOutputWindowTest, RejectsUnrepresentableRowOffset)
+{
+    ffv1::syntax::StreamParameters stream;
+    stream.width = 1;
+    stream.height = 3;
+    stream.chroma_planes = false;
+
+    std::uint8_t storage = 0;
+    ffv1::MutablePlaneView plane;
+    plane.data = &storage;
+    plane.info = {ffv1::PlaneRole::Y,
+                  ffv1::SampleFormat::UInt8,
+                  1,
+                  3,
+                  std::numeric_limits<std::ptrdiff_t>::max() / 2 + 1};
+    ffv1::MutableFrameView frame{&plane, 1};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.y = 2;
+    slice.width = 1;
+    slice.height = 1;
+
+    ffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
 }
 
 TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)

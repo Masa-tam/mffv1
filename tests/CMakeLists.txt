@@ -27,6 +27,7 @@ add_executable(ffv1_unit_tests
     unit/frame_validator_tests.cpp
     unit/golomb_rice_context_tests.cpp
     unit/golomb_rice_reader_tests.cpp
+    unit/golomb_rice_run_tests.cpp
     unit/predictor_tests.cpp
     unit/range_coder_tests.cpp
     unit/rfc_math_tests.cpp

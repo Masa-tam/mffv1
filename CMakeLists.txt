@@ -25,6 +25,7 @@ add_library(ffv1
     src/ffv1/context_model.cpp
     src/entropy/golomb_rice_context.cpp
     src/entropy/golomb_rice_reader.cpp
+    src/entropy/golomb_rice_run.cpp
     src/entropy/range_coder.cpp
     src/ffv1/configuration_parser.cpp
     src/ffv1/predictor.cpp

@@ -211,6 +211,18 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
         if (quant_table_set_index >= stream_.quant_table_sets.size()) {
             return make_error(ErrorCode::SyntaxError, "slice quantization table set index is out of range");
         }
+        if (!stream_.initial_states.empty()) {
+            if (stream_.initial_states.size() != stream_.quant_table_sets.size()) {
+                return make_error(ErrorCode::InvalidState,
+                                  "range coder initial state set count does not match quantization table set count");
+            }
+            const auto& states = stream_.initial_states[quant_table_set_index].contexts;
+            if (!states.empty()
+                && states.size() != stream_.quant_table_sets[quant_table_set_index].context_count) {
+                return make_error(ErrorCode::InvalidState,
+                                  "range coder initial state count does not match quantization context count");
+            }
+        }
     }
     return ok_status();
 }
@@ -234,8 +246,10 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     }
     std::vector<syntax::ContextModel> context_models;
     std::vector<std::size_t> context_counts;
+    std::vector<std::span<const entropy::RangeCoder::ScalarContextStates>> initial_state_banks;
     context_models.reserve(output.plane_count());
     context_counts.reserve(output.plane_count());
+    initial_state_banks.reserve(output.plane_count());
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
         const auto index_slot = stream_.version >= 3
             ? syntax::plane_quant_table_set_index_slot(stream_, plane_index)
@@ -243,10 +257,15 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         const auto quant_table_set_index = slice.quant_table_set_indexes[index_slot];
         context_models.emplace_back(stream_.quant_table_sets[quant_table_set_index]);
         context_counts.push_back(context_models.back().context_count());
+        if (stream_.initial_states.empty()) {
+            initial_state_banks.emplace_back();
+        } else {
+            initial_state_banks.emplace_back(stream_.initial_states[quant_table_set_index].contexts);
+        }
     }
 
     entropy::RangeCoder reader;
-    status = reader.reset(content_payload, context_counts);
+    status = reader.reset(content_payload, context_counts, initial_state_banks);
     if (!status.ok()) {
         add_byte_offset(status, slice.content_byte_offset);
         return status;

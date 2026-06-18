@@ -177,14 +177,29 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
     }
 
     if (stream.version >= 3) {
+        stream.initial_states.resize(stream.quant_table_sets.size());
         for (std::size_t i = 0; i < stream.quant_table_sets.size(); ++i) {
             status = read_b(reader, flag);
             if (!status.ok()) {
                 return status;
             }
             if (flag) {
-                return make_error(ErrorCode::UnsupportedFeature,
-                                  "custom range coder initial states are not implemented yet");
+                auto& states = stream.initial_states[i].contexts;
+                states.resize(stream.quant_table_sets[i].context_count);
+                for (std::size_t context = 0; context < states.size(); ++context) {
+                    for (std::size_t state_index = 0; state_index < InitialState{}.size(); ++state_index) {
+                        std::int64_t delta = 0;
+                        status = reader.read_signed(static_cast<entropy::ContextId>(state_index), delta);
+                        if (!status.ok()) {
+                            return status;
+                        }
+                        const auto prediction = context == 0
+                            ? std::uint8_t{128}
+                            : states[context - 1][state_index];
+                        states[context][state_index] = static_cast<std::uint8_t>(
+                            prediction + static_cast<std::uint8_t>(delta));
+                    }
+                }
             }
         }
 

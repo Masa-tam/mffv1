@@ -15,6 +15,7 @@ namespace ffv1::entropy {
 class RangeCoder final : public SymbolReader {
 public:
     static constexpr std::size_t kScalarContextSize = 32;
+    using ScalarContextStates = std::array<std::uint8_t, kScalarContextSize>;
     static constexpr std::size_t kMaxScalarContextCount = 32768;
     static constexpr std::size_t kMaxContextBankCount = 4;
     static constexpr std::uint8_t kDefaultInitialState = 128;
@@ -25,6 +26,9 @@ public:
     Status reset(ByteSpan payload,
                  std::span<const std::size_t> scalar_context_counts,
                  std::uint8_t initial_state = kDefaultInitialState);
+    Status reset(ByteSpan payload,
+                 std::span<const std::size_t> scalar_context_counts,
+                 std::span<const std::span<const ScalarContextStates>> initial_state_banks);
 
     [[nodiscard]] std::uint64_t byte_position() const noexcept override;
 
@@ -33,11 +37,15 @@ public:
     Status read_signed(std::int64_t& out_value) override;
 
     Status read_unsigned(ContextId context, std::uint64_t& out_value);
-    Status read_signed(ContextId context, std::int64_t& out_value);
+    Status read_signed(ContextId context, std::int64_t& out_value) override;
     Status read_unsigned(std::size_t context_bank, ContextId context, std::uint64_t& out_value);
     Status read_signed(std::size_t context_bank, ContextId context, std::int64_t& out_value);
 
 private:
+    Status reset_impl(ByteSpan payload,
+                      std::span<const std::size_t> scalar_context_counts,
+                      std::span<const std::span<const ScalarContextStates>> initial_state_banks,
+                      std::uint8_t initial_state);
     Status read_rac(std::uint8_t& state, bool& out_bit);
     Status read_symbol(std::size_t context_bank,
                        ContextId context,
@@ -54,7 +62,7 @@ private:
     std::uint8_t bool_state_ = kDefaultInitialState;
     std::vector<std::size_t> scalar_context_bank_offsets_;
     std::vector<std::size_t> scalar_context_bank_sizes_;
-    std::vector<std::array<std::uint8_t, kScalarContextSize>> scalar_contexts_;
+    std::vector<ScalarContextStates> scalar_contexts_;
 };
 
 } // namespace ffv1::entropy

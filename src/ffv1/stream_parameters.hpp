@@ -20,8 +20,10 @@ struct QuantTableSet {
 
 QuantTableSet make_zero_quant_table_set();
 
-struct InitialState {
-    std::uint8_t state = 0;
+using InitialState = std::array<std::uint8_t, 32>;
+
+struct InitialStateSet {
+    std::vector<InitialState> contexts;
 };
 
 struct StreamParameters {
@@ -39,7 +41,7 @@ struct StreamParameters {
     std::uint32_t num_h_slices = 1;
     std::uint32_t num_v_slices = 1;
     std::vector<QuantTableSet> quant_table_sets;
-    std::vector<InitialState> initial_states;
+    std::vector<InitialStateSet> initial_states;
     bool error_status_enabled = false;
 };
 

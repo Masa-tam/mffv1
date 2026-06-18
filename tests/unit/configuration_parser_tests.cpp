@@ -63,6 +63,16 @@ public:
         return ffv1::ok_status();
     }
 
+    ffv1::Status read_signed(ffv1::entropy::ContextId context, std::int64_t& out_value) override
+    {
+        if (context != signed_read_count_ % 32) {
+            return ffv1::make_error(ffv1::ErrorCode::InternalError,
+                                    "unexpected scripted signed context");
+        }
+        ++signed_read_count_;
+        return read_signed(out_value);
+    }
+
 private:
     ffv1::Status pop(SymbolKind expected, Symbol& out_symbol)
     {
@@ -78,6 +88,7 @@ private:
     }
 
     std::deque<Symbol> symbols_;
+    ffv1::entropy::ContextId signed_read_count_ = 0;
 };
 
 Symbol b(bool value)
@@ -88,6 +99,11 @@ Symbol b(bool value)
 Symbol u(std::int64_t value)
 {
     return {SymbolKind::Unsigned, value};
+}
+
+Symbol s(std::int64_t value)
+{
+    return {SymbolKind::Signed, value};
 }
 
 std::deque<Symbol> minimal_v3_y_only_symbols()
@@ -184,20 +200,68 @@ TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)
     EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
 }
 
-TEST(ConfigurationParserTest, RejectsCustomRangeCoderInitialStates)
+TEST(ConfigurationParserTest, ParsesCustomRangeCoderInitialStates)
 {
     auto symbols = minimal_v3_y_only_symbols();
     symbols[17] = b(true);
+    for (int state = 0; state < 32; ++state) {
+        symbols.insert(symbols.begin() + 18 + state, s(state == 0 ? -129 : state - 16));
+    }
     ScriptedSymbolReader reader(std::move(symbols));
     ffv1::syntax::ConfigurationParser parser;
     ffv1::syntax::StreamParameters stream;
-    stream.version = 1;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(stream.initial_states.size(), 1u);
+    ASSERT_EQ(stream.initial_states[0].contexts.size(), 1u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][0], 255u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][1], 113u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][31], 143u);
+}
+
+TEST(ConfigurationParserTest, PredictsCustomInitialStatesFromPreviousContext)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[12] = u(0);
+    symbols.insert(symbols.begin() + 13, u(126));
+    symbols[18] = b(true);
+    for (int context = 0; context < 2; ++context) {
+        for (int state = 0; state < 32; ++state) {
+            const auto position = 19 + context * 32 + state;
+            symbols.insert(symbols.begin() + position, s(context + 1));
+        }
+    }
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(stream.quant_table_sets[0].context_count, 2u);
+    ASSERT_EQ(stream.initial_states[0].contexts.size(), 2u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][0], 129u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][31], 129u);
+    EXPECT_EQ(stream.initial_states[0].contexts[1][0], 131u);
+    EXPECT_EQ(stream.initial_states[0].contexts[1][31], 131u);
+}
+
+TEST(ConfigurationParserTest, RejectsTruncatedCustomRangeCoderInitialStates)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[17] = b(true);
+    symbols.erase(symbols.begin() + 18, symbols.end());
+    symbols.push_back(s(0));
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(stream.version, 1);
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
 TEST(ConfigurationParserTest, RejectsNonIntraStream)

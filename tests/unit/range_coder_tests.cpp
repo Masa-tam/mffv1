@@ -144,6 +144,46 @@ TEST(RangeCoderTest, DecodesFromSelectedContextBank)
     EXPECT_EQ(value, 0);
 }
 
+TEST(RangeCoderTest, UsesCustomInitialStatesForSelectedContextBank)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0x01},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, 2> context_counts{1, 1};
+    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> default_states{};
+    default_states[0].fill(ffv1::entropy::RangeCoder::kDefaultInitialState);
+    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> custom_states = default_states;
+    custom_states[0][0] = 255;
+    const std::array<std::span<const ffv1::entropy::RangeCoder::ScalarContextStates>, 2> state_banks{
+        default_states,
+        custom_states,
+    };
+    ffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload, context_counts, state_banks).ok());
+
+    std::uint64_t value = 99;
+    EXPECT_TRUE(coder.read_unsigned(1, 0, value).ok());
+    EXPECT_EQ(value, 0u);
+}
+
+TEST(RangeCoderTest, RejectsMismatchedInitialStateCount)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, 1> context_counts{2};
+    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> states{};
+    const std::array<std::span<const ffv1::entropy::RangeCoder::ScalarContextStates>, 1> state_banks{states};
+    ffv1::entropy::RangeCoder coder;
+
+    const auto status = coder.reset(payload, context_counts, state_banks);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
 TEST(RangeCoderTest, RejectsOutOfRangeContextBank)
 {
     const std::array<std::byte, 2> payload{

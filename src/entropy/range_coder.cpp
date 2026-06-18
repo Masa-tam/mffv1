@@ -63,6 +63,23 @@ Status RangeCoder::reset(ByteSpan payload,
                          std::span<const std::size_t> scalar_context_counts,
                          std::uint8_t initial_state)
 {
+    return reset_impl(payload, scalar_context_counts, {}, initial_state);
+}
+
+Status RangeCoder::reset(
+    ByteSpan payload,
+    std::span<const std::size_t> scalar_context_counts,
+    std::span<const std::span<const ScalarContextStates>> initial_state_banks)
+{
+    return reset_impl(payload, scalar_context_counts, initial_state_banks, kDefaultInitialState);
+}
+
+Status RangeCoder::reset_impl(
+    ByteSpan payload,
+    std::span<const std::size_t> scalar_context_counts,
+    std::span<const std::span<const ScalarContextStates>> initial_state_banks,
+    std::uint8_t initial_state)
+{
     if (payload.size() < 2) {
         return make_byte_error(ErrorCode::SyntaxError, "range coder payload must contain at least two bytes", 0);
     }
@@ -72,9 +89,14 @@ Status RangeCoder::reset(ByteSpan payload,
     if (scalar_context_counts.size() > kMaxContextBankCount) {
         return make_error(ErrorCode::ResourceExhausted, "range coder context bank count exceeds the supported limit");
     }
+    if (!initial_state_banks.empty() && initial_state_banks.size() != scalar_context_counts.size()) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "range coder initial state bank count does not match context bank count");
+    }
 
     std::size_t total_context_count = 0;
-    for (const auto context_count : scalar_context_counts) {
+    for (std::size_t bank = 0; bank < scalar_context_counts.size(); ++bank) {
+        const auto context_count = scalar_context_counts[bank];
         if (context_count == 0) {
             return make_error(ErrorCode::InvalidArgument,
                               "range coder context banks must have at least one scalar context");
@@ -82,6 +104,11 @@ Status RangeCoder::reset(ByteSpan payload,
         if (context_count > kMaxScalarContextCount) {
             return make_error(ErrorCode::ResourceExhausted,
                               "range coder scalar context count exceeds the supported limit");
+        }
+        if (!initial_state_banks.empty() && !initial_state_banks[bank].empty()
+            && initial_state_banks[bank].size() != context_count) {
+            return make_error(ErrorCode::InvalidArgument,
+                              "range coder initial state count does not match scalar context count");
         }
         total_context_count += context_count;
     }
@@ -107,8 +134,17 @@ Status RangeCoder::reset(ByteSpan payload,
         context_offset += context_count;
     }
     scalar_contexts_.assign(total_context_count, {});
-    for (auto& context : scalar_contexts_) {
-        context.fill(initial_state);
+    for (std::size_t bank = 0; bank < scalar_context_counts.size(); ++bank) {
+        const auto offset = scalar_context_bank_offsets_[bank];
+        if (!initial_state_banks.empty() && !initial_state_banks[bank].empty()) {
+            std::copy(initial_state_banks[bank].begin(),
+                      initial_state_banks[bank].end(),
+                      scalar_contexts_.begin() + static_cast<std::ptrdiff_t>(offset));
+        } else {
+            for (std::size_t context = 0; context < scalar_context_counts[bank]; ++context) {
+                scalar_contexts_[offset + context].fill(initial_state);
+            }
+        }
     }
     initialized_ = true;
     return ok_status();

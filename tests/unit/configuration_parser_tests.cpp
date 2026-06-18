@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -18,6 +19,7 @@ enum class SymbolKind {
 struct Symbol {
     SymbolKind kind;
     std::int64_t value;
+    bool maximum_unsigned = false;
 };
 
 class ScriptedSymbolReader final : public ffv1::entropy::SymbolReader {
@@ -44,6 +46,10 @@ public:
         auto status = pop(SymbolKind::Unsigned, symbol);
         if (!status.ok()) {
             return status;
+        }
+        if (symbol.maximum_unsigned) {
+            out_value = std::numeric_limits<std::uint64_t>::max();
+            return ffv1::ok_status();
         }
         if (symbol.value < 0) {
             return ffv1::make_error(ffv1::ErrorCode::SyntaxError, "scripted unsigned symbol is negative");
@@ -99,6 +105,11 @@ Symbol b(bool value)
 Symbol u(std::int64_t value)
 {
     return {SymbolKind::Unsigned, value};
+}
+
+Symbol u_max()
+{
+    return {SymbolKind::Unsigned, 0, true};
 }
 
 Symbol s(std::int64_t value)
@@ -342,6 +353,38 @@ TEST(ConfigurationParserTest, RejectsOversizedQuantTableRun)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
+TEST(ConfigurationParserTest, RejectsOverflowingQuantTableRun)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[12] = u_max();
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "quantization table run exceeds table boundary");
+}
+
+TEST(ConfigurationParserTest, RejectsUnrepresentableSliceCountsBeforeIncrement)
+{
+    for (const std::size_t symbol_index : {std::size_t{9}, std::size_t{10}}) {
+        auto symbols = minimal_v3_y_only_symbols();
+        symbols[symbol_index] = u_max();
+        ScriptedSymbolReader reader(std::move(symbols));
+        ffv1::syntax::ConfigurationParser parser;
+        ffv1::syntax::StreamParameters stream;
+
+        const auto status = parser.parse(reader, stream);
+
+        EXPECT_FALSE(status.ok()) << "symbol_index=" << symbol_index;
+        EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError)
+            << "symbol_index=" << symbol_index;
+    }
 }
 
 TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)

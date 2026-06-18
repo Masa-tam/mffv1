@@ -160,6 +160,9 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         if (!status.ok()) {
             return status;
         }
+        if (value >= std::numeric_limits<std::uint32_t>::max()) {
+            return make_error(ErrorCode::SyntaxError, "num_h_slices is too large");
+        }
         status = checked_u32(value + 1, "num_h_slices", stream.num_h_slices);
         if (!status.ok()) {
             return status;
@@ -168,6 +171,9 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         status = read_u(reader, value);
         if (!status.ok()) {
             return status;
+        }
+        if (value >= std::numeric_limits<std::uint32_t>::max()) {
+            return make_error(ErrorCode::SyntaxError, "num_v_slices is too large");
         }
         status = checked_u32(value + 1, "num_v_slices", stream.num_v_slices);
         if (!status.ok()) {
@@ -285,10 +291,11 @@ Status ConfigurationParser::parse_quant_table(entropy::SymbolReader& reader,
         if (!status.ok()) {
             return status;
         }
-        const std::uint64_t len = len_minus_one + 1;
-        if (len > (128 - k)) {
+        const auto remaining = static_cast<std::uint64_t>(128 - k);
+        if (len_minus_one >= remaining) {
             return make_error(ErrorCode::SyntaxError, "quantization table run exceeds table boundary");
         }
+        const std::uint64_t len = len_minus_one + 1;
         if (value > std::numeric_limits<std::int32_t>::max() / std::max<std::int64_t>(scale, 1)) {
             return make_error(ErrorCode::SyntaxError, "quantization table value overflow");
         }

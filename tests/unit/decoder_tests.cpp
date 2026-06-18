@@ -17,6 +17,17 @@ std::array<std::byte, 3> minimal_v0_y_only_configuration_record()
     };
 }
 
+std::array<std::byte, 18> minimal_v3_y_only_configuration_record()
+{
+    return {
+        std::byte{0x56}, std::byte{0x00}, std::byte{0x2f}, std::byte{0xa3},
+        std::byte{0x67}, std::byte{0x6a}, std::byte{0x28}, std::byte{0x5e},
+        std::byte{0x8f}, std::byte{0x6f}, std::byte{0x2b}, std::byte{0x13},
+        std::byte{0x3d}, std::byte{0x00}, std::byte{0x6a}, std::byte{0x49},
+        std::byte{0x41}, std::byte{0xa4},
+    };
+}
+
 std::array<std::byte, 2> zero_scalar_payload()
 {
     return {
@@ -38,6 +49,12 @@ std::array<std::byte, 16> zero_frame_payload()
 ffv1::Status configure_minimal_v0_y_only(ffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v0_y_only_configuration_record();
+    return decoder.configure(configuration_record);
+}
+
+ffv1::Status configure_minimal_v3_y_only(ffv1::IDecoder& decoder)
+{
+    const auto configuration_record = minimal_v3_y_only_configuration_record();
     return decoder.configure(configuration_record);
 }
 
@@ -126,6 +143,33 @@ TEST(DecoderTest, ConfigureRejectsTooShortRangeCoderPayload)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+}
+
+TEST(DecoderTest, ConfigureAcceptsVersionThreeRecordWithValidCrc)
+{
+    const auto result = ffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto status = configure_minimal_v3_y_only(*result.decoder);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+}
+
+TEST(DecoderTest, ConfigureRejectsVersionThreeRecordWithCrcMismatch)
+{
+    const auto result = ffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    auto configuration_record = minimal_v3_y_only_configuration_record();
+    configuration_record.back() ^= std::byte{0x01};
+
+    const auto status = result.decoder->configure(configuration_record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 14u);
 }
 
 TEST(DecoderTest, DecodeRequiresConfiguration)
@@ -394,6 +438,41 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     EXPECT_EQ(info.version, 0u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
+}
+
+TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v3_y_only(*result.decoder).ok());
+    const std::array<std::byte, 5> frame_payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+
+    ffv1::FrameInfo info;
+    auto status = result.decoder->inspect_frame(frame_payload, info);
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(info.version, 3u);
+    EXPECT_EQ(info.width, 1u);
+    EXPECT_EQ(info.height, 1u);
+    EXPECT_EQ(info.bits_per_raw_sample, 8u);
+    EXPECT_EQ(info.plane_count, 1u);
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), 1, 1, 1);
+    ffv1::MutableFrameView output{&plane, 1};
+    status = result.decoder->decode_frame(frame_payload, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
 }
 
 TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)

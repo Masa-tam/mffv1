@@ -2,6 +2,10 @@
 
 #include "entropy/range_coder.hpp"
 #include "ffv1/configuration_parser.hpp"
+#include "util/crc32.hpp"
+#include "util/status.hpp"
+
+#include <utility>
 
 namespace ffv1::codec {
 
@@ -12,15 +16,48 @@ Status ConfigurationRecordParser::parse(ByteSpan record,
         return make_error(ErrorCode::InvalidArgument, "configuration record is empty");
     }
 
-    entropy::RangeCoder reader;
-    Status status = reader.reset(record);
+    // Probe the version before deciding whether the final four bytes are CRC parity.
+    entropy::RangeCoder probe_reader;
+    Status status = probe_reader.reset(record);
     if (!status.ok()) {
         return status;
     }
 
     syntax::ConfigurationParser parser;
-    return parser.parse(reader, out_stream);
+    syntax::StreamParameters stream;
+    status = parser.parse(probe_reader, stream);
+    if (!status.ok()) {
+        return status;
+    }
+
+    if (stream.version >= 3) {
+        constexpr std::size_t crc_size = 4;
+        if (record.size() < crc_size) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "version 3 configuration record is too small for CRC parity",
+                                   0);
+        }
+        if (util::crc32_ieee_msb(record) != 0) {
+            return make_byte_error(ErrorCode::CrcMismatch,
+                                   "configuration record CRC remainder is non-zero",
+                                   record.size() - crc_size);
+        }
+
+        entropy::RangeCoder parameter_reader;
+        status = parameter_reader.reset(record.first(record.size() - crc_size));
+        if (!status.ok()) {
+            return status;
+        }
+        syntax::StreamParameters checked_stream;
+        status = parser.parse(parameter_reader, checked_stream);
+        if (!status.ok()) {
+            return status;
+        }
+        stream = std::move(checked_stream);
+    }
+
+    out_stream = std::move(stream);
+    return ok_status();
 }
 
 } // namespace ffv1::codec
-

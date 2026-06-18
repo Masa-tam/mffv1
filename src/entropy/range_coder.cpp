@@ -55,15 +55,35 @@ Status RangeCoder::reset(ByteSpan payload,
                          std::size_t scalar_context_count,
                          std::uint8_t initial_state)
 {
+    const std::array context_counts{scalar_context_count};
+    return reset(payload, context_counts, initial_state);
+}
+
+Status RangeCoder::reset(ByteSpan payload,
+                         std::span<const std::size_t> scalar_context_counts,
+                         std::uint8_t initial_state)
+{
     if (payload.size() < 2) {
         return make_byte_error(ErrorCode::SyntaxError, "range coder payload must contain at least two bytes", 0);
     }
-    if (scalar_context_count == 0) {
-        return make_error(ErrorCode::InvalidArgument, "range coder must have at least one scalar context");
+    if (scalar_context_counts.empty()) {
+        return make_error(ErrorCode::InvalidArgument, "range coder must have at least one context bank");
     }
-    if (scalar_context_count > kMaxScalarContextCount) {
-        return make_error(ErrorCode::ResourceExhausted,
-                          "range coder scalar context count exceeds the supported limit");
+    if (scalar_context_counts.size() > kMaxContextBankCount) {
+        return make_error(ErrorCode::ResourceExhausted, "range coder context bank count exceeds the supported limit");
+    }
+
+    std::size_t total_context_count = 0;
+    for (const auto context_count : scalar_context_counts) {
+        if (context_count == 0) {
+            return make_error(ErrorCode::InvalidArgument,
+                              "range coder context banks must have at least one scalar context");
+        }
+        if (context_count > kMaxScalarContextCount) {
+            return make_error(ErrorCode::ResourceExhausted,
+                              "range coder scalar context count exceeds the supported limit");
+        }
+        total_context_count += context_count;
     }
 
     payload_ = payload;
@@ -78,7 +98,15 @@ Status RangeCoder::reset(ByteSpan payload,
     }
 
     bool_state_ = initial_state;
-    scalar_contexts_.assign(scalar_context_count, {});
+    scalar_context_bank_offsets_.clear();
+    scalar_context_bank_offsets_.reserve(scalar_context_counts.size());
+    scalar_context_bank_sizes_.assign(scalar_context_counts.begin(), scalar_context_counts.end());
+    std::size_t context_offset = 0;
+    for (const auto context_count : scalar_context_counts) {
+        scalar_context_bank_offsets_.push_back(context_offset);
+        context_offset += context_count;
+    }
+    scalar_contexts_.assign(total_context_count, {});
     for (auto& context : scalar_contexts_) {
         context.fill(initial_state);
     }
@@ -99,7 +127,7 @@ Status RangeCoder::read_bool(bool& out_value)
 Status RangeCoder::read_unsigned(std::uint64_t& out_value)
 {
     std::int64_t value = 0;
-    Status status = read_symbol(0, false, value);
+    Status status = read_symbol(0, 0, false, value);
     if (!status.ok()) {
         return status;
     }
@@ -109,13 +137,13 @@ Status RangeCoder::read_unsigned(std::uint64_t& out_value)
 
 Status RangeCoder::read_signed(std::int64_t& out_value)
 {
-    return read_symbol(0, true, out_value);
+    return read_symbol(0, 0, true, out_value);
 }
 
 Status RangeCoder::read_unsigned(ContextId context, std::uint64_t& out_value)
 {
     std::int64_t value = 0;
-    Status status = read_symbol(context, false, value);
+    Status status = read_symbol(0, context, false, value);
     if (!status.ok()) {
         return status;
     }
@@ -125,7 +153,27 @@ Status RangeCoder::read_unsigned(ContextId context, std::uint64_t& out_value)
 
 Status RangeCoder::read_signed(ContextId context, std::int64_t& out_value)
 {
-    return read_symbol(context, true, out_value);
+    return read_symbol(0, context, true, out_value);
+}
+
+Status RangeCoder::read_unsigned(std::size_t context_bank,
+                                 ContextId context,
+                                 std::uint64_t& out_value)
+{
+    std::int64_t value = 0;
+    Status status = read_symbol(context_bank, context, false, value);
+    if (!status.ok()) {
+        return status;
+    }
+    out_value = static_cast<std::uint64_t>(value);
+    return ok_status();
+}
+
+Status RangeCoder::read_signed(std::size_t context_bank,
+                               ContextId context,
+                               std::int64_t& out_value)
+{
+    return read_symbol(context_bank, context, true, out_value);
 }
 
 Status RangeCoder::read_rac(std::uint8_t& state, bool& out_bit)
@@ -151,13 +199,19 @@ Status RangeCoder::read_rac(std::uint8_t& state, bool& out_bit)
     return ok_status();
 }
 
-Status RangeCoder::read_symbol(ContextId context, bool is_signed, std::int64_t& out_value)
+Status RangeCoder::read_symbol(std::size_t context_bank,
+                               ContextId context,
+                               bool is_signed,
+                               std::int64_t& out_value)
 {
-    if (context >= scalar_contexts_.size()) {
+    if (context_bank >= scalar_context_bank_sizes_.size()) {
+        return make_error(ErrorCode::InvalidArgument, "range coder scalar context bank is out of range");
+    }
+    if (context >= scalar_context_bank_sizes_[context_bank]) {
         return make_error(ErrorCode::InvalidArgument, "range coder scalar context is out of range");
     }
 
-    auto& states = scalar_contexts_[context];
+    auto& states = scalar_contexts_[scalar_context_bank_offsets_[context_bank] + context];
 
     bool bit = false;
     Status status = read_rac(states[0], bit);

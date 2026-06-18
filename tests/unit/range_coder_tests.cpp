@@ -129,4 +129,70 @@ TEST(RangeCoderTest, RejectsExcessiveScalarContextCount)
     EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
 }
 
+TEST(RangeCoderTest, DecodesFromSelectedContextBank)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    ffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload, context_counts).ok());
+
+    std::int64_t value = 99;
+    EXPECT_TRUE(coder.read_signed(1, 1, value).ok());
+    EXPECT_EQ(value, 0);
+}
+
+TEST(RangeCoderTest, RejectsOutOfRangeContextBank)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    ffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload, context_counts).ok());
+
+    std::uint64_t value = 0;
+    const auto status = coder.read_unsigned(2, 0, value);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(RangeCoderTest, RejectsContextOutsideSelectedBank)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    ffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload, context_counts).ok());
+
+    std::uint64_t value = 0;
+    const auto status = coder.read_unsigned(0, 1, value);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(RangeCoderTest, RejectsExcessiveContextBankCount)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, ffv1::entropy::RangeCoder::kMaxContextBankCount + 1> context_counts{
+        1, 1, 1, 1, 1,
+    };
+    ffv1::entropy::RangeCoder coder;
+
+    const auto status = coder.reset(payload, context_counts);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
+}
+
 } // namespace

@@ -61,8 +61,11 @@ struct StreamParameters {
     if (log2_subsample == 0) {
         return value;
     }
-    const std::uint32_t add = (std::uint32_t{1} << log2_subsample) - 1;
-    return (value + add) >> log2_subsample;
+    if (log2_subsample >= 32) {
+        return value == 0 ? 0 : 1;
+    }
+    const std::uint64_t divisor = std::uint64_t{1} << log2_subsample;
+    return static_cast<std::uint32_t>((static_cast<std::uint64_t>(value) + divisor - 1) / divisor);
 }
 
 [[nodiscard]] inline bool is_chroma_plane(const StreamParameters& stream, std::size_t plane_index) noexcept

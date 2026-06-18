@@ -83,10 +83,12 @@ std::uint32_t bytes_per_sample(SampleFormat format) noexcept
     return format == SampleFormat::UInt16 ? 2u : 1u;
 }
 
-Status checked_plane_offset(const PlaneInfo& info,
-                            std::uint32_t x,
-                            std::uint32_t y,
-                            std::ptrdiff_t& out_offset)
+Status checked_plane_window_offset(const PlaneInfo& info,
+                                   std::uint32_t x,
+                                   std::uint32_t y,
+                                   std::uint32_t width,
+                                   std::uint32_t height,
+                                   std::ptrdiff_t& out_offset)
 {
     const auto max_offset = static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
     const auto sample_bytes = static_cast<std::uint64_t>(bytes_per_sample(info.sample_format));
@@ -103,6 +105,19 @@ Status checked_plane_offset(const PlaneInfo& info,
     const auto column_offset = static_cast<std::uint64_t>(x) * sample_bytes;
     if (column_offset > max_offset - row_offset) {
         return make_error(ErrorCode::ResourceExhausted, "output plane sample offset exceeds ptrdiff_t");
+    }
+
+    if (width != 0 && height != 0) {
+        const auto last_y = static_cast<std::uint64_t>(y) + height - 1;
+        if (last_y != 0 && stride > max_offset / last_y) {
+            return make_error(ErrorCode::ResourceExhausted, "output plane window rows exceed ptrdiff_t");
+        }
+        const auto last_row_offset = stride * last_y;
+        const auto last_x = static_cast<std::uint64_t>(x) + width - 1;
+        const auto last_column_offset = last_x * sample_bytes;
+        if (last_column_offset > max_offset - last_row_offset) {
+            return make_error(ErrorCode::ResourceExhausted, "output plane window exceeds ptrdiff_t");
+        }
     }
 
     out_offset = static_cast<std::ptrdiff_t>(row_offset + column_offset);
@@ -170,7 +185,7 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
         }
 
         std::ptrdiff_t plane_offset = 0;
-        Status status = checked_plane_offset(plane.info, px, py, plane_offset);
+        Status status = checked_plane_window_offset(plane.info, px, py, pw, ph, plane_offset);
         if (!status.ok()) {
             return status;
         }

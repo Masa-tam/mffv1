@@ -27,6 +27,16 @@ TEST(StreamParametersTest, ComputesPlaneGeometryForChromaOnly)
     EXPECT_EQ(ffv1::syntax::plane_height(stream, 3), 9u);
 }
 
+TEST(StreamParametersTest, SubsamplesMaximumExtentWithoutWrapping)
+{
+    const auto maximum = std::numeric_limits<std::uint32_t>::max();
+
+    EXPECT_EQ(ffv1::syntax::subsampled_extent(maximum, 1), 0x80000000u);
+    EXPECT_EQ(ffv1::syntax::subsampled_extent(maximum, 4), 0x10000000u);
+    EXPECT_EQ(ffv1::syntax::subsampled_extent(maximum, 32), 1u);
+    EXPECT_EQ(ffv1::syntax::subsampled_extent(0, 32), 0u);
+}
+
 TEST(StreamParametersTest, MapsSingleSliceRasterCellToFullFrame)
 {
     ffv1::syntax::StreamParameters stream;

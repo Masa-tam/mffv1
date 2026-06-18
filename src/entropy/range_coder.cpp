@@ -94,6 +94,46 @@ Status RangeCoder::reset_impl(
     if (payload.size() < 2) {
         return make_byte_error(ErrorCode::SyntaxError, "range coder payload must contain at least two bytes", 0);
     }
+
+    Status status = initialize_contexts(scalar_context_counts, initial_state_banks, initial_state);
+    if (!status.ok()) {
+        return status;
+    }
+
+    payload_ = payload;
+    range_ = 0xff00;
+    low_ = (static_cast<std::uint32_t>(payload_[0]) << 8)
+        | static_cast<std::uint32_t>(payload_[1]);
+    byte_position_ = 2;
+    end_ = byte_position_ >= payload_.size();
+    if (low_ >= range_) {
+        low_ = range_;
+        end_ = true;
+    }
+
+    bool_state_ = initial_state;
+    state_transition_ = state_transition;
+    initialized_ = true;
+    return ok_status();
+}
+
+Status RangeCoder::reconfigure_contexts(
+    std::span<const std::size_t> scalar_context_counts,
+    std::span<const std::span<const ScalarContextStates>> initial_state_banks)
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range coder is not initialized");
+    }
+    return initialize_contexts(scalar_context_counts,
+                               initial_state_banks,
+                               kDefaultInitialState);
+}
+
+Status RangeCoder::initialize_contexts(
+    std::span<const std::size_t> scalar_context_counts,
+    std::span<const std::span<const ScalarContextStates>> initial_state_banks,
+    std::uint8_t initial_state)
+{
     if (scalar_context_counts.empty()) {
         return make_error(ErrorCode::InvalidArgument, "range coder must have at least one context bank");
     }
@@ -124,19 +164,6 @@ Status RangeCoder::reset_impl(
         total_context_count += context_count;
     }
 
-    payload_ = payload;
-    range_ = 0xff00;
-    low_ = (static_cast<std::uint32_t>(payload_[0]) << 8)
-        | static_cast<std::uint32_t>(payload_[1]);
-    byte_position_ = 2;
-    end_ = byte_position_ >= payload_.size();
-    if (low_ >= range_) {
-        low_ = range_;
-        end_ = true;
-    }
-
-    bool_state_ = initial_state;
-    state_transition_ = state_transition;
     scalar_context_bank_offsets_.clear();
     scalar_context_bank_offsets_.reserve(scalar_context_counts.size());
     scalar_context_bank_sizes_.assign(scalar_context_counts.begin(), scalar_context_counts.end());
@@ -158,7 +185,6 @@ Status RangeCoder::reset_impl(
             }
         }
     }
-    initialized_ = true;
     return ok_status();
 }
 

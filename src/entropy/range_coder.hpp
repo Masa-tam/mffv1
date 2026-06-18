@@ -35,6 +35,9 @@ public:
                  std::span<const std::size_t> scalar_context_counts,
                  std::span<const std::span<const ScalarContextStates>> initial_state_banks,
                  const syntax::StateTransitionTable& state_transition);
+    Status reconfigure_contexts(
+        std::span<const std::size_t> scalar_context_counts,
+        std::span<const std::span<const ScalarContextStates>> initial_state_banks = {});
 
     [[nodiscard]] std::uint64_t byte_position() const noexcept override;
 
@@ -53,6 +56,10 @@ private:
                       std::span<const std::span<const ScalarContextStates>> initial_state_banks,
                       std::uint8_t initial_state,
                       const syntax::StateTransitionTable& state_transition);
+    Status initialize_contexts(
+        std::span<const std::size_t> scalar_context_counts,
+        std::span<const std::span<const ScalarContextStates>> initial_state_banks,
+        std::uint8_t initial_state);
     Status read_rac(std::uint8_t& state, bool& out_bit);
     Status read_symbol(std::size_t context_bank,
                        ContextId context,

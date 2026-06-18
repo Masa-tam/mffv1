@@ -266,4 +266,60 @@ TEST(RangeCoderTest, RejectsExcessiveContextBankCount)
     EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
 }
 
+TEST(RangeCoderTest, ReconfiguresContextsWithoutResettingArithmeticPosition)
+{
+    const std::array<std::byte, 4> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xaa},
+        std::byte{0xbb},
+    };
+    ffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload).ok());
+
+    bool frame_flag = false;
+    ASSERT_TRUE(coder.read_bool(frame_flag).ok());
+    const auto position = coder.byte_position();
+    const std::array<std::size_t, 2> context_counts{1, 2};
+
+    const auto status = coder.reconfigure_contexts(context_counts);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(coder.byte_position(), position);
+    std::int64_t value = 99;
+    EXPECT_TRUE(coder.read_signed(1, 1, value).ok());
+}
+
+TEST(RangeCoderTest, RejectsContextReconfigurationBeforeReset)
+{
+    ffv1::entropy::RangeCoder coder;
+    const std::array<std::size_t, 1> context_counts{1};
+
+    const auto status = coder.reconfigure_contexts(context_counts);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+}
+
+TEST(RangeCoderTest, FailedContextReconfigurationPreservesExistingBanks)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, 1> original_counts{1};
+    ffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload, original_counts).ok());
+    const std::array<std::size_t, 1> invalid_counts{2};
+    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> states{};
+    const std::array<std::span<const ffv1::entropy::RangeCoder::ScalarContextStates>, 1> state_banks{states};
+
+    const auto status = coder.reconfigure_contexts(invalid_counts, state_banks);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    std::int64_t value = 99;
+    EXPECT_TRUE(coder.read_signed(0, 0, value).ok());
+}
+
 } // namespace

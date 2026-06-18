@@ -13,15 +13,24 @@ namespace {
 
 class ScriptedUnsignedReader final : public ffv1::entropy::SymbolReader {
 public:
-    explicit ScriptedUnsignedReader(std::deque<std::uint64_t> values, std::uint64_t bytes_per_read)
+    explicit ScriptedUnsignedReader(std::deque<std::uint64_t> values,
+                                    std::uint64_t bytes_per_read,
+                                    bool keyframe = true)
         : values_(std::move(values))
         , bytes_per_read_(bytes_per_read)
+        , keyframe_(keyframe)
     {
     }
 
-    ffv1::Status read_bool(bool&) override
+    ffv1::Status read_bool(bool& out_value) override
     {
-        return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected bool read");
+        if (bool_read_) {
+            return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected second bool read");
+        }
+        out_value = keyframe_;
+        bool_read_ = true;
+        byte_position_ += bytes_per_read_;
+        return ffv1::ok_status();
     }
 
     ffv1::Status read_unsigned(std::uint64_t& out_value) override
@@ -49,6 +58,8 @@ private:
     std::deque<std::uint64_t> values_;
     std::uint64_t bytes_per_read_ = 0;
     std::uint64_t byte_position_ = 0;
+    bool keyframe_ = true;
+    bool bool_read_ = false;
 };
 
 ffv1::syntax::StreamParameters make_stream()
@@ -149,8 +160,9 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     EXPECT_EQ(frame.slices[0].raster_y, 0u);
     EXPECT_EQ(frame.slices[0].raster_width, 1u);
     EXPECT_EQ(frame.slices[0].raster_height, 1u);
-    EXPECT_EQ(frame.slices[0].header_byte_offset, 0u);
-    EXPECT_EQ(frame.slices[0].content_byte_offset, 6u);
+    EXPECT_EQ(frame.slices[0].header_byte_offset, 1u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 7u);
+    EXPECT_TRUE(frame.keyframe);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
     ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 2u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
@@ -173,9 +185,27 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 12u);
+    EXPECT_EQ(status.location.byte_offset, 14u);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
+}
+
+TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
+{
+    const auto stream = make_stream();
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 1, false);
+    const std::array<std::byte, 16> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_FALSE(frame.keyframe);
+    EXPECT_TRUE(frame.slices.empty());
 }
 
 TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
@@ -211,6 +241,31 @@ TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
 }
 
+TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
+{
+    const auto stream = make_stream();
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array<std::byte, 5> payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_FALSE(frame.keyframe);
+    EXPECT_TRUE(frame.slices.empty());
+}
+
 TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
 {
     const auto stream = make_stream();
@@ -243,6 +298,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
     EXPECT_EQ(frame.slices[0].slice_size, payload.size());
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
+    EXPECT_TRUE(frame.keyframe);
     ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 2u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[1], 0u);
@@ -380,6 +436,7 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
 
     EXPECT_TRUE(status.ok()) << status.message;
     ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_TRUE(frame.keyframe);
     EXPECT_EQ(frame.slices[0].index, 0u);
     EXPECT_EQ(frame.slices[0].x, 0u);
     EXPECT_EQ(frame.slices[0].y, 0u);

@@ -13,7 +13,7 @@ struct FrameDecodeContext {
     MutableFrameView output;
     std::vector<syntax::SliceDescriptor> slices;
     FrameInfo frame_info;
+    bool keyframe = false;
 };
 
 } // namespace ffv1::codec
-

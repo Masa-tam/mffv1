@@ -99,6 +99,18 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
     }
 
+    bool keyframe = false;
+    status = header_reader.read_bool(keyframe);
+    if (!status.ok()) {
+        add_byte_offset(status, 0);
+        return status;
+    }
+    if (!keyframe) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "non-keyframe is invalid for an intra-only stream",
+                               0);
+    }
+
     syntax::SliceDescriptor slice;
     slice.index = 0;
     const SliceHeaderParser header_parser;
@@ -121,6 +133,7 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         set_slice_location_if_missing(status, slice.index);
         return status;
     }
+    out_frame.keyframe = keyframe;
     return ok_status();
 }
 
@@ -145,13 +158,31 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
     const SliceHeaderParser header_parser;
     std::vector<syntax::SliceDescriptor> parsed_slices;
     parsed_slices.reserve(located_slices.size());
-    for (const auto& located_slice : located_slices) {
+    bool keyframe = false;
+    for (std::size_t slice_index = 0; slice_index < located_slices.size(); ++slice_index) {
+        const auto& located_slice = located_slices[slice_index];
         entropy::RangeCoder header_reader;
         status = header_reader.reset(located_slice.payload, stream_.state_transition);
         if (!status.ok()) {
             add_byte_offset(status, located_slice.payload_byte_offset);
             set_slice_location_if_missing(status, located_slice.index);
             return status;
+        }
+
+        if (slice_index == 0) {
+            status = header_reader.read_bool(keyframe);
+            if (!status.ok()) {
+                add_byte_offset(status, located_slice.payload_byte_offset);
+                set_slice_location_if_missing(status, located_slice.index);
+                return status;
+            }
+            if (!keyframe) {
+                status = make_byte_error(ErrorCode::SyntaxError,
+                                         "non-keyframe is invalid for an intra-only stream",
+                                         located_slice.payload_byte_offset);
+                set_slice_location_if_missing(status, located_slice.index);
+                return status;
+            }
         }
 
         syntax::SliceDescriptor parsed_slice;
@@ -187,6 +218,7 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
     if (!status.ok()) {
         return status;
     }
+    out_frame.keyframe = keyframe;
     out_frame.slices = std::move(parsed_slices);
     return ok_status();
 }
@@ -205,6 +237,7 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
 
     out_frame.stream = &stream_;
     out_frame.slices.clear();
+    out_frame.keyframe = false;
     out_frame.frame_info.width = stream_.width;
     out_frame.frame_info.height = stream_.height;
     out_frame.frame_info.version = static_cast<std::uint8_t>(stream_.version);

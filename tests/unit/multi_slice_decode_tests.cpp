@@ -59,6 +59,7 @@ TEST(MultiSliceDecodeTest, ParsesAndDecodesTwoRangeSlices)
 
     ASSERT_TRUE(status.ok()) << status.message;
     ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_TRUE(frame.keyframe);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
     EXPECT_EQ(frame.slices[1].content_byte_offset, 9u);

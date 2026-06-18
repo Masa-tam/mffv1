@@ -1,6 +1,7 @@
 #include "codec/slice_raster_validator.hpp"
 
 #include <array>
+#include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -51,6 +52,25 @@ TEST(SliceRasterValidatorTest, AcceptsSingleSliceCoveringWholeRaster)
 {
     const auto stream = make_stream();
     const std::array slices{make_slice(0, 0, 0, 2, 2)};
+
+    const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+}
+
+TEST(SliceRasterValidatorTest, AcceptsMaximumRasterWithoutCellAllocation)
+{
+    auto stream = make_stream();
+    stream.version = 1;
+    stream.num_h_slices = std::numeric_limits<std::uint32_t>::max();
+    stream.num_v_slices = std::numeric_limits<std::uint32_t>::max();
+    const std::array slices{
+        make_slice(0,
+                   0,
+                   0,
+                   stream.num_h_slices,
+                   stream.num_v_slices),
+    };
 
     const auto status = ffv1::codec::validate_slice_raster_coverage(stream, slices);
 

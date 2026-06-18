@@ -15,7 +15,7 @@ namespace ffv1::codec {
 
 namespace {
 
-std::size_t expected_slice_count(const syntax::StreamParameters& stream) noexcept
+std::size_t maximum_slice_count(const syntax::StreamParameters& stream) noexcept
 {
     return static_cast<std::size_t>(stream.num_h_slices) * static_cast<std::size_t>(stream.num_v_slices);
 }
@@ -148,7 +148,7 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
     const SlicePayloadLocator payload_locator;
     status = payload_locator.locate_slices(payload,
                                            stream_,
-                                           expected_slice_count(stream_),
+                                           maximum_slice_count(stream_),
                                            located_slices,
                                            verify_crc_);
     if (!status.ok()) {

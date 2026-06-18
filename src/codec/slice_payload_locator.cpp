@@ -64,51 +64,44 @@ Status SlicePayloadLocator::locate_trailing_slice(ByteSpan frame_payload,
 
 Status SlicePayloadLocator::locate_slices(ByteSpan frame_payload,
                                           const syntax::StreamParameters& stream,
-                                          std::size_t expected_slice_count,
+                                          std::size_t maximum_slice_count,
                                           std::vector<syntax::SliceDescriptor>& descriptors,
                                           bool verify_crc) const
 {
-    if (expected_slice_count == 0) {
-        return make_error(ErrorCode::InvalidArgument, "expected slice count must be non-zero");
+    if (maximum_slice_count == 0) {
+        return make_error(ErrorCode::InvalidArgument, "maximum slice count must be non-zero");
     }
-    if (expected_slice_count > std::numeric_limits<std::uint32_t>::max()) {
+    if (maximum_slice_count > std::numeric_limits<std::uint32_t>::max()) {
         return make_error(ErrorCode::ResourceExhausted,
-                          "expected slice count exceeds the supported index range");
+                          "maximum slice count exceeds the supported index range");
     }
 
     const SliceFooterParser footer_parser;
     const auto footer_size = footer_parser.footer_size(stream);
-    if (expected_slice_count > frame_payload.size() / footer_size) {
-        Status status = make_byte_error(ErrorCode::SyntaxError,
-                                        "frame payload is too small for the expected slice footers",
-                                        0);
-        set_slice_location_if_missing(status, 0);
-        return status;
-    }
-
     std::vector<syntax::SliceDescriptor> located;
-    located.reserve(expected_slice_count);
+    located.reserve(std::min(maximum_slice_count, frame_payload.size() / footer_size));
     auto remaining_size = frame_payload.size();
-    for (std::size_t index = 0; index < expected_slice_count; ++index) {
+    while (remaining_size != 0) {
+        if (located.size() == maximum_slice_count) {
+            Status status = make_byte_error(ErrorCode::SyntaxError,
+                                            "frame contains more slices than raster cells",
+                                            0);
+            set_slice_location_if_missing(status, 0);
+            return status;
+        }
+
         syntax::SliceDescriptor descriptor;
         Status status = locate_trailing_slice(frame_payload.subspan(0, remaining_size),
                                               stream,
                                               descriptor,
                                               verify_crc);
         if (!status.ok()) {
-            const auto slice_index = static_cast<std::uint32_t>(expected_slice_count - index - 1);
-            set_slice_location_if_missing(status, slice_index);
+            set_slice_location_if_missing(status, 0);
             return status;
         }
 
         remaining_size = static_cast<std::size_t>(descriptor.payload_byte_offset);
         located.push_back(descriptor);
-    }
-
-    if (remaining_size != 0) {
-        return make_byte_error(ErrorCode::SyntaxError,
-                               "frame payload contains bytes before the located slices",
-                               0);
     }
 
     std::reverse(located.begin(), located.end());

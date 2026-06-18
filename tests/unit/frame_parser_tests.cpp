@@ -386,7 +386,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
 
-TEST(FrameParserTest, RejectsMultiSliceRangePayloadWithTooFewSlices)
+TEST(FrameParserTest, RejectsMalformedSingleSliceInMultiCellRaster)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
@@ -405,7 +405,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangePayloadWithTooFewSlices)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_EQ(status.location.byte_offset, 2u);
     EXPECT_TRUE(frame.slices.empty());
 }
 
@@ -468,6 +468,35 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     EXPECT_EQ(frame.slices[1].footer_byte_offset, 11u);
     EXPECT_EQ(frame.slices[1].slice_size, 7u);
     EXPECT_EQ(frame.slices[1].payload.size(), 7u);
+}
+
+TEST(FrameParserTest, AcceptsSingleSliceCoveringMultipleRasterCells)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    ffv1::codec::FrameParser parser(stream);
+    ffv1::codec::FrameDecodeContext frame;
+    const std::array payload{
+        std::byte{0xe3},
+        std::byte{0xfe},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_TRUE(frame.keyframe);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 2u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
+    EXPECT_EQ(frame.slices[0].x, 0u);
+    EXPECT_EQ(frame.slices[0].width, stream.width);
 }
 
 TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)

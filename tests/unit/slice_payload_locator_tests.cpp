@@ -240,7 +240,7 @@ TEST(SlicePayloadLocatorTest, LocatesMultipleSlicesInPayloadOrder)
     EXPECT_EQ(descriptors[1].payload[0], std::byte{0xb0});
 }
 
-TEST(SlicePayloadLocatorTest, RejectsZeroExpectedSliceCount)
+TEST(SlicePayloadLocatorTest, RejectsZeroMaximumSliceCount)
 {
     const std::array payload{
         std::byte{0xaa},
@@ -260,7 +260,7 @@ TEST(SlicePayloadLocatorTest, RejectsZeroExpectedSliceCount)
     EXPECT_EQ(descriptors.size(), 1u);
 }
 
-TEST(SlicePayloadLocatorTest, RejectsUncoveredPrefixWhenExpectedCountIsTooSmall)
+TEST(SlicePayloadLocatorTest, RejectsMoreSlicesThanMaximum)
 {
     const std::array payload{
         std::byte{0xa0},
@@ -285,10 +285,12 @@ TEST(SlicePayloadLocatorTest, RejectsUncoveredPrefixWhenExpectedCountIsTooSmall)
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_EQ(descriptors.size(), 1u);
 }
 
-TEST(SlicePayloadLocatorTest, RejectsExpectedCountLargerThanPayload)
+TEST(SlicePayloadLocatorTest, DiscoversFewerSlicesThanMaximum)
 {
     const std::array payload{
         std::byte{0xaa},
@@ -298,21 +300,19 @@ TEST(SlicePayloadLocatorTest, RejectsExpectedCountLargerThanPayload)
         std::byte{0x05},
     };
     ffv1::syntax::StreamParameters stream;
-    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+    std::vector<ffv1::syntax::SliceDescriptor> descriptors;
 
     const ffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_slices(payload, stream, 2, descriptors);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
-    EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 0u);
-    EXPECT_TRUE(status.location.has_slice_index);
-    EXPECT_EQ(status.location.slice_index, 0u);
-    EXPECT_EQ(descriptors.size(), 1u);
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(descriptors.size(), 1u);
+    EXPECT_EQ(descriptors[0].index, 0u);
+    EXPECT_EQ(descriptors[0].slice_size, payload.size());
+    EXPECT_EQ(descriptors[0].payload_byte_offset, 0u);
 }
 
-TEST(SlicePayloadLocatorTest, RejectsUnrepresentableSliceCountBeforeAllocation)
+TEST(SlicePayloadLocatorTest, RejectsUnrepresentableMaximumBeforeAllocation)
 {
     const std::array payload{
         std::byte{0xaa},

@@ -19,7 +19,7 @@ public:
 
     Status locate_slices(ByteSpan frame_payload,
                          const syntax::StreamParameters& stream,
-                         std::size_t expected_slice_count,
+                         std::size_t maximum_slice_count,
                          std::vector<syntax::SliceDescriptor>& descriptors,
                          bool verify_crc = false) const;
 };

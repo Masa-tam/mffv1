@@ -305,6 +305,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             || encoded_slice.raster_width != slice.raster_width
             || encoded_slice.raster_height != slice.raster_height
             || encoded_slice.quant_table_set_indexes != slice.quant_table_set_indexes
+            || encoded_slice.picture_structure != slice.picture_structure
+            || encoded_slice.sar_num != slice.sar_num
+            || encoded_slice.sar_den != slice.sar_den
             || encoded_slice.content_byte_offset != local_content_offset) {
             return make_byte_error(ErrorCode::SyntaxError,
                                    "slice descriptor does not match its encoded header",

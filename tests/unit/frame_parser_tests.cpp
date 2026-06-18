@@ -140,7 +140,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 1);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 3, 4, 3}, 1);
     const std::array<std::byte, 16> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
         std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
@@ -161,7 +161,10 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     EXPECT_EQ(frame.slices[0].raster_width, 1u);
     EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].header_byte_offset, 1u);
-    EXPECT_EQ(frame.slices[0].content_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 10u);
+    EXPECT_EQ(frame.slices[0].picture_structure, 3u);
+    EXPECT_EQ(frame.slices[0].sar_num, 4u);
+    EXPECT_EQ(frame.slices[0].sar_den, 3u);
     EXPECT_TRUE(frame.keyframe);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
     ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 2u);
@@ -174,7 +177,7 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     const auto stream = make_stream();
     ffv1::codec::FrameParser parser(stream);
     ffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 2);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 0, 0, 0}, 2);
     const std::array<std::byte, 8> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
         std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7},
@@ -185,7 +188,7 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 14u);
+    EXPECT_EQ(status.location.byte_offset, 20u);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
 }
@@ -464,7 +467,7 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     EXPECT_EQ(frame.slices[1].raster_height, 1u);
     EXPECT_EQ(frame.slices[1].payload_byte_offset, 7u);
     EXPECT_EQ(frame.slices[1].header_byte_offset, 9u);
-    EXPECT_EQ(frame.slices[1].content_byte_offset, 9u);
+    EXPECT_EQ(frame.slices[1].content_byte_offset, 10u);
     EXPECT_EQ(frame.slices[1].footer_byte_offset, 11u);
     EXPECT_EQ(frame.slices[1].slice_size, 7u);
     EXPECT_EQ(frame.slices[1].payload.size(), 7u);

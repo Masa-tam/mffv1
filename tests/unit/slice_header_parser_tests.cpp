@@ -137,7 +137,7 @@ TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
     auto stream = make_stream();
     stream.num_h_slices = 16;
     stream.num_v_slices = 8;
-    ScriptedUnsignedReader reader({4, 2, 7, 3, 1, 0});
+    ScriptedUnsignedReader reader({4, 2, 7, 3, 1, 0, 3, 4, 3});
     ffv1::codec::SliceHeaderValues values;
 
     const ffv1::codec::SliceHeaderParser parser;
@@ -151,12 +151,29 @@ TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
     ASSERT_EQ(values.quant_table_set_indexes.size(), 2u);
     EXPECT_EQ(values.quant_table_set_indexes[0], 1u);
     EXPECT_EQ(values.quant_table_set_indexes[1], 0u);
+    EXPECT_EQ(values.picture_structure, 3u);
+    EXPECT_EQ(values.sar_num, 4u);
+    EXPECT_EQ(values.sar_den, 3u);
+}
+
+TEST(SliceHeaderParserTest, NormalizesIncompleteSampleAspectRatio)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 0, 16, 0});
+    ffv1::codec::SliceHeaderValues values;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(values.sar_num, 0u);
+    EXPECT_EQ(values.sar_den, 0u);
 }
 
 TEST(SliceHeaderParserTest, ReadsQuantTableIndexCountFromStreamParameters)
 {
     const auto stream = make_stream();
-    ScriptedUnsignedReader reader({0, 0, 0, 0, 1, 0}, 2);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 1, 0, 0, 0, 0}, 2);
     ffv1::codec::SliceHeaderValues values;
 
     const ffv1::codec::SliceHeaderParser parser;
@@ -166,7 +183,7 @@ TEST(SliceHeaderParserTest, ReadsQuantTableIndexCountFromStreamParameters)
     ASSERT_EQ(values.quant_table_set_indexes.size(), 2u);
     EXPECT_EQ(values.quant_table_set_indexes[0], 1u);
     EXPECT_EQ(values.quant_table_set_indexes[1], 0u);
-    EXPECT_EQ(reader.byte_position(), 12u);
+    EXPECT_EQ(reader.byte_position(), 18u);
 }
 
 TEST(SliceHeaderParserTest, ReadRejectsOutOfRasterRectangleWithByteLocation)
@@ -202,7 +219,7 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation
 TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)
 {
     const auto stream = make_stream();
-    ScriptedUnsignedReader reader({0, 0, 0, 0, 1, 0}, 2);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 1, 0, 3, 4, 3}, 2);
     ffv1::syntax::SliceDescriptor descriptor;
 
     const ffv1::codec::SliceHeaderParser parser;
@@ -221,7 +238,10 @@ TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)
     EXPECT_EQ(descriptor.quant_table_set_indexes[0], 1u);
     EXPECT_EQ(descriptor.quant_table_set_indexes[1], 0u);
     EXPECT_EQ(descriptor.header_byte_offset, 0u);
-    EXPECT_EQ(descriptor.content_byte_offset, 12u);
+    EXPECT_EQ(descriptor.picture_structure, 3u);
+    EXPECT_EQ(descriptor.sar_num, 4u);
+    EXPECT_EQ(descriptor.sar_den, 3u);
+    EXPECT_EQ(descriptor.content_byte_offset, 18u);
     EXPECT_EQ(descriptor.payload_byte_offset, 0u);
 }
 

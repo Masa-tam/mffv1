@@ -62,7 +62,7 @@ TEST(MultiSliceDecodeTest, ContinuesRangeStateFromEachSliceHeader)
     EXPECT_TRUE(frame.keyframe);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
-    EXPECT_EQ(frame.slices[1].content_byte_offset, 9u);
+    EXPECT_EQ(frame.slices[1].content_byte_offset, 10u);
     EXPECT_EQ(frame.slices[1].footer_byte_offset, 11u);
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};

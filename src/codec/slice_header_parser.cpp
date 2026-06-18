@@ -81,6 +81,23 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
         out_values.quant_table_set_indexes.push_back(static_cast<std::uint32_t>(index));
     }
 
+    status = reader.read_unsigned(out_values.picture_structure);
+    if (!status.ok()) {
+        return status;
+    }
+    status = reader.read_unsigned(out_values.sar_num);
+    if (!status.ok()) {
+        return status;
+    }
+    status = reader.read_unsigned(out_values.sar_den);
+    if (!status.ok()) {
+        return status;
+    }
+    if (out_values.sar_num == 0 || out_values.sar_den == 0) {
+        out_values.sar_num = 0;
+        out_values.sar_den = 0;
+    }
+
     return ok_status();
 }
 
@@ -132,6 +149,9 @@ Status SliceHeaderParser::apply(const syntax::StreamParameters& stream,
     descriptor.width = values.width;
     descriptor.height = values.height;
     descriptor.quant_table_set_indexes = values.quant_table_set_indexes;
+    descriptor.picture_structure = values.picture_structure;
+    descriptor.sar_num = values.sar_num;
+    descriptor.sar_den = values.sar_den;
     return ok_status();
 }
 
@@ -165,6 +185,9 @@ Status SliceHeaderParser::apply_raster(const syntax::StreamParameters& stream,
     descriptor.raster_width = values.width;
     descriptor.raster_height = values.height;
     descriptor.quant_table_set_indexes = values.quant_table_set_indexes;
+    descriptor.picture_structure = values.picture_structure;
+    descriptor.sar_num = values.sar_num;
+    descriptor.sar_den = values.sar_den;
     return ok_status();
 }
 

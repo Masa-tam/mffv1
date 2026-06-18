@@ -16,6 +16,9 @@ struct SliceHeaderValues {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::vector<std::uint32_t> quant_table_set_indexes;
+    std::uint64_t picture_structure = 0;
+    std::uint64_t sar_num = 0;
+    std::uint64_t sar_den = 0;
 };
 
 class SliceHeaderParser {

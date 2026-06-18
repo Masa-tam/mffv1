@@ -24,6 +24,9 @@ struct SliceDescriptor {
     std::uint64_t footer_byte_offset = 0;
     std::uint32_t slice_size = 0;
     std::vector<std::uint32_t> quant_table_set_indexes;
+    std::uint64_t picture_structure = 0;
+    std::uint64_t sar_num = 0;
+    std::uint64_t sar_den = 0;
     std::uint8_t error_status = 0;
     std::uint32_t expected_crc = 0;
     bool has_crc = false;

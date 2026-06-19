@@ -518,6 +518,21 @@ TEST(ConfigurationParserTest, RejectsNonIntraStream)
     EXPECT_EQ(stream.version, 1);
 }
 
+TEST(ConfigurationParserTest, RejectsReservedIntraModeWithAccurateDiagnostic)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols.back() = u(2);
+    ScriptedSymbolReader reader(std::move(symbols));
+    ffv1::syntax::ConfigurationParser parser;
+    ffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "unsupported intra mode");
+}
+
 TEST(ConfigurationParserTest, Version0UsesDefaultZeroQuantTableSet)
 {
     std::deque<Symbol> symbols{

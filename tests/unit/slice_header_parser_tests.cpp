@@ -216,6 +216,21 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation
     EXPECT_EQ(status.location.byte_offset, 12u);
 }
 
+TEST(SliceHeaderParserTest, ReadRejectsReservedPictureStructureWithByteLocation)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 4}, 2);
+    ffv1::codec::SliceHeaderValues values;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 14u);
+}
+
 TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)
 {
     const auto stream = make_stream();
@@ -285,6 +300,23 @@ TEST(SliceHeaderParserTest, RejectsOutOfRangeQuantTableIndex)
     values.width = 16;
     values.height = 8;
     values.quant_table_set_indexes = {2};
+    ffv1::syntax::SliceDescriptor descriptor;
+
+    const ffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.apply(stream, values, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+}
+
+TEST(SliceHeaderParserTest, RejectsReservedPictureStructureWhenApplyingValues)
+{
+    const auto stream = make_stream();
+    ffv1::codec::SliceHeaderValues values;
+    values.width = 16;
+    values.height = 8;
+    values.quant_table_set_indexes = {0};
+    values.picture_structure = 4;
     ffv1::syntax::SliceDescriptor descriptor;
 
     const ffv1::codec::SliceHeaderParser parser;

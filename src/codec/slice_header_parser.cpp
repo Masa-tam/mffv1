@@ -7,6 +7,19 @@
 
 namespace ffv1::codec {
 
+namespace {
+
+Status validate_picture_structure(std::uint64_t picture_structure)
+{
+    if (picture_structure > 3) {
+        return make_error(ErrorCode::SyntaxError,
+                          "slice header picture_structure is reserved");
+    }
+    return ok_status();
+}
+
+} // namespace
+
 Status SliceHeaderParser::read(entropy::SymbolReader& reader,
                                const syntax::StreamParameters& stream,
                                SliceHeaderValues& out_values) const
@@ -85,6 +98,11 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     if (!status.ok()) {
         return status;
     }
+    status = validate_picture_structure(out_values.picture_structure);
+    if (!status.ok()) {
+        set_byte_location_if_missing(status, reader.byte_position());
+        return status;
+    }
     status = reader.read_unsigned(out_values.sar_num);
     if (!status.ok()) {
         return status;
@@ -143,6 +161,10 @@ Status SliceHeaderParser::apply(const syntax::StreamParameters& stream,
             return make_error(ErrorCode::SyntaxError, "slice header quantization table set index is out of range");
         }
     }
+    Status status = validate_picture_structure(values.picture_structure);
+    if (!status.ok()) {
+        return status;
+    }
 
     descriptor.x = values.x;
     descriptor.y = values.y;
@@ -174,6 +196,10 @@ Status SliceHeaderParser::apply_raster(const syntax::StreamParameters& stream,
         if (index >= stream.quant_table_sets.size()) {
             return make_error(ErrorCode::SyntaxError, "slice header quantization table set index is out of range");
         }
+    }
+    Status status = validate_picture_structure(values.picture_structure);
+    if (!status.ok()) {
+        return status;
     }
 
     descriptor.x = syntax::slice_pixel_x(stream, values.x);

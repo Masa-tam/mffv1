@@ -155,6 +155,46 @@ TEST(SliceStateTest, UsesSliceOutputPlaneWidths)
     EXPECT_EQ(state.line_state(2).width(), 1u);
 }
 
+TEST(SliceStateTest, PreservesCapturedRangeContextsAcrossLineReset)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    mffv1::entropy::RangeCoder reader;
+    ASSERT_TRUE(reader.reset(payload).ok());
+    std::int64_t value = 99;
+    ASSERT_TRUE(reader.read_signed(value).ok());
+
+    auto stream = make_stream();
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.capture_range_contexts(reader).ok());
+    const auto captured = state.range_contexts();
+
+    const auto status = state.reset(stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(state.has_range_contexts());
+    EXPECT_EQ(state.range_contexts(), captured);
+}
+
+TEST(SliceStateTest, ClearsCapturedRangeContextsForKeyframeReset)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    mffv1::entropy::RangeCoder reader;
+    ASSERT_TRUE(reader.reset(payload).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.capture_range_contexts(reader).ok());
+
+    state.clear_range_contexts();
+
+    EXPECT_FALSE(state.has_range_contexts());
+    EXPECT_TRUE(state.range_contexts().empty());
+}
+
 TEST(SliceDecoderTest, RejectsEmptyPayload)
 {
     const auto stream = make_stream();

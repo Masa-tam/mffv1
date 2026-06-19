@@ -446,6 +446,26 @@ std::size_t SliceState::plane_count() const noexcept
     return line_states_.size();
 }
 
+Status SliceState::capture_range_contexts(const entropy::RangeCoder& reader)
+{
+    return reader.copy_contexts(range_contexts_);
+}
+
+void SliceState::clear_range_contexts() noexcept
+{
+    range_contexts_.clear();
+}
+
+bool SliceState::has_range_contexts() const noexcept
+{
+    return !range_contexts_.empty();
+}
+
+const entropy::RangeCoder::ContextStateBanks& SliceState::range_contexts() const noexcept
+{
+    return range_contexts_;
+}
+
 syntax::LineState& SliceState::line_state(std::size_t plane_index) noexcept
 {
     return line_states_[plane_index];

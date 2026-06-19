@@ -85,6 +85,26 @@ Status RangeCoder::reset(
                       state_transition);
 }
 
+Status RangeCoder::reset_from_contexts(
+    ByteSpan payload,
+    const ContextStateBanks& context_banks,
+    const syntax::StateTransitionTable& state_transition)
+{
+    std::vector<std::size_t> context_counts;
+    std::vector<std::span<const ScalarContextStates>> context_bank_spans;
+    context_counts.reserve(context_banks.size());
+    context_bank_spans.reserve(context_banks.size());
+    for (const auto& context_bank : context_banks) {
+        context_counts.push_back(context_bank.size());
+        context_bank_spans.emplace_back(context_bank);
+    }
+    return reset_impl(payload,
+                      context_counts,
+                      context_bank_spans,
+                      kDefaultInitialState,
+                      state_transition);
+}
+
 Status RangeCoder::reset_impl(
     ByteSpan payload,
     std::span<const std::size_t> scalar_context_counts,

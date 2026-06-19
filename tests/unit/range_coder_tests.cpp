@@ -361,4 +361,43 @@ TEST(RangeCoderTest, RejectsContextCopyBeforeResetWithoutChangingOutput)
     EXPECT_EQ(context_banks[0].size(), 2u);
 }
 
+TEST(RangeCoderTest, RestoresCopiedContextBanksForNewPayload)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    mffv1::entropy::RangeCoder source;
+    ASSERT_TRUE(source.reset(payload, context_counts).ok());
+    std::int64_t value = 99;
+    ASSERT_TRUE(source.read_signed(1, 1, value).ok());
+    mffv1::entropy::RangeCoder::ContextStateBanks saved_contexts;
+    ASSERT_TRUE(source.copy_contexts(saved_contexts).ok());
+
+    mffv1::entropy::RangeCoder restored;
+    const auto status = restored.reset_from_contexts(payload, saved_contexts);
+    ASSERT_TRUE(status.ok()) << status.message;
+    mffv1::entropy::RangeCoder::ContextStateBanks restored_contexts;
+    ASSERT_TRUE(restored.copy_contexts(restored_contexts).ok());
+
+    EXPECT_EQ(restored_contexts, saved_contexts);
+    EXPECT_EQ(restored.byte_position(), 2u);
+}
+
+TEST(RangeCoderTest, RejectsEmptyRestoredContextBank)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    const mffv1::entropy::RangeCoder::ContextStateBanks context_banks(1);
+    mffv1::entropy::RangeCoder coder;
+
+    const auto status = coder.reset_from_contexts(payload, context_banks);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
 } // namespace

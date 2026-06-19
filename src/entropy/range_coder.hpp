@@ -37,6 +37,10 @@ public:
                  std::span<const std::size_t> scalar_context_counts,
                  std::span<const std::span<const ScalarContextStates>> initial_state_banks,
                  const syntax::StateTransitionTable& state_transition);
+    Status reset_from_contexts(
+        ByteSpan payload,
+        const ContextStateBanks& context_banks,
+        const syntax::StateTransitionTable& state_transition = syntax::kDefaultStateTransition);
     Status reconfigure_contexts(
         std::span<const std::size_t> scalar_context_counts,
         std::span<const std::span<const ScalarContextStates>> initial_state_banks = {});

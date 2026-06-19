@@ -212,6 +212,14 @@ TEST(SliceDecoderTest, RejectsEmptyPayload)
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
     ASSERT_TRUE(state.reset(stream).ok());
+    const std::array<std::byte, 2> previous_payload{
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    mffv1::entropy::RangeCoder previous_reader;
+    ASSERT_TRUE(previous_reader.reset(previous_payload).ok());
+    ASSERT_TRUE(state.capture_range_contexts(previous_reader).ok());
+    const auto previous_contexts = state.range_contexts();
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -220,6 +228,7 @@ TEST(SliceDecoderTest, RejectsEmptyPayload)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_EQ(state.range_contexts(), previous_contexts);
 }
 
 TEST(SliceDecoderTest, RejectsInitialStateCountThatDoesNotMatchQuantizationContexts)
@@ -848,6 +857,8 @@ TEST(SliceDecoderTest, DecodesZeroDifferenceRgbRangeSlice)
     EXPECT_EQ(r[0], 128u);
     EXPECT_EQ(g[0], 128u);
     EXPECT_EQ(b[0], 128u);
+    EXPECT_TRUE(state.has_range_contexts());
+    EXPECT_EQ(state.range_contexts().size(), 3u);
 }
 
 TEST(SliceDecoderTest, DecodesNonzeroRgbRangeSliceInLineOrder)

@@ -779,7 +779,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 return status;
             }
         }
-        return ok_status();
+        return state.capture_range_contexts(reader);
     }
 
     const bool use_signed_16bit_prediction = syntax::uses_signed_16bit_predictor(stream_);
@@ -807,7 +807,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         }
     }
 
-    return ok_status();
+    return state.capture_range_contexts(reader);
 }
 
 } // namespace mffv1::codec

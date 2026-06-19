@@ -160,6 +160,7 @@ TEST(ConfigurationParserTest, ParsesMinimalVersion3YOnlyParameters)
     EXPECT_EQ(stream.bits_per_raw_sample, 8);
     EXPECT_FALSE(stream.chroma_planes);
     EXPECT_FALSE(stream.extra_plane);
+    EXPECT_TRUE(stream.intra_only);
     EXPECT_EQ(stream.num_h_slices, 1u);
     EXPECT_EQ(stream.num_v_slices, 1u);
     ASSERT_EQ(stream.quant_table_sets.size(), 1u);
@@ -502,20 +503,17 @@ TEST(ConfigurationParserTest, RejectsTruncatedCustomRangeCoderInitialStates)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
-TEST(ConfigurationParserTest, RejectsNonIntraStream)
+TEST(ConfigurationParserTest, AcceptsNonIntraStream)
 {
     auto symbols = minimal_v3_y_only_symbols();
     symbols.back() = u(0);
     ScriptedSymbolReader reader(std::move(symbols));
     mffv1::syntax::ConfigurationParser parser;
     mffv1::syntax::StreamParameters stream;
-    stream.version = 1;
-
     const auto status = parser.parse(reader, stream);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(stream.version, 1);
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_FALSE(stream.intra_only);
 }
 
 TEST(ConfigurationParserTest, RejectsReservedIntraModeWithAccurateDiagnostic)

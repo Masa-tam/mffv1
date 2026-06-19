@@ -662,9 +662,13 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 return status;
             }
             if (!keyframe) {
-                return make_byte_error(ErrorCode::SyntaxError,
-                                       "non-keyframe is invalid for an intra-only stream",
-                                       slice.payload_byte_offset);
+                const auto error_code = stream_.intra_only
+                    ? ErrorCode::SyntaxError
+                    : ErrorCode::UnsupportedFeature;
+                const auto* message = stream_.intra_only
+                    ? "non-keyframe is invalid for an intra-only stream"
+                    : "non-keyframe decoding is not implemented yet";
+                return make_byte_error(error_code, message, slice.payload_byte_offset);
             }
         }
 

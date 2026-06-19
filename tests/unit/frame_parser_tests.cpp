@@ -72,6 +72,7 @@ mffv1::syntax::StreamParameters make_stream()
     stream.chroma_planes = false;
     stream.num_h_slices = 1;
     stream.num_v_slices = 1;
+    stream.intra_only = true;
     stream.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
     return stream;
 }
@@ -320,6 +321,40 @@ TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_FALSE(frame.keyframe);
     EXPECT_TRUE(frame.slices.empty());
+}
+
+TEST(FrameParserTest, ReportsNonKeyframeAsUnsupportedForNonIntraStream)
+{
+    auto stream = make_stream();
+    stream.intra_only = false;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 1, false);
+    const std::array<std::byte, 16> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "non-keyframe decoding is not implemented yet");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+}
+
+TEST(FrameParserTest, AcceptsKeyframeForNonIntraStream)
+{
+    auto stream = make_stream();
+    stream.intra_only = false;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 0, 0, 0}, 1, true);
+    const std::array<std::byte, 16> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
 }
 
 TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)

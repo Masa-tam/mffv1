@@ -253,10 +253,7 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
             return make_error(ErrorCode::UnsupportedFeature,
                               "unsupported intra mode");
         }
-        if (value == 0) {
-            return make_error(ErrorCode::UnsupportedFeature,
-                              "non-intra FFV1 streams are not implemented yet");
-        }
+        stream.intra_only = value == 1;
     }
 
     out_stream = std::move(stream);

@@ -45,6 +45,7 @@ struct StreamParameters {
     std::vector<InitialStateSet> initial_states;
     StateTransitionTable state_transition = kDefaultStateTransition;
     bool error_status_enabled = false;
+    bool intra_only = false;
 };
 
 [[nodiscard]] inline std::uint8_t coded_plane_count(const StreamParameters& stream) noexcept

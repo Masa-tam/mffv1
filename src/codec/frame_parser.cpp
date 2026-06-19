@@ -30,17 +30,16 @@ void add_byte_offset(Status& status, std::uint64_t base_offset) noexcept
     }
 }
 
-Status reject_non_keyframe(const syntax::StreamParameters& stream,
-                           std::uint64_t byte_offset)
+Status validate_keyframe(const syntax::StreamParameters& stream,
+                         bool keyframe,
+                         std::uint64_t byte_offset)
 {
-    if (stream.intra_only) {
+    if (!keyframe && stream.intra_only) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "non-keyframe is invalid for an intra-only stream",
                                byte_offset);
     }
-    return make_byte_error(ErrorCode::UnsupportedFeature,
-                           "non-keyframe decoding is not implemented yet",
-                           byte_offset);
+    return ok_status();
 }
 
 } // namespace
@@ -157,8 +156,9 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         add_byte_offset(status, 0);
         return status;
     }
-    if (!keyframe) {
-        return reject_non_keyframe(stream_, 0);
+    status = validate_keyframe(stream_, keyframe, 0);
+    if (!status.ok()) {
+        return status;
     }
 
     syntax::SliceDescriptor slice;
@@ -226,8 +226,8 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
                 set_slice_location_if_missing(status, located_slice.index);
                 return status;
             }
-            if (!keyframe) {
-                status = reject_non_keyframe(stream_, located_slice.payload_byte_offset);
+            status = validate_keyframe(stream_, keyframe, located_slice.payload_byte_offset);
+            if (!status.ok()) {
                 set_slice_location_if_missing(status, located_slice.index);
                 return status;
             }

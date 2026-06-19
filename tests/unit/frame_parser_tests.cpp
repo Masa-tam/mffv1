@@ -1,5 +1,6 @@
 #include "codec/frame_parser.hpp"
 #include "codec/slice_decoder.hpp"
+#include "codec/slice_executor.hpp"
 #include "util/crc32.hpp"
 
 #include <array>
@@ -310,7 +311,7 @@ TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
     const auto stream = make_stream();
     mffv1::codec::FrameParser parser(stream);
     mffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 1, false);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 0, 0, 0}, 1, false);
     const std::array<std::byte, 16> payload{};
 
     const auto status = parser.parse_with_header_reader(payload, reader, frame);
@@ -323,22 +324,20 @@ TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
     EXPECT_TRUE(frame.slices.empty());
 }
 
-TEST(FrameParserTest, ReportsNonKeyframeAsUnsupportedForNonIntraStream)
+TEST(FrameParserTest, AcceptsNonKeyframeForNonIntraStream)
 {
     auto stream = make_stream();
     stream.intra_only = false;
     mffv1::codec::FrameParser parser(stream);
     mffv1::codec::FrameDecodeContext frame;
-    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 1, false);
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 0, 0, 0}, 1, false);
     const std::array<std::byte, 16> payload{};
 
     const auto status = parser.parse_with_header_reader(payload, reader, frame);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(status.message, "non-keyframe decoding is not implemented yet");
-    EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_FALSE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
 }
 
 TEST(FrameParserTest, AcceptsKeyframeForNonIntraStream)
@@ -413,6 +412,79 @@ TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_FALSE(frame.keyframe);
     EXPECT_TRUE(frame.slices.empty());
+}
+
+TEST(FrameParserTest, AcceptsRangeCodedNonKeyframeForNonIntraStream)
+{
+    auto stream = make_stream();
+    stream.intra_only = false;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    const std::array<std::byte, 5> payload{
+        std::byte{0x7f},
+        std::byte{0x7f},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_FALSE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
+}
+
+TEST(FrameParserTest, ParsesAndDecodesRangeCodedNonKeyframeAfterKeyframe)
+{
+    auto stream = make_stream();
+    stream.width = 1;
+    stream.height = 1;
+    stream.intra_only = false;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::SliceExecutor executor(stream);
+    std::array<std::uint8_t, 1> storage{0xee};
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    plane.info.width = 1;
+    plane.info.height = 1;
+    plane.info.stride_bytes = 1;
+    mffv1::MutableFrameView output{&plane, 1};
+
+    const std::array<std::byte, 5> keyframe_payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+    mffv1::codec::FrameDecodeContext keyframe;
+    ASSERT_TRUE(parser.parse_with_range_header(keyframe_payload, keyframe).ok());
+    ASSERT_TRUE(keyframe.keyframe);
+    ASSERT_TRUE(executor.decode(output, keyframe.slices, keyframe.keyframe).ok());
+    ASSERT_TRUE(executor.has_reference_state());
+
+    const std::array<std::byte, 5> non_keyframe_payload{
+        std::byte{0x7f},
+        std::byte{0x7f},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+    mffv1::codec::FrameDecodeContext non_keyframe;
+    ASSERT_TRUE(parser.parse_with_range_header(non_keyframe_payload, non_keyframe).ok());
+    ASSERT_FALSE(non_keyframe.keyframe);
+
+    const auto status = executor.decode(output, non_keyframe.slices, non_keyframe.keyframe);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(executor.has_reference_state());
 }
 
 TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)

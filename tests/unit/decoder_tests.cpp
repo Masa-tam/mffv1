@@ -34,6 +34,14 @@ std::array<std::byte, 2> minimal_v0_rgb_configuration_record()
     };
 }
 
+std::array<std::byte, 2> minimal_v0_golomb_rice_rgb_configuration_record()
+{
+    return {
+        std::byte{0xc9},
+        std::byte{0x41},
+    };
+}
+
 std::array<std::byte, 18> minimal_v3_y_only_configuration_record()
 {
     return {
@@ -78,6 +86,12 @@ ffv1::Status configure_minimal_v0_golomb_rice_y_only(ffv1::IDecoder& decoder)
 ffv1::Status configure_minimal_v0_rgb(ffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v0_rgb_configuration_record();
+    return decoder.configure(configuration_record);
+}
+
+ffv1::Status configure_minimal_v0_golomb_rice_rgb(ffv1::IDecoder& decoder)
+{
+    const auto configuration_record = minimal_v0_golomb_rice_rgb_configuration_record();
     return decoder.configure(configuration_record);
 }
 
@@ -581,6 +595,34 @@ TEST(DecoderTest, DecodeFrameWritesRgbFrameThroughPublicApi)
     ffv1::MutableFrameView output{planes.data(), planes.size()};
 
     status = result.decoder->decode_frame(frame_payload, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(r[0], 128u);
+    EXPECT_EQ(g[0], 128u);
+    EXPECT_EQ(b[0], 128u);
+}
+
+TEST(DecoderTest, DecodeFrameWritesGolombRiceRgbThroughPublicApi)
+{
+    ffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = ffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_golomb_rice_rgb(*result.decoder).ok());
+
+    std::array<std::uint8_t, 1> r{0xee};
+    std::array<std::uint8_t, 1> g{0xee};
+    std::array<std::uint8_t, 1> b{0xee};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0] = {r.data(), {ffv1::PlaneRole::R, ffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt8, 1, 1, 1}};
+    ffv1::MutableFrameView output{planes.data(), planes.size()};
+    const std::array frame_payload{std::byte{0xf0}};
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
 
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(r[0], 128u);

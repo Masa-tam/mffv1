@@ -19,12 +19,13 @@ class SliceState {
 public:
     Status reset(const syntax::StreamParameters& stream);
     Status reset(const SliceOutputWindow& output);
-    Status reset_golomb_rice(std::span<const std::size_t> context_counts);
+    Status prepare_golomb_rice(std::span<const std::size_t> context_counts);
     Status capture_range_contexts(const entropy::RangeCoder& reader);
     void clear_range_contexts() noexcept;
 
     [[nodiscard]] std::size_t plane_count() const noexcept;
     [[nodiscard]] bool has_range_contexts() const noexcept;
+    [[nodiscard]] bool has_golomb_rice_state() const noexcept;
     [[nodiscard]] const entropy::RangeCoder::ContextStateBanks& range_contexts() const noexcept;
     [[nodiscard]] syntax::LineState& line_state(std::size_t plane_index) noexcept;
     [[nodiscard]] const syntax::LineState& line_state(std::size_t plane_index) const noexcept;

@@ -330,7 +330,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
     for (const auto& model : context_models) {
         context_counts.push_back(model.context_count());
     }
-    Status status = state.reset_golomb_rice(context_counts);
+    Status status = state.prepare_golomb_rice(context_counts);
     if (!status.ok()) {
         return status;
     }
@@ -476,22 +476,44 @@ const syntax::LineState& SliceState::line_state(std::size_t plane_index) const n
     return line_states_[plane_index];
 }
 
-Status SliceState::reset_golomb_rice(std::span<const std::size_t> context_counts)
+Status SliceState::prepare_golomb_rice(std::span<const std::size_t> context_counts)
 {
     if (context_counts.size() != line_states_.size()) {
         return make_error(ErrorCode::InvalidArgument,
                           "Golomb-Rice context bank count does not match slice plane count");
     }
-    golomb_rice_contexts_.resize(context_counts.size());
-    golomb_rice_run_states_.assign(context_counts.size(), {});
     for (std::size_t plane = 0; plane < context_counts.size(); ++plane) {
         if (context_counts[plane] == 0) {
             return make_error(ErrorCode::InvalidState,
                               "Golomb-Rice context bank must not be empty");
         }
-        golomb_rice_contexts_[plane].assign(context_counts[plane], {});
+    }
+
+    if (golomb_rice_contexts_.empty() && golomb_rice_run_states_.empty()) {
+        golomb_rice_contexts_.resize(context_counts.size());
+        golomb_rice_run_states_.resize(context_counts.size());
+        for (std::size_t plane = 0; plane < context_counts.size(); ++plane) {
+            golomb_rice_contexts_[plane].resize(context_counts[plane]);
+        }
+        return ok_status();
+    }
+    if (golomb_rice_contexts_.size() != context_counts.size()
+        || golomb_rice_run_states_.size() != context_counts.size()) {
+        return make_error(ErrorCode::InvalidState,
+                          "saved Golomb-Rice context bank count does not match slice plane count");
+    }
+    for (std::size_t plane = 0; plane < context_counts.size(); ++plane) {
+        if (golomb_rice_contexts_[plane].size() != context_counts[plane]) {
+            return make_error(ErrorCode::InvalidState,
+                              "saved Golomb-Rice context count does not match quantization contexts");
+        }
     }
     return ok_status();
+}
+
+bool SliceState::has_golomb_rice_state() const noexcept
+{
+    return !golomb_rice_contexts_.empty();
 }
 
 entropy::GolombRiceContextState& SliceState::golomb_rice_context(

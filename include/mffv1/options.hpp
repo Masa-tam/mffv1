@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace ffv1 {
+namespace mffv1 {
 
 enum class CpuFeature : std::uint64_t {
     Sse2 = 1ull << 0,
@@ -37,4 +37,4 @@ struct EncoderOptions {
     CpuFeatures cpu = {};
 };
 
-} // namespace ffv1
+} // namespace mffv1

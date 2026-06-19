@@ -8,25 +8,25 @@
 
 namespace {
 
-ffv1::syntax::StreamParameters make_two_slice_stream()
+mffv1::syntax::StreamParameters make_two_slice_stream()
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 2;
     stream.height = 1;
     stream.bits_per_raw_sample = 8;
     stream.chroma_planes = false;
     stream.num_h_slices = 2;
     stream.num_v_slices = 1;
-    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
+    stream.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
     return stream;
 }
 
-ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 2>& storage)
+mffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 2>& storage)
 {
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
     plane.info.width = 2;
     plane.info.height = 1;
     plane.info.stride_bytes = 2;
@@ -53,8 +53,8 @@ TEST(MultiSliceDecodeTest, ContinuesRangeStateFromEachSliceHeader)
         std::byte{0x07},
     };
 
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     auto status = parser.parse_with_range_header(frame_payload, frame);
 
     ASSERT_TRUE(status.ok()) << status.message;
@@ -67,8 +67,8 @@ TEST(MultiSliceDecodeTest, ContinuesRangeStateFromEachSliceHeader)
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage);
-    ffv1::MutableFrameView output{&plane, 1};
-    const ffv1::codec::SliceExecutor executor(stream, 2);
+    mffv1::MutableFrameView output{&plane, 1};
+    const mffv1::codec::SliceExecutor executor(stream, 2);
     status = executor.decode(output, frame.slices);
     ASSERT_TRUE(status.ok()) << status.message;
 
@@ -89,8 +89,8 @@ TEST(MultiSliceDecodeTest, DecodesBufferedSymbolWhenHeaderConsumesAllEntropyByte
         std::byte{0x05},
     };
 
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     auto status = parser.parse_with_range_header(frame_payload, frame);
 
     ASSERT_TRUE(status.ok()) << status.message;
@@ -98,15 +98,15 @@ TEST(MultiSliceDecodeTest, DecodesBufferedSymbolWhenHeaderConsumesAllEntropyByte
     EXPECT_EQ(frame.slices[0].content_byte_offset, frame.slices[0].footer_byte_offset);
 
     std::array<std::uint8_t, 1> storage{0xee};
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
     plane.info.width = 1;
     plane.info.height = 1;
     plane.info.stride_bytes = 1;
-    ffv1::MutableFrameView output{&plane, 1};
-    const ffv1::codec::SliceExecutor executor(stream, 1);
+    mffv1::MutableFrameView output{&plane, 1};
+    const mffv1::codec::SliceExecutor executor(stream, 1);
 
     status = executor.decode(output, frame.slices);
 

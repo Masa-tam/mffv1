@@ -10,7 +10,7 @@
 #include <limits>
 #include <utility>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 Status SlicePayloadLocator::locate_trailing_slice(ByteSpan frame_payload,
                                                   const syntax::StreamParameters& stream,
@@ -112,4 +112,4 @@ Status SlicePayloadLocator::locate_slices(ByteSpan frame_payload,
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

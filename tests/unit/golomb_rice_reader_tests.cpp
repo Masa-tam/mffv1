@@ -24,8 +24,8 @@ TEST(GolombRiceReaderTest, AppliesSignedMappingToRfcCodewords)
     };
 
     for (const auto& example : examples) {
-        ffv1::bitstream::BitReader bits(example.bytes);
-        ffv1::entropy::GolombRiceReader reader(bits);
+        mffv1::bitstream::BitReader bits(example.bytes);
+        mffv1::entropy::GolombRiceReader reader(bits);
         std::int32_t value = 0;
 
         const auto status = reader.read_signed(example.k, 8, value);
@@ -42,8 +42,8 @@ TEST(GolombRiceReaderTest, DecodesRfcEscapeExample)
         std::byte{0x08},
         std::byte{0x00},
     };
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
     std::int32_t value = 0;
 
     const auto status = reader.read_signed(0, 8, value);
@@ -60,14 +60,14 @@ TEST(GolombRiceReaderTest, RejectsNonCanonicalEscape)
         std::byte{0x00},
         std::byte{0x00},
     };
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
     std::int32_t value = 0;
 
     const auto status = reader.read_signed(0, 8, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -75,15 +75,15 @@ TEST(GolombRiceReaderTest, RejectsNonCanonicalEscape)
 TEST(GolombRiceReaderTest, ReportsTruncatedCodeAtCodeStart)
 {
     const std::array bytes{std::byte{0x80}};
-    ffv1::bitstream::BitReader bits(bytes);
+    mffv1::bitstream::BitReader bits(bytes);
     ASSERT_TRUE(bits.skip_bits(6).ok());
-    ffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceReader reader(bits);
     std::int32_t value = 0;
 
     const auto status = reader.read_signed(2, 8, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -91,18 +91,18 @@ TEST(GolombRiceReaderTest, ReportsTruncatedCodeAtCodeStart)
 TEST(GolombRiceReaderTest, RejectsUnsupportedParametersWithoutConsumingBits)
 {
     const std::array bytes{std::byte{0xff}};
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
     std::int32_t value = 0;
 
     auto status = reader.read_signed(32, 8, value);
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(bits.bit_position(), 0u);
 
     status = reader.read_signed(0, 0, value);
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 

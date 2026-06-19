@@ -1,4 +1,4 @@
-#include "ffv1/color_transform.hpp"
+#include "mffv1/color_transform.hpp"
 
 #include <gtest/gtest.h>
 
@@ -6,7 +6,7 @@ namespace {
 
 TEST(ColorTransformTest, InvertsEightBitJpeg2000Rct)
 {
-    const auto rgb = ffv1::syntax::inverse_jpeg2000_rct(112, 206, 356, 8, false);
+    const auto rgb = mffv1::syntax::inverse_jpeg2000_rct(112, 206, 356, 8, false);
 
     EXPECT_EQ(rgb.r, 200u);
     EXPECT_EQ(rgb.g, 100u);
@@ -15,7 +15,7 @@ TEST(ColorTransformTest, InvertsEightBitJpeg2000Rct)
 
 TEST(ColorTransformTest, UsesArithmeticShiftForNegativeCorrection)
 {
-    const auto rgb = ffv1::syntax::inverse_jpeg2000_rct(127, 1, 1, 8, false);
+    const auto rgb = mffv1::syntax::inverse_jpeg2000_rct(127, 1, 1, 8, false);
 
     EXPECT_EQ(rgb.r, 0u);
     EXPECT_EQ(rgb.g, 255u);
@@ -24,7 +24,7 @@ TEST(ColorTransformTest, UsesArithmeticShiftForNegativeCorrection)
 
 TEST(ColorTransformTest, AppliesNineToFifteenBitCompatibilityTransform)
 {
-    const auto rgb = ffv1::syntax::inverse_jpeg2000_rct(450, 1624, 1824, 10, false);
+    const auto rgb = mffv1::syntax::inverse_jpeg2000_rct(450, 1624, 1824, 10, false);
 
     EXPECT_EQ(rgb.r, 900u);
     EXPECT_EQ(rgb.g, 700u);
@@ -33,7 +33,7 @@ TEST(ColorTransformTest, AppliesNineToFifteenBitCompatibilityTransform)
 
 TEST(ColorTransformTest, ExtraPlaneDisablesCompatibilityTransform)
 {
-    const auto rgb = ffv1::syntax::inverse_jpeg2000_rct(600, 424, 1224, 10, true);
+    const auto rgb = mffv1::syntax::inverse_jpeg2000_rct(600, 424, 1224, 10, true);
 
     EXPECT_EQ(rgb.r, 900u);
     EXPECT_EQ(rgb.g, 700u);
@@ -42,7 +42,7 @@ TEST(ColorTransformTest, ExtraPlaneDisablesCompatibilityTransform)
 
 TEST(ColorTransformTest, WrapsComponentsToRawSampleWidth)
 {
-    const auto rgb = ffv1::syntax::inverse_jpeg2000_rct(0, 0, 0, 8, false);
+    const auto rgb = mffv1::syntax::inverse_jpeg2000_rct(0, 0, 0, 8, false);
 
     EXPECT_EQ(rgb.r, 128u);
     EXPECT_EQ(rgb.g, 128u);
@@ -51,7 +51,7 @@ TEST(ColorTransformTest, WrapsComponentsToRawSampleWidth)
 
 TEST(ColorTransformTest, RejectsInvalidBitWidthWithoutShifting)
 {
-    const auto rgb = ffv1::syntax::inverse_jpeg2000_rct(1, 2, 3, 0, false);
+    const auto rgb = mffv1::syntax::inverse_jpeg2000_rct(1, 2, 3, 0, false);
 
     EXPECT_EQ(rgb.r, 0u);
     EXPECT_EQ(rgb.g, 0u);

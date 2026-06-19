@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 std::size_t SliceFooterParser::footer_size(const syntax::StreamParameters& stream) const noexcept
 {
@@ -104,4 +104,4 @@ Status SliceFooterParser::read_from_end(ByteSpan slice_payload,
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

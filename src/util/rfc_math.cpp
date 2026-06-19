@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 
-namespace ffv1::util {
+namespace mffv1::util {
 
 std::int64_t arithmetic_right_shift(std::int64_t value, std::uint8_t shift) noexcept
 {
@@ -45,5 +45,5 @@ std::int32_t wrap_sample_difference(std::int32_t value, std::uint8_t bits_per_ra
     return value;
 }
 
-} // namespace ffv1::util
+} // namespace mffv1::util
 

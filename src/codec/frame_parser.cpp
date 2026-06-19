@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 namespace {
 
@@ -286,4 +286,4 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

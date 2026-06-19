@@ -2,12 +2,12 @@
 
 #include <memory>
 
-#include "ffv1/config.hpp"
-#include "ffv1/frame.hpp"
-#include "ffv1/options.hpp"
-#include "ffv1/result.hpp"
+#include "mffv1/config.hpp"
+#include "mffv1/frame.hpp"
+#include "mffv1/options.hpp"
+#include "mffv1/result.hpp"
 
-namespace ffv1 {
+namespace mffv1 {
 
 class IDecoder {
 public:
@@ -39,5 +39,5 @@ struct EncoderFactoryResult {
 DecoderFactoryResult create_decoder(const DecoderOptions& options);
 EncoderFactoryResult create_encoder(const EncoderOptions& options);
 
-} // namespace ffv1
+} // namespace mffv1
 

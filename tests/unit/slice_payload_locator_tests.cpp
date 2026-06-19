@@ -18,10 +18,10 @@ TEST(SlicePayloadLocatorTest, LocatesWholeFrameAsTrailingSlice)
         std::byte{0x00},
         std::byte{0x05},
     };
-    ffv1::syntax::StreamParameters stream;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::StreamParameters stream;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -44,10 +44,10 @@ TEST(SlicePayloadLocatorTest, LocatesTrailingSliceAfterEarlierBytes)
         std::byte{0x00},
         std::byte{0x05},
     };
-    ffv1::syntax::StreamParameters stream;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::StreamParameters stream;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -73,11 +73,11 @@ TEST(SlicePayloadLocatorTest, LocatesEcTrailingSlice)
         std::byte{0x56},
         std::byte{0x78},
     };
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -104,11 +104,11 @@ TEST(SlicePayloadLocatorTest, VerifiesEcTrailingSliceCrc)
         std::byte{0xb9},
         std::byte{0xe9},
     };
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor, true);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -132,15 +132,15 @@ TEST(SlicePayloadLocatorTest, RejectsEcTrailingSliceCrcMismatch)
         std::byte{0xb9},
         std::byte{0xe8},
     };
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor, true);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 7u);
 }
@@ -151,14 +151,14 @@ TEST(SlicePayloadLocatorTest, RejectsFrameTooSmallForFooter)
         std::byte{0x00},
         std::byte{0x05},
     };
-    ffv1::syntax::StreamParameters stream;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::StreamParameters stream;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -172,14 +172,14 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeSmallerThanFooter)
         std::byte{0x00},
         std::byte{0x02},
     };
-    ffv1::syntax::StreamParameters stream;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::StreamParameters stream;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
 }
@@ -193,14 +193,14 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeLargerThanFrame)
         std::byte{0x00},
         std::byte{0x06},
     };
-    ffv1::syntax::StreamParameters stream;
-    ffv1::syntax::SliceDescriptor descriptor;
+    mffv1::syntax::StreamParameters stream;
+    mffv1::syntax::SliceDescriptor descriptor;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
 }
@@ -220,10 +220,10 @@ TEST(SlicePayloadLocatorTest, LocatesMultipleSlicesInPayloadOrder)
         std::byte{0x00},
         std::byte{0x06},
     };
-    ffv1::syntax::StreamParameters stream;
-    std::vector<ffv1::syntax::SliceDescriptor> descriptors;
+    mffv1::syntax::StreamParameters stream;
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_slices(payload, stream, 2, descriptors);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -249,14 +249,14 @@ TEST(SlicePayloadLocatorTest, RejectsZeroMaximumSliceCount)
         std::byte{0x00},
         std::byte{0x05},
     };
-    ffv1::syntax::StreamParameters stream;
-    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+    mffv1::syntax::StreamParameters stream;
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors(1);
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_slices(payload, stream, 0, descriptors);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(descriptors.size(), 1u);
 }
 
@@ -275,14 +275,14 @@ TEST(SlicePayloadLocatorTest, RejectsMoreSlicesThanMaximum)
         std::byte{0x00},
         std::byte{0x06},
     };
-    ffv1::syntax::StreamParameters stream;
-    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+    mffv1::syntax::StreamParameters stream;
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors(1);
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_slices(payload, stream, 1, descriptors);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(status.location.has_slice_index);
@@ -299,10 +299,10 @@ TEST(SlicePayloadLocatorTest, DiscoversFewerSlicesThanMaximum)
         std::byte{0x00},
         std::byte{0x05},
     };
-    ffv1::syntax::StreamParameters stream;
-    std::vector<ffv1::syntax::SliceDescriptor> descriptors;
+    mffv1::syntax::StreamParameters stream;
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors;
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_slices(payload, stream, 2, descriptors);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -321,10 +321,10 @@ TEST(SlicePayloadLocatorTest, RejectsUnrepresentableMaximumBeforeAllocation)
         std::byte{0x00},
         std::byte{0x05},
     };
-    ffv1::syntax::StreamParameters stream;
-    std::vector<ffv1::syntax::SliceDescriptor> descriptors(1);
+    mffv1::syntax::StreamParameters stream;
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors(1);
 
-    const ffv1::codec::SlicePayloadLocator locator;
+    const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_slices(
         payload,
         stream,
@@ -332,7 +332,7 @@ TEST(SlicePayloadLocatorTest, RejectsUnrepresentableMaximumBeforeAllocation)
         descriptors);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
     EXPECT_EQ(descriptors.size(), 1u);
 }
 

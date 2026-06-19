@@ -2,11 +2,11 @@
 
 #include "codec/slice_output_window.hpp"
 #include "codec/slice_state.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/slice_descriptor.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/slice_descriptor.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 class SliceDecoder {
 public:
@@ -25,4 +25,4 @@ private:
     const syntax::StreamParameters& stream_;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

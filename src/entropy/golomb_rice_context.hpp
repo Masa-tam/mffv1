@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 struct GolombRiceContextState {
     std::int64_t drift = 0;
@@ -24,4 +24,4 @@ Status read_golomb_rice_run_interruption(GolombRiceReader& reader,
                                          std::uint8_t bits_per_raw_sample,
                                          std::int32_t& out_value) noexcept;
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

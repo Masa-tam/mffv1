@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace ffv1::util {
+namespace mffv1::util {
 
 namespace {
 
@@ -27,4 +27,4 @@ std::uint32_t crc32_ieee_msb(ByteSpan bytes) noexcept
     return remainder;
 }
 
-} // namespace ffv1::util
+} // namespace mffv1::util

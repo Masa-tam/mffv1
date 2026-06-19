@@ -1,14 +1,14 @@
 #include "codec/configuration_record_parser.hpp"
 
 #include "entropy/range_coder.hpp"
-#include "ffv1/configuration_parser.hpp"
+#include "mffv1/configuration_parser.hpp"
 #include "util/crc32.hpp"
 #include "util/status.hpp"
 
 #include <cstdint>
 #include <utility>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 Status ConfigurationRecordParser::parse(ByteSpan record,
                                         syntax::StreamParameters& out_stream) const
@@ -62,4 +62,4 @@ Status ConfigurationRecordParser::parse(ByteSpan record,
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

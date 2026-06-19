@@ -1,8 +1,8 @@
-#include "ffv1/codec.hpp"
+#include "mffv1/codec.hpp"
 
 #include <memory>
 
-namespace ffv1 {
+namespace mffv1 {
 
 namespace {
 
@@ -53,5 +53,5 @@ EncoderFactoryResult create_encoder(const EncoderOptions& options)
     return result;
 }
 
-} // namespace ffv1
+} // namespace mffv1
 

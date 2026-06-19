@@ -1,11 +1,11 @@
-#include "ffv1/context_model.hpp"
+#include "mffv1/context_model.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 namespace {
 
@@ -59,4 +59,4 @@ Status ContextModel::derive_context(const NeighborSamples& samples,
     return ok_status();
 }
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

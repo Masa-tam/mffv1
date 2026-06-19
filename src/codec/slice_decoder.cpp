@@ -6,9 +6,9 @@
 #include "entropy/golomb_rice_reader.hpp"
 #include "entropy/golomb_rice_run.hpp"
 #include "entropy/range_coder.hpp"
-#include "ffv1/color_transform.hpp"
-#include "ffv1/context_model.hpp"
-#include "ffv1/predictor.hpp"
+#include "mffv1/color_transform.hpp"
+#include "mffv1/context_model.hpp"
+#include "mffv1/predictor.hpp"
 #include "util/status.hpp"
 
 #include <algorithm>
@@ -18,7 +18,7 @@
 #include <limits>
 #include <vector>
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 Status LineState::reset(std::uint32_t width)
 {
@@ -80,9 +80,9 @@ void LineState::swap_lines() noexcept
     std::fill(current_.begin(), current_.end(), 0);
 }
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 namespace {
 
@@ -786,4 +786,4 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

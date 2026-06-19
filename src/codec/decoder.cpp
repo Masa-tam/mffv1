@@ -1,18 +1,18 @@
-#include "ffv1/codec.hpp"
+#include "mffv1/codec.hpp"
 
 #include "codec/configuration_record_parser.hpp"
 #include "codec/frame_decode_context.hpp"
 #include "codec/frame_parser.hpp"
 #include "codec/frame_validator.hpp"
 #include "codec/slice_executor.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/stream_parameters.hpp"
 #include "util/status.hpp"
 
 #include <memory>
 #include <optional>
 #include <utility>
 
-namespace ffv1 {
+namespace mffv1 {
 
 namespace {
 
@@ -138,4 +138,4 @@ DecoderFactoryResult create_decoder(const DecoderOptions& options)
     return result;
 }
 
-} // namespace ffv1
+} // namespace mffv1

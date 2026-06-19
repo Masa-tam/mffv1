@@ -1,4 +1,4 @@
-# Build Notes
+# mffv1 Build Notes
 
 This project uses CMake and C++20. The primary target environment is Visual
 Studio 2026 x64.
@@ -33,7 +33,7 @@ If GoogleTest is not available and the submodule is not initialized, configure
 with tests disabled:
 
 ```powershell
-& 'e:\data\SDK_for_DevBase\tools\cmake\bin\cmake.exe' -S . -B build\smoke -DFFV1_BUILD_TESTS=OFF
+& 'e:\data\SDK_for_DevBase\tools\cmake\bin\cmake.exe' -S . -B build\smoke -DMFFV1_BUILD_TESTS=OFF
 ```
 
 When GoogleTest is available, tests should run through CTest:

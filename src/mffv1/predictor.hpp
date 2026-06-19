@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 class Predictor {
 public:
@@ -18,4 +18,4 @@ public:
                                     std::uint8_t bits_per_raw_sample) noexcept;
 };
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

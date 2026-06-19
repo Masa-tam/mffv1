@@ -3,9 +3,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "ffv1/frame.hpp"
+#include "mffv1/frame.hpp"
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 struct SliceDescriptor {
     std::uint32_t index = 0;
@@ -34,4 +34,4 @@ struct SliceDescriptor {
     bool continues_frame_range_state = false;
 };
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

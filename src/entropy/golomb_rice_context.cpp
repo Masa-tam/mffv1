@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cstdint>
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 namespace {
 
@@ -122,4 +122,4 @@ Status read_golomb_rice_run_interruption(GolombRiceReader& reader,
     return ok_status();
 }
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

@@ -4,12 +4,12 @@
 #include <cstdint>
 #include <vector>
 
-#include "ffv1/frame.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/slice_descriptor.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/frame.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/slice_descriptor.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 class SliceOutputWindow {
 public:
@@ -36,5 +36,5 @@ private:
     std::vector<PlaneWindow> planes_;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec
 

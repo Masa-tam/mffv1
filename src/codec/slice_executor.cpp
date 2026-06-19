@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 namespace {
 
@@ -149,4 +149,4 @@ Status SliceExecutor::decode_slice(MutableFrameView output, const syntax::SliceD
     return decoder.decode(slice, window, state);
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

@@ -21,7 +21,7 @@ TEST(Crc32Test, UsesFfv1CrcParameters)
         std::byte{'9'},
     };
 
-    EXPECT_EQ(ffv1::util::crc32_ieee_msb(payload), 0x89a1897fu);
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(payload), 0x89a1897fu);
 }
 
 TEST(Crc32Test, AppendingBigEndianRemainderLeavesZeroRemainder)
@@ -31,7 +31,7 @@ TEST(Crc32Test, AppendingBigEndianRemainderLeavesZeroRemainder)
         std::byte{0x34},
         std::byte{0x56},
     };
-    const auto remainder = ffv1::util::crc32_ieee_msb(payload);
+    const auto remainder = mffv1::util::crc32_ieee_msb(payload);
     const std::array with_parity{
         payload[0],
         payload[1],
@@ -43,7 +43,7 @@ TEST(Crc32Test, AppendingBigEndianRemainderLeavesZeroRemainder)
     };
 
     EXPECT_EQ(remainder, 0x09fcfb57u);
-    EXPECT_EQ(ffv1::util::crc32_ieee_msb(with_parity), 0u);
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(with_parity), 0u);
 }
 
 } // namespace

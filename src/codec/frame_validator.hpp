@@ -1,10 +1,10 @@
 #pragma once
 
-#include "ffv1/frame.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/frame.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 class FrameValidator {
 public:
@@ -14,5 +14,5 @@ public:
                           FrameView input) const;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec
 

@@ -10,14 +10,14 @@ if(NOT GTest_FOUND)
         )
     else()
         message(FATAL_ERROR
-            "FFV1_BUILD_TESTS is ON, but GoogleTest was not found. "
+            "MFFV1_BUILD_TESTS is ON, but GoogleTest was not found. "
             "Install GoogleTest, initialize third-party/googletest, "
-            "or configure with -DFFV1_BUILD_TESTS=OFF."
+            "or configure with -DMFFV1_BUILD_TESTS=OFF."
         )
     endif()
 endif()
 
-add_executable(ffv1_unit_tests
+add_executable(mffv1_unit_tests
     unit/bit_reader_tests.cpp
     unit/color_transform_tests.cpp
     unit/context_model_tests.cpp
@@ -43,18 +43,18 @@ add_executable(ffv1_unit_tests
     unit/stream_parameters_tests.cpp
 )
 
-target_link_libraries(ffv1_unit_tests
+target_link_libraries(mffv1_unit_tests
     PRIVATE
-        ffv1::ffv1
+        mffv1::mffv1
         GTest::gtest_main
 )
 
-target_include_directories(ffv1_unit_tests
+target_include_directories(mffv1_unit_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src"
 )
 
-ffv1_apply_common_options(ffv1_unit_tests)
+mffv1_apply_common_options(mffv1_unit_tests)
 
 include(GoogleTest)
-gtest_discover_tests(ffv1_unit_tests)
+gtest_discover_tests(mffv1_unit_tests)

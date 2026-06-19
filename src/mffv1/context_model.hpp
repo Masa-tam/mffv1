@@ -2,10 +2,10 @@
 
 #include <cstdint>
 
-#include "ffv1/result.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 struct NeighborSamples {
     std::int32_t far_left = 0;
@@ -32,4 +32,4 @@ private:
     const QuantTableSet& quant_tables_;
 };
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

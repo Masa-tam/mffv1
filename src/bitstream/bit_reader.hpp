@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <span>
 
-#include "ffv1/result.hpp"
+#include "mffv1/result.hpp"
 
-namespace ffv1::bitstream {
+namespace mffv1::bitstream {
 
 class BitReader {
 public:
@@ -27,4 +27,4 @@ private:
     std::uint64_t bit_position_ = 0;
 };
 
-} // namespace ffv1::bitstream
+} // namespace mffv1::bitstream

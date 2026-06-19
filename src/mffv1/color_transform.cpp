@@ -1,10 +1,10 @@
-#include "ffv1/color_transform.hpp"
+#include "mffv1/color_transform.hpp"
 
 #include "util/rfc_math.hpp"
 
 #include <cstdint>
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 RgbSample inverse_jpeg2000_rct(std::int32_t y,
                                std::int32_t cb,
@@ -42,4 +42,4 @@ RgbSample inverse_jpeg2000_rct(std::int32_t y,
     };
 }
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

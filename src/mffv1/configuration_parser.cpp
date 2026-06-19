@@ -1,4 +1,4 @@
-#include "ffv1/configuration_parser.hpp"
+#include "mffv1/configuration_parser.hpp"
 
 #include <algorithm>
 #include <array>
@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 QuantTableSet make_zero_quant_table_set()
 {
@@ -328,4 +328,4 @@ Status ConfigurationParser::parse_quant_table(entropy::SymbolReader& reader,
     return ok_status();
 }
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

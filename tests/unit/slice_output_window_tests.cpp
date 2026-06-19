@@ -8,9 +8,9 @@
 
 namespace {
 
-ffv1::syntax::StreamParameters make_y_stream()
+mffv1::syntax::StreamParameters make_y_stream()
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 8;
     stream.height = 4;
     stream.bits_per_raw_sample = 8;
@@ -18,12 +18,12 @@ ffv1::syntax::StreamParameters make_y_stream()
     return stream;
 }
 
-ffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 32>& storage)
+mffv1::MutablePlaneView make_y_plane(std::array<std::uint8_t, 32>& storage)
 {
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
     plane.info.width = 8;
     plane.info.height = 4;
     plane.info.stride_bytes = 8;
@@ -35,15 +35,15 @@ TEST(SliceOutputWindowTest, MapsSinglePlaneSliceRows)
     const auto stream = make_y_stream();
     std::array<std::uint8_t, 32> storage{};
     auto plane = make_y_plane(storage);
-    ffv1::MutableFrameView frame{&plane, 1};
+    mffv1::MutableFrameView frame{&plane, 1};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.x = 2;
     slice.y = 1;
     slice.width = 4;
     slice.height = 2;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -60,81 +60,81 @@ TEST(SliceOutputWindowTest, RejectsOutOfFrameSlice)
     const auto stream = make_y_stream();
     std::array<std::uint8_t, 32> storage{};
     auto plane = make_y_plane(storage);
-    ffv1::MutableFrameView frame{&plane, 1};
+    mffv1::MutableFrameView frame{&plane, 1};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.x = 7;
     slice.y = 0;
     slice.width = 2;
     slice.height = 1;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(SliceOutputWindowTest, RejectsUnrepresentableRowOffset)
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 1;
     stream.height = 3;
     stream.chroma_planes = false;
 
     std::uint8_t storage = 0;
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = &storage;
-    plane.info = {ffv1::PlaneRole::Y,
-                  ffv1::SampleFormat::UInt8,
+    plane.info = {mffv1::PlaneRole::Y,
+                  mffv1::SampleFormat::UInt8,
                   1,
                   3,
                   std::numeric_limits<std::ptrdiff_t>::max() / 2 + 1};
-    ffv1::MutableFrameView frame{&plane, 1};
+    mffv1::MutableFrameView frame{&plane, 1};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.y = 2;
     slice.width = 1;
     slice.height = 1;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
 }
 
 TEST(SliceOutputWindowTest, RejectsWindowWhoseLastRowIsUnrepresentable)
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 1;
     stream.height = 3;
     stream.chroma_planes = false;
 
     std::uint8_t storage = 0;
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = &storage;
-    plane.info = {ffv1::PlaneRole::Y,
-                  ffv1::SampleFormat::UInt8,
+    plane.info = {mffv1::PlaneRole::Y,
+                  mffv1::SampleFormat::UInt8,
                   1,
                   3,
                   std::numeric_limits<std::ptrdiff_t>::max() / 2 + 1};
-    ffv1::MutableFrameView frame{&plane, 1};
+    mffv1::MutableFrameView frame{&plane, 1};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.width = 1;
     slice.height = 3;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
 }
 
 TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 8;
     stream.height = 4;
     stream.bits_per_raw_sample = 8;
@@ -145,23 +145,23 @@ TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
     std::array<std::uint8_t, 32> y{};
     std::array<std::uint8_t, 8> cb{};
     std::array<std::uint8_t, 8> cr{};
-    std::array<ffv1::MutablePlaneView, 3> planes{};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
 
     planes[0].data = y.data();
-    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 8, 4, 8};
     planes[1].data = cb.data();
-    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 4, 2, 4};
     planes[2].data = cr.data();
-    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 4, 2, 4};
-    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    planes[2].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 4, 2, 4};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.x = 2;
     slice.y = 0;
     slice.width = 4;
     slice.height = 4;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -176,7 +176,7 @@ TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
 
 TEST(SliceOutputWindowTest, PartitionsChromaBySliceRasterWithoutOverlap)
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 8;
     stream.height = 2;
     stream.chroma_planes = true;
@@ -186,33 +186,33 @@ TEST(SliceOutputWindowTest, PartitionsChromaBySliceRasterWithoutOverlap)
     std::array<std::uint8_t, 16> y{};
     std::array<std::uint8_t, 8> cb{};
     std::array<std::uint8_t, 8> cr{};
-    std::array<ffv1::MutablePlaneView, 3> planes{};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
     planes[0].data = y.data();
-    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 2, 8};
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 8, 2, 8};
     planes[1].data = cb.data();
-    planes[1].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 4, 2, 4};
     planes[2].data = cr.data();
-    planes[2].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 4, 2, 4};
-    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    planes[2].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 4, 2, 4};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
 
-    ffv1::syntax::SliceDescriptor middle;
+    mffv1::syntax::SliceDescriptor middle;
     middle.x = 2;
     middle.width = 3;
     middle.height = 2;
     middle.raster_x = 1;
     middle.raster_width = 1;
     middle.raster_height = 1;
-    ffv1::codec::SliceOutputWindow middle_window;
+    mffv1::codec::SliceOutputWindow middle_window;
     ASSERT_TRUE(middle_window.validate(stream, frame, middle).ok());
 
-    ffv1::syntax::SliceDescriptor right;
+    mffv1::syntax::SliceDescriptor right;
     right.x = 5;
     right.width = 3;
     right.height = 2;
     right.raster_x = 2;
     right.raster_width = 1;
     right.raster_height = 1;
-    ffv1::codec::SliceOutputWindow right_window;
+    mffv1::codec::SliceOutputWindow right_window;
     ASSERT_TRUE(right_window.validate(stream, frame, right).ok());
 
     EXPECT_EQ(middle_window.row_u8(1, 0), cb.data() + 1);
@@ -223,7 +223,7 @@ TEST(SliceOutputWindowTest, PartitionsChromaBySliceRasterWithoutOverlap)
 
 TEST(SliceOutputWindowTest, RejectsSwappedChromaPlaneRoles)
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 8;
     stream.height = 4;
     stream.bits_per_raw_sample = 8;
@@ -234,30 +234,30 @@ TEST(SliceOutputWindowTest, RejectsSwappedChromaPlaneRoles)
     std::array<std::uint8_t, 32> y{};
     std::array<std::uint8_t, 8> cb{};
     std::array<std::uint8_t, 8> cr{};
-    std::array<ffv1::MutablePlaneView, 3> planes{};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
 
     planes[0].data = y.data();
-    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 8, 4, 8};
     planes[1].data = cb.data();
-    planes[1].info = {ffv1::PlaneRole::Cr, ffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[1].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 4, 2, 4};
     planes[2].data = cr.data();
-    planes[2].info = {ffv1::PlaneRole::Cb, ffv1::SampleFormat::UInt8, 4, 2, 4};
-    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    planes[2].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 4, 2, 4};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.width = 8;
     slice.height = 4;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(SliceOutputWindowTest, MapsExtraPlaneAtFullResolution)
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 8;
     stream.height = 4;
     stream.bits_per_raw_sample = 8;
@@ -266,21 +266,21 @@ TEST(SliceOutputWindowTest, MapsExtraPlaneAtFullResolution)
 
     std::array<std::uint8_t, 32> y{};
     std::array<std::uint8_t, 32> alpha{};
-    std::array<ffv1::MutablePlaneView, 2> planes{};
+    std::array<mffv1::MutablePlaneView, 2> planes{};
 
     planes[0].data = y.data();
-    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 8, 4, 8};
     planes[1].data = alpha.data();
-    planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt8, 8, 4, 8};
-    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    planes[1].info = {mffv1::PlaneRole::Alpha, mffv1::SampleFormat::UInt8, 8, 4, 8};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.x = 2;
     slice.y = 1;
     slice.width = 4;
     slice.height = 2;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -293,7 +293,7 @@ TEST(SliceOutputWindowTest, MapsExtraPlaneAtFullResolution)
 
 TEST(SliceOutputWindowTest, KeepsExtraPlaneFullResolutionWhenChromaIsAbsent)
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 8;
     stream.height = 4;
     stream.bits_per_raw_sample = 8;
@@ -304,21 +304,21 @@ TEST(SliceOutputWindowTest, KeepsExtraPlaneFullResolutionWhenChromaIsAbsent)
 
     std::array<std::uint8_t, 32> y{};
     std::array<std::uint8_t, 32> alpha{};
-    std::array<ffv1::MutablePlaneView, 2> planes{};
+    std::array<mffv1::MutablePlaneView, 2> planes{};
 
     planes[0].data = y.data();
-    planes[0].info = {ffv1::PlaneRole::Y, ffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 8, 4, 8};
     planes[1].data = alpha.data();
-    planes[1].info = {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt8, 8, 4, 8};
-    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    planes[1].info = {mffv1::PlaneRole::Alpha, mffv1::SampleFormat::UInt8, 8, 4, 8};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
 
-    ffv1::syntax::SliceDescriptor slice;
+    mffv1::syntax::SliceDescriptor slice;
     slice.x = 2;
     slice.y = 1;
     slice.width = 4;
     slice.height = 2;
 
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::codec::SliceOutputWindow window;
     const auto status = window.validate(stream, frame, slice);
 
     EXPECT_TRUE(status.ok()) << status.message;

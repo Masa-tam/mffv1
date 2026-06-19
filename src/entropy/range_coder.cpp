@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 std::uint64_t SymbolReader::byte_position() const noexcept
 {
@@ -362,4 +362,4 @@ void RangeCoder::refill() noexcept
     }
 }
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <limits>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 namespace {
 
@@ -217,4 +217,4 @@ Status SliceHeaderParser::apply_raster(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

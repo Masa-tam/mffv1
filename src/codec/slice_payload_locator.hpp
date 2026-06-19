@@ -1,14 +1,14 @@
 #pragma once
 
-#include "ffv1/frame.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/slice_descriptor.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/frame.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/slice_descriptor.hpp"
+#include "mffv1/stream_parameters.hpp"
 
 #include <cstddef>
 #include <vector>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 class SlicePayloadLocator {
 public:
@@ -24,4 +24,4 @@ public:
                          bool verify_crc = false) const;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

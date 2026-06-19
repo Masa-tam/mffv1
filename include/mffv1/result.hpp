@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 
-namespace ffv1 {
+namespace mffv1 {
 
 enum class ErrorCode : std::uint32_t {
     Ok = 0,
@@ -38,5 +38,5 @@ struct Status {
 Status ok_status();
 Status make_error(ErrorCode code, std::string message);
 
-} // namespace ffv1
+} // namespace mffv1
 

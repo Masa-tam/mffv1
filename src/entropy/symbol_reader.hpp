@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
-#include "ffv1/result.hpp"
+#include "mffv1/result.hpp"
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 using ContextId = std::uint32_t;
 
@@ -23,4 +23,4 @@ public:
     [[nodiscard]] virtual std::uint64_t byte_position() const noexcept;
 };
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

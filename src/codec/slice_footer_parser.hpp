@@ -1,11 +1,11 @@
 #pragma once
 
 #include "bitstream/bit_reader.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/slice_descriptor.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/slice_descriptor.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 class SliceFooterParser {
 public:
@@ -21,4 +21,4 @@ public:
                          bool verify_crc = false) const;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 struct RgbSample {
     std::uint16_t r = 0;
@@ -16,4 +16,4 @@ struct RgbSample {
                                              std::uint8_t bits_per_raw_sample,
                                              bool has_extra_plane) noexcept;
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

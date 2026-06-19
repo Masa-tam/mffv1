@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <span>
 
-namespace ffv1 {
+namespace mffv1 {
 
 using ByteSpan = std::span<const std::byte>;
 using MutableByteSpan = std::span<std::byte>;
@@ -60,5 +60,5 @@ struct FrameInfo {
     std::uint8_t plane_count = 0;
 };
 
-} // namespace ffv1
+} // namespace mffv1
 

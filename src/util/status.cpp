@@ -1,8 +1,8 @@
-#include "ffv1/result.hpp"
+#include "mffv1/result.hpp"
 
 #include <utility>
 
-namespace ffv1 {
+namespace mffv1 {
 
 bool Status::ok() const noexcept
 {
@@ -22,5 +22,5 @@ Status make_error(ErrorCode code, std::string message)
     return status;
 }
 
-} // namespace ffv1
+} // namespace mffv1
 

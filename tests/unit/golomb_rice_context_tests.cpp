@@ -11,12 +11,12 @@ namespace {
 TEST(GolombRiceContextTest, DecodesWithInitialKAndUpdatesState)
 {
     const std::array bytes{std::byte{0x80}}; // k=2: 1 00
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state;
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state;
     std::int32_t value = 1;
 
-    const auto status = ffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(value, 0);
@@ -30,12 +30,12 @@ TEST(GolombRiceContextTest, DecodesWithInitialKAndUpdatesState)
 TEST(GolombRiceContextTest, AppliesDriftInversionAndBiasCorrection)
 {
     const std::array bytes{std::byte{0x80}}; // k=0: 1
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state{-4, 4, 0, 4};
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state{-4, 4, 0, 4};
     std::int32_t value = 0;
 
-    const auto status = ffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(value, -1);
@@ -48,12 +48,12 @@ TEST(GolombRiceContextTest, AppliesDriftInversionAndBiasCorrection)
 TEST(GolombRiceContextTest, SignExtendsDecodedValueToSampleWidth)
 {
     const std::array bytes{std::byte{0x24}}; // k=2: 001 00 -> 8
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state;
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state;
     std::int32_t value = 0;
 
-    const auto status = ffv1::entropy::read_golomb_rice_symbol(reader, state, 3, value);
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 3, value);
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(value, -4);
@@ -62,12 +62,12 @@ TEST(GolombRiceContextTest, SignExtendsDecodedValueToSampleWidth)
 TEST(GolombRiceContextTest, RescalesStateAtCountLimit)
 {
     const std::array bytes{std::byte{0x80}}; // k=1: 1 0
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state{-64, 256, 0, 128};
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state{-64, 256, 0, 128};
     std::int32_t value = 0;
 
-    const auto status = ffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(value, 0);
@@ -80,16 +80,16 @@ TEST(GolombRiceContextTest, RescalesStateAtCountLimit)
 TEST(GolombRiceContextTest, LeavesStateAndOutputUnchangedOnUnderflow)
 {
     const std::array<std::byte, 0> bytes{};
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state;
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state;
     const auto original = state;
     std::int32_t value = 7;
 
-    const auto status = ffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(value, 7);
     EXPECT_EQ(state.drift, original.drift);
     EXPECT_EQ(state.error_sum, original.error_sum);
@@ -100,28 +100,28 @@ TEST(GolombRiceContextTest, LeavesStateAndOutputUnchangedOnUnderflow)
 TEST(GolombRiceContextTest, RejectsInvalidStateWithoutReading)
 {
     const std::array bytes{std::byte{0xff}};
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state;
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state;
     state.count = 0;
     std::int32_t value = 0;
 
-    const auto status = ffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 
 TEST(GolombRiceContextTest, RemovesZeroFromRunInterruptionDifference)
 {
     const std::array bytes{std::byte{0x80}}; // initial k=2: 1 00 -> 0
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state;
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state;
     std::int32_t value = 0;
 
-    const auto status = ffv1::entropy::read_golomb_rice_run_interruption(reader,
+    const auto status = mffv1::entropy::read_golomb_rice_run_interruption(reader,
                                                                          state,
                                                                          8,
                                                                          value);
@@ -133,15 +133,15 @@ TEST(GolombRiceContextTest, RemovesZeroFromRunInterruptionDifference)
 TEST(GolombRiceContextTest, RejectsUnrepresentableKWithoutReading)
 {
     const std::array bytes{std::byte{0xff}};
-    ffv1::bitstream::BitReader bits(bytes);
-    ffv1::entropy::GolombRiceReader reader(bits);
-    ffv1::entropy::GolombRiceContextState state{0, std::int64_t{1} << 40, 0, 1};
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state{0, std::int64_t{1} << 40, 0, 1};
     std::int32_t value = 0;
 
-    const auto status = ffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 

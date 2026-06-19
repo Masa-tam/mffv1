@@ -7,11 +7,11 @@
 #include <vector>
 
 #include "entropy/symbol_reader.hpp"
-#include "ffv1/frame.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/state_transition.hpp"
+#include "mffv1/frame.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/state_transition.hpp"
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 class RangeCoder final : public SymbolReader {
 public:
@@ -80,4 +80,4 @@ private:
     std::vector<ScalarContextStates> scalar_contexts_;
 };
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

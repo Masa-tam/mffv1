@@ -6,11 +6,11 @@
 
 #include "entropy/golomb_rice_context.hpp"
 #include "entropy/golomb_rice_run.hpp"
-#include "ffv1/line_state.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/line_state.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 class SliceOutputWindow;
 
@@ -35,4 +35,4 @@ private:
     std::vector<entropy::GolombRiceRunState> golomb_rice_run_states_;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

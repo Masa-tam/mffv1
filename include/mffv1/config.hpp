@@ -3,9 +3,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "ffv1/frame.hpp"
+#include "mffv1/frame.hpp"
 
-namespace ffv1 {
+namespace mffv1 {
 
 struct StreamInfo {
     std::uint32_t width = 0;
@@ -26,5 +26,5 @@ struct EncodedFrame {
     std::vector<std::byte> bytes;
 };
 
-} // namespace ffv1
+} // namespace mffv1
 

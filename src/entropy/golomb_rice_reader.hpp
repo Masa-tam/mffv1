@@ -4,7 +4,7 @@
 
 #include "bitstream/bit_reader.hpp"
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 class GolombRiceReader final {
 public:
@@ -22,4 +22,4 @@ private:
     bitstream::BitReader& reader_;
 };
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

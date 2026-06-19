@@ -5,11 +5,11 @@
 #include <cstddef>
 #include <vector>
 
-#include "ffv1/frame.hpp"
-#include "ffv1/options.hpp"
-#include "ffv1/state_transition.hpp"
+#include "mffv1/frame.hpp"
+#include "mffv1/options.hpp"
+#include "mffv1/state_transition.hpp"
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 struct QuantTableSet {
     static constexpr std::size_t kContextInputs = 5;
@@ -194,4 +194,4 @@ struct StreamParameters {
     return PlaneRole::Alpha;
 }
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

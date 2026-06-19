@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 namespace {
 
@@ -240,4 +240,4 @@ std::uint16_t* SliceOutputWindow::row_u16(std::size_t plane_index, std::uint32_t
     return reinterpret_cast<std::uint16_t*>(base + static_cast<std::ptrdiff_t>(y) * plane.stride_bytes);
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

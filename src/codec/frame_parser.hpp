@@ -2,11 +2,11 @@
 
 #include "codec/frame_decode_context.hpp"
 #include "entropy/symbol_reader.hpp"
-#include "ffv1/frame.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/frame.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 class FrameParser {
 public:
@@ -27,4 +27,4 @@ private:
     bool verify_crc_ = false;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <limits>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 namespace {
 
@@ -136,4 +136,4 @@ Status FrameValidator::validate_input(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

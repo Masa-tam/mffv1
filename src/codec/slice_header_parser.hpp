@@ -4,11 +4,11 @@
 #include <vector>
 
 #include "entropy/symbol_reader.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/slice_descriptor.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/slice_descriptor.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 struct SliceHeaderValues {
     std::uint32_t x = 0;
@@ -40,4 +40,4 @@ public:
                         syntax::SliceDescriptor& descriptor) const;
 };
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

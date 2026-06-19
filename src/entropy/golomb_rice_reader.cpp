@@ -6,7 +6,7 @@
 #include <limits>
 #include <utility>
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 namespace {
 
@@ -93,4 +93,4 @@ Status GolombRiceReader::read_unsigned(std::uint8_t k,
     return ok_status();
 }
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

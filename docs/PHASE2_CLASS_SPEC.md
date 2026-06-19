@@ -1,7 +1,7 @@
-# Phase 2 Class Specification: Scalar Base Decoder
+# mffv1 Phase 2 Class Specification: Scalar Base Decoder
 
 This document specifies the C++ classes and module boundaries for Phase 2 of
-the FFV1 clean implementation. It is written for LLM implementation agents and
+the mffv1 clean implementation. It is written for LLM implementation agents and
 human reviewers. The goal is to make the scalar baseline decoder easy to build,
 test, and later optimize with SIMD or slice-level multithreading.
 
@@ -80,7 +80,7 @@ SliceDecoder
 
 Rules:
 
-- Public API classes remain pure virtual in `include/ffv1`.
+- Public API classes remain pure virtual in `include/mffv1`.
 - Concrete classes live under `src`.
 - Public headers do not expose parsing, entropy, predictor, or slice state.
 - Immutable configuration can be shared freely.
@@ -89,9 +89,9 @@ Rules:
 
 ## Public API Classes
 
-### `ffv1::IDecoder`
+### `mffv1::IDecoder`
 
-Location: `include/ffv1/codec.hpp`
+Location: `include/mffv1/codec.hpp`
 
 Purpose:
 
@@ -111,11 +111,11 @@ Methods:
 
 Implementation class:
 
-- `ffv1::codec::DecoderImpl`, hidden in `src/codec`.
+- `mffv1::codec::DecoderImpl`, hidden in `src/codec`.
 
-### `ffv1::IEncoder`
+### `mffv1::IEncoder`
 
-Location: `include/ffv1/codec.hpp`
+Location: `include/mffv1/codec.hpp`
 
 Phase 2 status:
 
@@ -125,9 +125,9 @@ Phase 2 status:
 
 ## Core Internal Value Types
 
-### `ffv1::codec::StreamParameters`
+### `mffv1::codec::StreamParameters`
 
-Location: `src/ffv1/stream_parameters.hpp`
+Location: `src/mffv1/stream_parameters.hpp`
 
 Purpose:
 
@@ -161,7 +161,7 @@ Invariants:
 - Slice counts are positive.
 - Quantization tables are normalized before assignment.
 
-### `ffv1::codec::FrameDecodeContext`
+### `mffv1::codec::FrameDecodeContext`
 
 Location: `src/codec/frame_decode_context.hpp`
 
@@ -184,9 +184,9 @@ Invariants:
 - `output` is validated before any slice writes.
 - Slice descriptors do not overlap outside allowed plane windows.
 
-### `ffv1::codec::SliceDescriptor`
+### `mffv1::codec::SliceDescriptor`
 
-Location: `src/ffv1/slice_descriptor.hpp`
+Location: `src/mffv1/slice_descriptor.hpp`
 
 Purpose:
 
@@ -211,7 +211,7 @@ Invariants:
 - Payload span points into the frame payload and remains valid during decode.
 - Slice index is stable and used in diagnostics.
 
-### `ffv1::codec::SliceOutputWindow`
+### `mffv1::codec::SliceOutputWindow`
 
 Location: `src/codec/slice_output_window.hpp`
 
@@ -239,7 +239,7 @@ Invariants:
 
 ## Bitstream And Syntax Classes
 
-### `ffv1::bitstream::BitReader`
+### `mffv1::bitstream::BitReader`
 
 Location: `src/bitstream/bit_reader.hpp`
 
@@ -255,9 +255,9 @@ Required additions:
 - `Status require_byte_aligned() const`
 - Optional diagnostic byte offset helpers.
 
-### `ffv1::ffv1::ConfigurationParser`
+### `mffv1::mffv1::ConfigurationParser`
 
-Location: `src/ffv1/configuration_parser.hpp`
+Location: `src/mffv1/configuration_parser.hpp`
 
 Purpose:
 
@@ -288,9 +288,9 @@ Non-responsibilities:
 - Container metadata parsing.
 - Output buffer validation.
 
-### `ffv1::ffv1::FrameParser`
+### `mffv1::mffv1::FrameParser`
 
-Location: `src/ffv1/frame_parser.hpp`
+Location: `src/mffv1/frame_parser.hpp`
 
 Purpose:
 
@@ -323,7 +323,7 @@ Non-responsibilities:
 
 ## Entropy Classes
 
-### `ffv1::entropy::SymbolReader`
+### `mffv1::entropy::SymbolReader`
 
 Location: `src/entropy/symbol_reader.hpp`
 
@@ -349,7 +349,7 @@ Implementation note:
 - Phase 2 may use a concrete range coder directly if it keeps this boundary
   visible in class names and tests.
 
-### `ffv1::entropy::RangeCoder`
+### `mffv1::entropy::RangeCoder`
 
 Location: `src/entropy/range_coder.hpp`
 
@@ -388,7 +388,7 @@ Testing:
 - Context index validation.
 - Round-trip with a future encoder or project-owned generated fixtures.
 
-### `ffv1::entropy::ContextState`
+### `mffv1::entropy::ContextState`
 
 Location: `src/entropy/context_state.hpp`
 
@@ -409,9 +409,9 @@ Rules:
 
 ## Prediction And Reconstruction Classes
 
-### `ffv1::ffv1::QuantTableSet`
+### `mffv1::mffv1::QuantTableSet`
 
-Location: `src/ffv1/quant_table.hpp`
+Location: `src/mffv1/quant_table.hpp`
 
 Purpose:
 
@@ -428,9 +428,9 @@ Rules:
 - Immutable during frame and slice decode.
 - Scalar lookup is the reference for any future SIMD lookup acceleration.
 
-### `ffv1::ffv1::Predictor`
+### `mffv1::mffv1::Predictor`
 
-Location: `src/ffv1/predictor.hpp`
+Location: `src/mffv1/predictor.hpp`
 
 Purpose:
 
@@ -463,9 +463,9 @@ SIMD relevance:
 - SIMD implementations should live behind dispatch classes and compare against
   this class in tests.
 
-### `ffv1::ffv1::LineState`
+### `mffv1::mffv1::LineState`
 
-Location: `src/ffv1/line_state.hpp`
+Location: `src/mffv1/line_state.hpp`
 
 Purpose:
 
@@ -485,7 +485,7 @@ Rules:
 
 ## Slice Decode Classes
 
-### `ffv1::codec::SliceState`
+### `mffv1::codec::SliceState`
 
 Location: `src/codec/slice_state.hpp`
 
@@ -496,7 +496,7 @@ Purpose:
 Fields:
 
 - `entropy::ContextState context_state`
-- `std::vector<ffv1::LineState> line_states`
+- `std::vector<mffv1::LineState> line_states`
 - Plane-local counters and diagnostics.
 
 Rules:
@@ -505,7 +505,7 @@ Rules:
 - Not thread-safe.
 - Never shared between slices.
 
-### `ffv1::codec::SliceDecoder`
+### `mffv1::codec::SliceDecoder`
 
 Location: `src/codec/slice_decoder.hpp`
 
@@ -549,7 +549,7 @@ Phase 2 restriction:
 
 ## Dispatch And Future Optimization Classes
 
-### `ffv1::codec::ScalarDispatch`
+### `mffv1::codec::ScalarDispatch`
 
 Location: `src/codec/scalar_dispatch.hpp`
 
@@ -570,7 +570,7 @@ Rules:
 - Tests can force scalar dispatch.
 - No runtime CPU detection in Phase 2.
 
-### `ffv1::codec::SimdDispatch`
+### `mffv1::codec::SimdDispatch`
 
 Location: future `src/simd`
 
@@ -592,7 +592,7 @@ CpuFeatures + compiled architecture
 
 ## Decoder Implementation Class
 
-### `ffv1::codec::DecoderImpl`
+### `mffv1::codec::DecoderImpl`
 
 Location: `src/codec/decoder.cpp`, later split into `decoder_impl.hpp/.cpp`
 
@@ -639,7 +639,7 @@ Rules:
 
 ## Validation Classes
 
-### `ffv1::codec::FrameValidator`
+### `mffv1::codec::FrameValidator`
 
 Location: `src/codec/frame_validator.hpp`
 
@@ -662,7 +662,7 @@ Rules:
 
 ## Diagnostics
 
-### `ffv1::codec::Diagnostics`
+### `mffv1::codec::Diagnostics`
 
 Location: `src/codec/diagnostics.hpp`
 
@@ -701,7 +701,7 @@ src/
     range_coder.cpp
     symbol_reader.hpp
 
-  ffv1/
+  mffv1/
     configuration_parser.hpp
     configuration_parser.cpp
     frame_parser.hpp

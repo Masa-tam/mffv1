@@ -2,7 +2,7 @@
 
 #include <limits>
 
-namespace ffv1::bitstream {
+namespace mffv1::bitstream {
 
 BitReader::BitReader(std::span<const std::byte> data) noexcept
     : data_(data)
@@ -88,4 +88,4 @@ Status BitReader::require_byte_aligned() const noexcept
     return ok_status();
 }
 
-} // namespace ffv1::bitstream
+} // namespace mffv1::bitstream

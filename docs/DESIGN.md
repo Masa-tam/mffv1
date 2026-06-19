@@ -1,8 +1,10 @@
-# FFV1 Codec Clean Implementation Design
+# mffv1 Clean Implementation Design
 
-This document describes the first-stage design for a clean C++ implementation of
-the FFV1 codec. It is intended to be readable by humans and directly useful to
-LLM-based coding agents during implementation.
+This document describes the first-stage design of mffv1, a clean C++
+implementation of the FFV1 codec. The name `mffv1` identifies this project;
+`FFV1` identifies the codec and format standardized by RFC 9043. The document is
+intended to be readable by humans and directly useful to LLM-based coding agents
+during implementation.
 
 The implementation target is a complete FFV1 codec, with an initial focus on
 correct, testable decoding and a matching encoder architecture. The design keeps
@@ -86,9 +88,9 @@ safe for parallel execution.
 ```text
 CMakeLists.txt
 cmake/
-  Ffv1Options.cmake      Build options, compiler features, warnings.
+  Mffv1Options.cmake      Build options, compiler features, warnings.
 
-include/ffv1/
+include/mffv1/
   codec.hpp              Public decoder/encoder entry points.
   config.hpp             Stream parameters and configuration record types.
   frame.hpp              Frame, plane, stride, and pixel format abstractions.
@@ -99,7 +101,7 @@ src/
   bitstream/             Bit reader/writer and symbol IO.
   codec/                 High-level decoder and encoder orchestration.
   entropy/               Range coder and Golomb-Rice coder.
-  ffv1/                  Format-specific syntax, prediction, contexts.
+  mffv1/                  Format-specific syntax, prediction, contexts.
   simd/                  Optional SIMD dispatch and kernels.
   threading/             Task scheduler abstraction.
   util/                  CRC, checked arithmetic, endian helpers.
@@ -124,7 +126,7 @@ compile-time CPU-specific interpretation. The compiled library owns concrete
 decoder and encoder classes.
 
 ```cpp
-namespace ffv1 {
+namespace mffv1 {
 
 enum class CpuFeature : uint64_t {
     Sse2  = 1ull << 0,
@@ -175,7 +177,7 @@ public:
 std::unique_ptr<IDecoder> create_decoder(const DecoderOptions& options);
 std::unique_ptr<IEncoder> create_encoder(const EncoderOptions& options);
 
-} // namespace ffv1
+} // namespace mffv1
 ```
 
 The final API can evolve, but the implementation should preserve these

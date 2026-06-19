@@ -11,12 +11,12 @@ namespace {
 TEST(RangeCoderTest, RejectsTooShortPayload)
 {
     const std::array<std::byte, 1> payload{std::byte{0}};
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
 
     const auto status = coder.reset(payload);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -27,7 +27,7 @@ TEST(RangeCoderTest, DecodesLowInitialStateAsFalseBinary)
         std::byte{0x00},
         std::byte{0x00},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload).ok());
 
     bool value = true;
@@ -42,7 +42,7 @@ TEST(RangeCoderTest, DecodesHighInitialStateAsTrueBinary)
         std::byte{0xff},
         std::byte{0x00},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload).ok());
 
     bool value = false;
@@ -52,7 +52,7 @@ TEST(RangeCoderTest, DecodesHighInitialStateAsTrueBinary)
 
 TEST(RangeCoderTest, CustomStateTransitionChangesBinaryDecoding)
 {
-    auto custom_transition = ffv1::syntax::kDefaultStateTransition;
+    auto custom_transition = mffv1::syntax::kDefaultStateTransition;
     custom_transition[128] = 0;
     bool observed_difference = false;
 
@@ -61,8 +61,8 @@ TEST(RangeCoderTest, CustomStateTransitionChangesBinaryDecoding)
             static_cast<std::byte>((low >> 8) & 0xffu),
             static_cast<std::byte>(low & 0xffu),
         };
-        ffv1::entropy::RangeCoder default_coder;
-        ffv1::entropy::RangeCoder custom_coder;
+        mffv1::entropy::RangeCoder default_coder;
+        mffv1::entropy::RangeCoder custom_coder;
         ASSERT_TRUE(default_coder.reset(payload).ok());
         ASSERT_TRUE(custom_coder.reset(payload, custom_transition).ok());
 
@@ -87,7 +87,7 @@ TEST(RangeCoderTest, DecodesHighInitialStateAsZeroUnsignedSymbol)
         std::byte{0xff},
         std::byte{0x00},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload).ok());
 
     std::uint64_t value = 99;
@@ -104,7 +104,7 @@ TEST(RangeCoderTest, BytePositionAdvancesAfterRefill)
         std::byte{0xaa},
         std::byte{0xbb},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload).ok());
 
     bool value = true;
@@ -121,7 +121,7 @@ TEST(RangeCoderTest, DecodesHighInitialStateAsZeroSignedSymbol)
         std::byte{0xff},
         std::byte{0x00},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload).ok());
 
     std::int64_t value = 99;
@@ -135,14 +135,14 @@ TEST(RangeCoderTest, RejectsOutOfRangeScalarContext)
         std::byte{0xff},
         std::byte{0x00},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload, 1).ok());
 
     std::uint64_t value = 0;
     const auto status = coder.read_unsigned(1, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(RangeCoderTest, RejectsExcessiveScalarContextCount)
@@ -151,13 +151,13 @@ TEST(RangeCoderTest, RejectsExcessiveScalarContextCount)
         std::byte{0xff},
         std::byte{0x00},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
 
     const auto status = coder.reset(
-        payload, ffv1::entropy::RangeCoder::kMaxScalarContextCount + 1);
+        payload, mffv1::entropy::RangeCoder::kMaxScalarContextCount + 1);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
 }
 
 TEST(RangeCoderTest, DecodesFromSelectedContextBank)
@@ -167,7 +167,7 @@ TEST(RangeCoderTest, DecodesFromSelectedContextBank)
         std::byte{0x00},
     };
     const std::array<std::size_t, 2> context_counts{1, 2};
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload, context_counts).ok());
 
     std::int64_t value = 99;
@@ -182,15 +182,15 @@ TEST(RangeCoderTest, UsesCustomInitialStatesForSelectedContextBank)
         std::byte{0x00},
     };
     const std::array<std::size_t, 2> context_counts{1, 1};
-    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> default_states{};
-    default_states[0].fill(ffv1::entropy::RangeCoder::kDefaultInitialState);
-    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> custom_states = default_states;
+    std::array<mffv1::entropy::RangeCoder::ScalarContextStates, 1> default_states{};
+    default_states[0].fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+    std::array<mffv1::entropy::RangeCoder::ScalarContextStates, 1> custom_states = default_states;
     custom_states[0][0] = 255;
-    const std::array<std::span<const ffv1::entropy::RangeCoder::ScalarContextStates>, 2> state_banks{
+    const std::array<std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>, 2> state_banks{
         default_states,
         custom_states,
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload, context_counts, state_banks).ok());
 
     std::uint64_t value = 99;
@@ -205,14 +205,14 @@ TEST(RangeCoderTest, RejectsMismatchedInitialStateCount)
         std::byte{0x00},
     };
     const std::array<std::size_t, 1> context_counts{2};
-    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> states{};
-    const std::array<std::span<const ffv1::entropy::RangeCoder::ScalarContextStates>, 1> state_banks{states};
-    ffv1::entropy::RangeCoder coder;
+    std::array<mffv1::entropy::RangeCoder::ScalarContextStates, 1> states{};
+    const std::array<std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>, 1> state_banks{states};
+    mffv1::entropy::RangeCoder coder;
 
     const auto status = coder.reset(payload, context_counts, state_banks);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(RangeCoderTest, RejectsOutOfRangeContextBank)
@@ -222,14 +222,14 @@ TEST(RangeCoderTest, RejectsOutOfRangeContextBank)
         std::byte{0x00},
     };
     const std::array<std::size_t, 2> context_counts{1, 2};
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload, context_counts).ok());
 
     std::uint64_t value = 0;
     const auto status = coder.read_unsigned(2, 0, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(RangeCoderTest, RejectsContextOutsideSelectedBank)
@@ -239,14 +239,14 @@ TEST(RangeCoderTest, RejectsContextOutsideSelectedBank)
         std::byte{0x00},
     };
     const std::array<std::size_t, 2> context_counts{1, 2};
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload, context_counts).ok());
 
     std::uint64_t value = 0;
     const auto status = coder.read_unsigned(0, 1, value);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(RangeCoderTest, RejectsExcessiveContextBankCount)
@@ -255,15 +255,15 @@ TEST(RangeCoderTest, RejectsExcessiveContextBankCount)
         std::byte{0xff},
         std::byte{0x00},
     };
-    const std::array<std::size_t, ffv1::entropy::RangeCoder::kMaxContextBankCount + 1> context_counts{
+    const std::array<std::size_t, mffv1::entropy::RangeCoder::kMaxContextBankCount + 1> context_counts{
         1, 1, 1, 1, 1,
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
 
     const auto status = coder.reset(payload, context_counts);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
 }
 
 TEST(RangeCoderTest, ReconfiguresContextsWithoutResettingArithmeticPosition)
@@ -274,7 +274,7 @@ TEST(RangeCoderTest, ReconfiguresContextsWithoutResettingArithmeticPosition)
         std::byte{0xaa},
         std::byte{0xbb},
     };
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload).ok());
 
     bool frame_flag = false;
@@ -292,13 +292,13 @@ TEST(RangeCoderTest, ReconfiguresContextsWithoutResettingArithmeticPosition)
 
 TEST(RangeCoderTest, RejectsContextReconfigurationBeforeReset)
 {
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     const std::array<std::size_t, 1> context_counts{1};
 
     const auto status = coder.reconfigure_contexts(context_counts);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
 }
 
 TEST(RangeCoderTest, FailedContextReconfigurationPreservesExistingBanks)
@@ -308,16 +308,16 @@ TEST(RangeCoderTest, FailedContextReconfigurationPreservesExistingBanks)
         std::byte{0x00},
     };
     const std::array<std::size_t, 1> original_counts{1};
-    ffv1::entropy::RangeCoder coder;
+    mffv1::entropy::RangeCoder coder;
     ASSERT_TRUE(coder.reset(payload, original_counts).ok());
     const std::array<std::size_t, 1> invalid_counts{2};
-    std::array<ffv1::entropy::RangeCoder::ScalarContextStates, 1> states{};
-    const std::array<std::span<const ffv1::entropy::RangeCoder::ScalarContextStates>, 1> state_banks{states};
+    std::array<mffv1::entropy::RangeCoder::ScalarContextStates, 1> states{};
+    const std::array<std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>, 1> state_banks{states};
 
     const auto status = coder.reconfigure_contexts(invalid_counts, state_banks);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     std::int64_t value = 99;
     EXPECT_TRUE(coder.read_signed(0, 0, value).ok());
 }

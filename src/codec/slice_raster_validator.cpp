@@ -9,7 +9,7 @@
 #include <map>
 #include <vector>
 
-namespace ffv1::codec {
+namespace mffv1::codec {
 
 namespace {
 
@@ -121,4 +121,4 @@ Status validate_slice_raster_coverage(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
-} // namespace ffv1::codec
+} // namespace mffv1::codec

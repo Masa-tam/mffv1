@@ -1,8 +1,8 @@
-#include "ffv1/predictor.hpp"
+#include "mffv1/predictor.hpp"
 
 #include "util/rfc_math.hpp"
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 namespace {
 
@@ -49,4 +49,4 @@ std::int32_t Predictor::reconstruct(std::int32_t prediction,
     return wrapped;
 }
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

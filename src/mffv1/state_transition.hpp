@@ -3,7 +3,7 @@
 #include <array>
 #include <cstdint>
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 using StateTransitionTable = std::array<std::uint8_t, 256>;
 
@@ -26,4 +26,4 @@ inline constexpr StateTransitionTable kDefaultStateTransition = {
     241, 242, 243, 244, 245, 246, 247, 248, 248, 0, 0, 0, 0, 0, 0, 0,
 };
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

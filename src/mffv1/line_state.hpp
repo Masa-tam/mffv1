@@ -3,10 +3,10 @@
 #include <cstdint>
 #include <vector>
 
-#include "ffv1/context_model.hpp"
-#include "ffv1/result.hpp"
+#include "mffv1/context_model.hpp"
+#include "mffv1/result.hpp"
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 class LineState {
 public:
@@ -28,4 +28,4 @@ private:
     std::vector<std::int32_t> current_;
 };
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax

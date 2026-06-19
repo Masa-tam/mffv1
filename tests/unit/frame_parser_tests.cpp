@@ -12,7 +12,7 @@
 
 namespace {
 
-class ScriptedUnsignedReader final : public ffv1::entropy::SymbolReader {
+class ScriptedUnsignedReader final : public mffv1::entropy::SymbolReader {
 public:
     explicit ScriptedUnsignedReader(std::deque<std::uint64_t> values,
                                     std::uint64_t bytes_per_read,
@@ -23,31 +23,31 @@ public:
     {
     }
 
-    ffv1::Status read_bool(bool& out_value) override
+    mffv1::Status read_bool(bool& out_value) override
     {
         if (bool_read_) {
-            return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected second bool read");
+            return mffv1::make_error(mffv1::ErrorCode::InternalError, "unexpected second bool read");
         }
         out_value = keyframe_;
         bool_read_ = true;
         byte_position_ += bytes_per_read_;
-        return ffv1::ok_status();
+        return mffv1::ok_status();
     }
 
-    ffv1::Status read_unsigned(std::uint64_t& out_value) override
+    mffv1::Status read_unsigned(std::uint64_t& out_value) override
     {
         if (values_.empty()) {
-            return ffv1::make_error(ffv1::ErrorCode::SyntaxError, "scripted reader underflow");
+            return mffv1::make_error(mffv1::ErrorCode::SyntaxError, "scripted reader underflow");
         }
         out_value = values_.front();
         values_.pop_front();
         byte_position_ += bytes_per_read_;
-        return ffv1::ok_status();
+        return mffv1::ok_status();
     }
 
-    ffv1::Status read_signed(std::int64_t&) override
+    mffv1::Status read_signed(std::int64_t&) override
     {
-        return ffv1::make_error(ffv1::ErrorCode::InternalError, "unexpected signed read");
+        return mffv1::make_error(mffv1::ErrorCode::InternalError, "unexpected signed read");
     }
 
     std::uint64_t byte_position() const noexcept override
@@ -63,16 +63,16 @@ private:
     bool bool_read_ = false;
 };
 
-ffv1::syntax::StreamParameters make_stream()
+mffv1::syntax::StreamParameters make_stream()
 {
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::StreamParameters stream;
     stream.width = 16;
     stream.height = 8;
     stream.bits_per_raw_sample = 8;
     stream.chroma_planes = false;
     stream.num_h_slices = 1;
     stream.num_v_slices = 1;
-    stream.quant_table_sets.push_back(ffv1::syntax::make_zero_quant_table_set());
+    stream.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
     return stream;
 }
 
@@ -80,7 +80,7 @@ template <std::size_t Size>
 void write_crc_parity(std::array<std::byte, Size>& payload)
 {
     static_assert(Size >= 4);
-    const auto crc = ffv1::util::crc32_ieee_msb(ffv1::ByteSpan(payload.data(), Size - 4));
+    const auto crc = mffv1::util::crc32_ieee_msb(mffv1::ByteSpan(payload.data(), Size - 4));
     payload[Size - 4] = static_cast<std::byte>((crc >> 24) & 0xffu);
     payload[Size - 3] = static_cast<std::byte>((crc >> 16) & 0xffu);
     payload[Size - 2] = static_cast<std::byte>((crc >> 8) & 0xffu);
@@ -90,21 +90,21 @@ void write_crc_parity(std::array<std::byte, Size>& payload)
 TEST(FrameParserTest, RejectsEmptyPayload)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
 
-    const ffv1::ByteSpan empty;
+    const mffv1::ByteSpan empty;
     const auto status = parser.parse(empty, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(FrameParserTest, CreatesSingleSliceDescriptor)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 4> payload{
         std::byte{1},
         std::byte{2},
@@ -140,8 +140,8 @@ TEST(FrameParserTest, ParsesLegacyRangeKeyframeAndContentOffset)
 {
     auto stream = make_stream();
     stream.version = 0;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{std::byte{0xff}, std::byte{0x00}};
 
     const auto status = parser.parse(payload, frame);
@@ -159,14 +159,14 @@ TEST(FrameParserTest, RejectsLegacyRangeNonKeyframe)
 {
     auto stream = make_stream();
     stream.version = 0;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{std::byte{0x00}, std::byte{0x00}};
 
     const auto status = parser.parse(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(frame.slices.empty());
@@ -176,9 +176,9 @@ TEST(FrameParserTest, ParsesLegacyGolombRiceKeyframeBit)
 {
     auto stream = make_stream();
     stream.version = 0;
-    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{std::byte{0xfe}};
 
     const auto status = parser.parse(payload, frame);
@@ -197,29 +197,29 @@ TEST(FrameParserTest, ParsesAndDecodesLegacyGolombRiceKeyframe)
     stream.version = 0;
     stream.width = 4;
     stream.height = 2;
-    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{std::byte{0xfe}};
     ASSERT_TRUE(parser.parse(payload, frame).ok());
     ASSERT_EQ(frame.slices.size(), 1u);
 
     std::array<std::uint8_t, 8> storage{};
     storage.fill(0xee);
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
     plane.info.width = 4;
     plane.info.height = 2;
     plane.info.stride_bytes = 4;
-    ffv1::MutableFrameView output{&plane, 1};
-    ffv1::codec::SliceOutputWindow window;
+    mffv1::MutableFrameView output{&plane, 1};
+    mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, output, frame.slices[0]).ok());
-    ffv1::codec::SliceState state;
+    mffv1::codec::SliceState state;
     ASSERT_TRUE(state.reset(window).ok());
 
-    const ffv1::codec::SliceDecoder decoder(stream);
+    const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(frame.slices[0], window, state);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -232,15 +232,15 @@ TEST(FrameParserTest, RejectsLegacyGolombRiceNonKeyframe)
 {
     auto stream = make_stream();
     stream.version = 0;
-    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{std::byte{0x00}};
 
     const auto status = parser.parse(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(frame.slices.empty());
@@ -249,8 +249,8 @@ TEST(FrameParserTest, RejectsLegacyGolombRiceNonKeyframe)
 TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 3, 4, 3}, 1);
     const std::array<std::byte, 16> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
@@ -286,8 +286,8 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
 TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 0, 0, 0}, 2);
     const std::array<std::byte, 8> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
@@ -297,7 +297,7 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     const auto status = parser.parse_with_header_reader(payload, reader, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 20u);
     EXPECT_TRUE(status.location.has_slice_index);
@@ -307,15 +307,15 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
 TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0}, 1, false);
     const std::array<std::byte, 16> payload{};
 
     const auto status = parser.parse_with_header_reader(payload, reader, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_FALSE(frame.keyframe);
@@ -325,14 +325,14 @@ TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
 TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 1> payload{std::byte{0}};
 
     const auto status = parser.parse_with_range_header(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
 }
@@ -340,8 +340,8 @@ TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
 TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 4> payload{
         std::byte{0xff},
         std::byte{0x00},
@@ -352,14 +352,14 @@ TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
     const auto status = parser.parse_with_range_header(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
 TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 5> payload{
         std::byte{0x00},
         std::byte{0x00},
@@ -371,7 +371,7 @@ TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
     const auto status = parser.parse_with_range_header(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(status.location.has_slice_index);
@@ -383,8 +383,8 @@ TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
 TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
 {
     const auto stream = make_stream();
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 7> payload{
         std::byte{0xff},
         std::byte{0x00},
@@ -422,8 +422,8 @@ TEST(FrameParserTest, VerifiesSingleSliceCrc)
 {
     auto stream = make_stream();
     stream.error_status_enabled = true;
-    ffv1::codec::FrameParser parser(stream, true);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream, true);
+    mffv1::codec::FrameDecodeContext frame;
     std::array<std::byte, 12> payload{
         std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x0c}, std::byte{0x00},
@@ -445,8 +445,8 @@ TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
 {
     auto stream = make_stream();
     stream.error_status_enabled = true;
-    ffv1::codec::FrameParser parser(stream, true);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream, true);
+    mffv1::codec::FrameDecodeContext frame;
     std::array<std::byte, 12> payload{
         std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x0c}, std::byte{0x00},
@@ -459,7 +459,7 @@ TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
     const auto status = parser.parse_with_range_header(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
@@ -471,22 +471,22 @@ TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 1> payload{std::byte{0}};
 
     const auto status = parser.parse(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::NotImplemented);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
 }
 
 TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 2> payload{
         std::byte{0},
         std::byte{0},
@@ -495,7 +495,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
     const auto status = parser.parse_with_range_header(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -504,8 +504,8 @@ TEST(FrameParserTest, RejectsMalformedSingleSliceInMultiCellRaster)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{
         std::byte{0xaa},
         std::byte{0xbb},
@@ -517,7 +517,7 @@ TEST(FrameParserTest, RejectsMalformedSingleSliceInMultiCellRaster)
     const auto status = parser.parse_with_range_header(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
     EXPECT_TRUE(frame.slices.empty());
@@ -527,8 +527,8 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{
         std::byte{0xff},
         std::byte{0x00},
@@ -588,8 +588,8 @@ TEST(FrameParserTest, AcceptsSingleSliceCoveringMultipleRasterCells)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{
         std::byte{0xe3},
         std::byte{0xfe},
@@ -617,8 +617,8 @@ TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{
         std::byte{0x00},
         std::byte{0x00},
@@ -631,7 +631,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
     const auto status = parser.parse_with_range_header(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_NE(status.code, ffv1::ErrorCode::NotImplemented);
+    EXPECT_NE(status.code, mffv1::ErrorCode::NotImplemented);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
@@ -641,8 +641,8 @@ TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
 {
     auto stream = make_stream();
     stream.num_h_slices = 2;
-    ffv1::codec::FrameParser parser(stream);
-    ffv1::codec::FrameDecodeContext frame;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
     const std::array payload{
         std::byte{0xff},
         std::byte{0x00},

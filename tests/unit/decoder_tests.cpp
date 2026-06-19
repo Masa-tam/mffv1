@@ -1,4 +1,4 @@
-#include "ffv1/codec.hpp"
+#include "mffv1/codec.hpp"
 
 #include <array>
 #include <cstddef>
@@ -71,45 +71,45 @@ std::array<std::byte, 16> zero_frame_payload()
     };
 }
 
-ffv1::Status configure_minimal_v0_y_only(ffv1::IDecoder& decoder)
+mffv1::Status configure_minimal_v0_y_only(mffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v0_y_only_configuration_record();
     return decoder.configure(configuration_record);
 }
 
-ffv1::Status configure_minimal_v0_golomb_rice_y_only(ffv1::IDecoder& decoder)
+mffv1::Status configure_minimal_v0_golomb_rice_y_only(mffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v0_golomb_rice_y_only_configuration_record();
     return decoder.configure(configuration_record);
 }
 
-ffv1::Status configure_minimal_v0_rgb(ffv1::IDecoder& decoder)
+mffv1::Status configure_minimal_v0_rgb(mffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v0_rgb_configuration_record();
     return decoder.configure(configuration_record);
 }
 
-ffv1::Status configure_minimal_v0_golomb_rice_rgb(ffv1::IDecoder& decoder)
+mffv1::Status configure_minimal_v0_golomb_rice_rgb(mffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v0_golomb_rice_rgb_configuration_record();
     return decoder.configure(configuration_record);
 }
 
-ffv1::Status configure_minimal_v3_y_only(ffv1::IDecoder& decoder)
+mffv1::Status configure_minimal_v3_y_only(mffv1::IDecoder& decoder)
 {
     const auto configuration_record = minimal_v3_y_only_configuration_record();
     return decoder.configure(configuration_record);
 }
 
-ffv1::MutablePlaneView make_y_plane(std::uint8_t* data,
+mffv1::MutablePlaneView make_y_plane(std::uint8_t* data,
                                     std::uint32_t width,
                                     std::uint32_t height,
                                     std::ptrdiff_t stride_bytes)
 {
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = data;
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt8;
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
     plane.info.width = width;
     plane.info.height = height;
     plane.info.stride_bytes = stride_bytes;
@@ -118,7 +118,7 @@ ffv1::MutablePlaneView make_y_plane(std::uint8_t* data,
 
 TEST(DecoderTest, FactoryCreatesDecoder)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
 
     EXPECT_TRUE(result.status.ok());
     EXPECT_NE(result.decoder, nullptr);
@@ -126,11 +126,11 @@ TEST(DecoderTest, FactoryCreatesDecoder)
 
 TEST(DecoderTest, FactoryAcceptsExternalFrameDimensions)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 16;
     options.frame_height = 8;
 
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
 
     EXPECT_TRUE(result.status.ok());
     EXPECT_NE(result.decoder, nullptr);
@@ -138,44 +138,44 @@ TEST(DecoderTest, FactoryAcceptsExternalFrameDimensions)
 
 TEST(DecoderTest, FactoryRejectsIncompleteExternalFrameDimensions)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 16;
 
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
 
     EXPECT_FALSE(result.status.ok());
-    EXPECT_EQ(result.status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(result.decoder, nullptr);
 }
 
 TEST(DecoderTest, FactoryRejectsNegativeThreadCount)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.thread_count = -1;
 
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
 
     EXPECT_FALSE(result.status.ok());
-    EXPECT_EQ(result.status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(result.decoder, nullptr);
 }
 
 TEST(DecoderTest, ConfigureRejectsEmptyConfigurationRecord)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
-    const ffv1::ByteSpan empty;
+    const mffv1::ByteSpan empty;
     const auto status = result.decoder->configure(empty);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, ConfigureRejectsTooShortRangeCoderPayload)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -183,14 +183,14 @@ TEST(DecoderTest, ConfigureRejectsTooShortRangeCoderPayload)
     const auto status = result.decoder->configure(record);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
 
 TEST(DecoderTest, ConfigureAcceptsVersionThreeRecordWithValidCrc)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -201,7 +201,7 @@ TEST(DecoderTest, ConfigureAcceptsVersionThreeRecordWithValidCrc)
 
 TEST(DecoderTest, ConfigureRejectsVersionThreeRecordWithCrcMismatch)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
     auto configuration_record = minimal_v3_y_only_configuration_record();
@@ -210,7 +210,7 @@ TEST(DecoderTest, ConfigureRejectsVersionThreeRecordWithCrcMismatch)
     const auto status = result.decoder->configure(configuration_record);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 14u);
 }
@@ -224,7 +224,7 @@ TEST(DecoderTest, ConfigureChecksVersionThreeCrcBeforeParameterSyntax)
     for (std::size_t offset = range_coder_initial_bytes;
          offset < original.size() - crc_size;
          ++offset) {
-        const auto result = ffv1::create_decoder({});
+        const auto result = mffv1::create_decoder({});
         ASSERT_TRUE(result.status.ok());
         ASSERT_NE(result.decoder, nullptr);
         auto damaged = original;
@@ -233,7 +233,7 @@ TEST(DecoderTest, ConfigureChecksVersionThreeCrcBeforeParameterSyntax)
         const auto status = result.decoder->configure(damaged);
 
         EXPECT_FALSE(status.ok()) << "offset=" << offset;
-        EXPECT_EQ(status.code, ffv1::ErrorCode::CrcMismatch) << "offset=" << offset;
+        EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch) << "offset=" << offset;
         EXPECT_TRUE(status.location.has_byte_offset) << "offset=" << offset;
         EXPECT_EQ(status.location.byte_offset, original.size() - crc_size) << "offset=" << offset;
     }
@@ -241,70 +241,70 @@ TEST(DecoderTest, ConfigureChecksVersionThreeCrcBeforeParameterSyntax)
 
 TEST(DecoderTest, DecodeRequiresConfiguration)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     const std::array<std::byte, 1> payload{std::byte{0x00}};
-    ffv1::MutableFrameView output{};
+    mffv1::MutableFrameView output{};
     const auto status = result.decoder->decode_frame(payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
 }
 
 TEST(DecoderTest, InspectFrameRequiresConfiguration)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     const std::array<std::byte, 1> payload{std::byte{0x00}};
-    ffv1::FrameInfo info;
+    mffv1::FrameInfo info;
     const auto status = result.decoder->inspect_frame(payload, info);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
 }
 
 TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     const std::array<std::byte, 1> frame_payload{std::byte{0x00}};
-    ffv1::FrameInfo info;
+    mffv1::FrameInfo info;
     const auto status = result.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
 }
 
 TEST(DecoderTest, InspectFrameRejectsEmptyPayload)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    const ffv1::ByteSpan frame_payload;
-    ffv1::FrameInfo info;
+    const mffv1::ByteSpan frame_payload;
+    mffv1::FrameInfo info;
     const auto status = result.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)
 {
-    const auto result = ffv1::create_decoder({});
+    const auto result = mffv1::create_decoder({});
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -312,27 +312,27 @@ TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)
 
     std::array<std::uint8_t, 1> storage{};
     auto plane = make_y_plane(storage.data(), 1, 1, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsMissingOutputPlanes)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    ffv1::MutableFrameView output;
+    mffv1::MutableFrameView output;
     output.planes = nullptr;
     output.plane_count = 1;
     const auto frame_payload = zero_scalar_payload();
@@ -340,36 +340,36 @@ TEST(DecoderTest, DecodeFrameRejectsMissingOutputPlanes)
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsNullOutputPlaneData)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     auto plane = make_y_plane(nullptr, options.frame_width, options.frame_height, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsShortOutputStride)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 2;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -377,55 +377,55 @@ TEST(DecoderTest, DecodeFrameRejectsShortOutputStride)
 
     std::array<std::uint8_t, 2> storage{};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint16_t, 1> storage{};
-    ffv1::MutablePlaneView plane;
+    mffv1::MutablePlaneView plane;
     plane.data = storage.data();
-    plane.info.role = ffv1::PlaneRole::Y;
-    plane.info.sample_format = ffv1::SampleFormat::UInt16;
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt16;
     plane.info.width = options.frame_width;
     plane.info.height = options.frame_height;
     plane.info.stride_bytes = 2;
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const auto frame_payload = zero_scalar_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    ffv1::MutableFrameView output;
+    mffv1::MutableFrameView output;
     output.planes = nullptr;
     output.plane_count = 0;
     const auto frame_payload = zero_scalar_payload();
@@ -433,15 +433,15 @@ TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -449,21 +449,21 @@ TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
 
     std::array<std::uint8_t, 1> storage{};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
-    ffv1::MutableFrameView output{&plane, 1};
-    const ffv1::ByteSpan frame_payload;
+    mffv1::MutableFrameView output{&plane, 1};
+    const mffv1::ByteSpan frame_payload;
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -471,13 +471,13 @@ TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
 
     std::array<std::uint8_t, 1> storage{};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 1> frame_payload{std::byte{0xff}};
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_FALSE(status.location.has_slice_index);
@@ -485,17 +485,17 @@ TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
 
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 16;
     options.frame_height = 8;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     const auto frame_payload = zero_scalar_payload();
-    ffv1::FrameInfo info;
+    mffv1::FrameInfo info;
     const auto status = result.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -508,10 +508,10 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 
 TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
     ASSERT_TRUE(configure_minimal_v3_y_only(*result.decoder).ok());
@@ -523,7 +523,7 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
         std::byte{0x05},
     };
 
-    ffv1::FrameInfo info;
+    mffv1::FrameInfo info;
     auto status = result.decoder->inspect_frame(frame_payload, info);
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(info.version, 3u);
@@ -534,7 +534,7 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), 1, 1, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     status = result.decoder->decode_frame(frame_payload, output);
 
     ASSERT_TRUE(status.ok()) << status.message;
@@ -543,10 +543,10 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
 
 TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 4;
     options.frame_height = 2;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -555,7 +555,7 @@ TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
     std::array<std::uint8_t, 8> storage{};
     storage.fill(0xee);
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 4);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
 
     const auto frame_payload = zero_frame_payload();
 
@@ -569,16 +569,16 @@ TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
 
 TEST(DecoderTest, DecodeFrameWritesRgbFrameThroughPublicApi)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
     ASSERT_TRUE(configure_minimal_v0_rgb(*result.decoder).ok());
 
     const auto frame_payload = zero_scalar_payload();
-    ffv1::FrameInfo info;
+    mffv1::FrameInfo info;
     auto status = result.decoder->inspect_frame(frame_payload, info);
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(info.version, 0u);
@@ -588,11 +588,11 @@ TEST(DecoderTest, DecodeFrameWritesRgbFrameThroughPublicApi)
     std::array<std::uint8_t, 1> r{0xee};
     std::array<std::uint8_t, 1> g{0xee};
     std::array<std::uint8_t, 1> b{0xee};
-    std::array<ffv1::MutablePlaneView, 3> planes{};
-    planes[0] = {r.data(), {ffv1::PlaneRole::R, ffv1::SampleFormat::UInt8, 1, 1, 1}};
-    planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt8, 1, 1, 1}};
-    planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt8, 1, 1, 1}};
-    ffv1::MutableFrameView output{planes.data(), planes.size()};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
+    planes[0] = {r.data(), {mffv1::PlaneRole::R, mffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[1] = {g.data(), {mffv1::PlaneRole::G, mffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[2] = {b.data(), {mffv1::PlaneRole::B, mffv1::SampleFormat::UInt8, 1, 1, 1}};
+    mffv1::MutableFrameView output{planes.data(), planes.size()};
 
     status = result.decoder->decode_frame(frame_payload, output);
 
@@ -604,10 +604,10 @@ TEST(DecoderTest, DecodeFrameWritesRgbFrameThroughPublicApi)
 
 TEST(DecoderTest, DecodeFrameWritesGolombRiceRgbThroughPublicApi)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
     ASSERT_TRUE(configure_minimal_v0_golomb_rice_rgb(*result.decoder).ok());
@@ -615,11 +615,11 @@ TEST(DecoderTest, DecodeFrameWritesGolombRiceRgbThroughPublicApi)
     std::array<std::uint8_t, 1> r{0xee};
     std::array<std::uint8_t, 1> g{0xee};
     std::array<std::uint8_t, 1> b{0xee};
-    std::array<ffv1::MutablePlaneView, 3> planes{};
-    planes[0] = {r.data(), {ffv1::PlaneRole::R, ffv1::SampleFormat::UInt8, 1, 1, 1}};
-    planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt8, 1, 1, 1}};
-    planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt8, 1, 1, 1}};
-    ffv1::MutableFrameView output{planes.data(), planes.size()};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
+    planes[0] = {r.data(), {mffv1::PlaneRole::R, mffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[1] = {g.data(), {mffv1::PlaneRole::G, mffv1::SampleFormat::UInt8, 1, 1, 1}};
+    planes[2] = {b.data(), {mffv1::PlaneRole::B, mffv1::SampleFormat::UInt8, 1, 1, 1}};
+    mffv1::MutableFrameView output{planes.data(), planes.size()};
     const std::array frame_payload{std::byte{0xf0}};
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
@@ -632,10 +632,10 @@ TEST(DecoderTest, DecodeFrameWritesGolombRiceRgbThroughPublicApi)
 
 TEST(DecoderTest, DecodeFrameWritesLegacyGolombRiceFrame)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 4;
     options.frame_height = 2;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
     ASSERT_TRUE(configure_minimal_v0_golomb_rice_y_only(*result.decoder).ok());
@@ -643,7 +643,7 @@ TEST(DecoderTest, DecodeFrameWritesLegacyGolombRiceFrame)
     std::array<std::uint8_t, 10> storage{};
     storage.fill(0xee);
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 5);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const std::array frame_payload{std::byte{0xfe}};
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
@@ -659,32 +659,32 @@ TEST(DecoderTest, DecodeFrameWritesLegacyGolombRiceFrame)
 
 TEST(DecoderTest, DecodeFrameRejectsLegacyRangeNonKeyframe)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), 1, 1, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const std::array frame_payload{std::byte{0x00}, std::byte{0x00}};
 
     const auto status = result.decoder->decode_frame(frame_payload, output);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(storage[0], 0xee);
 }
 
 TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -692,7 +692,7 @@ TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
         std::byte{0x7f},
         std::byte{0x80},
@@ -706,10 +706,10 @@ TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
 
 TEST(DecoderTest, DecodeFrameWrapsNegativeDifference)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -717,7 +717,7 @@ TEST(DecoderTest, DecodeFrameWrapsNegativeDifference)
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
         std::byte{0x8f},
         std::byte{0x70},
@@ -731,10 +731,10 @@ TEST(DecoderTest, DecodeFrameWrapsNegativeDifference)
 
 TEST(DecoderTest, DecodeFrameUsesLeftPrediction)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 2;
     options.frame_height = 1;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -742,7 +742,7 @@ TEST(DecoderTest, DecodeFrameUsesLeftPrediction)
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 2);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
         std::byte{0x8b},
         std::byte{0x38},
@@ -757,10 +757,10 @@ TEST(DecoderTest, DecodeFrameUsesLeftPrediction)
 
 TEST(DecoderTest, DecodeFrameUsesTopPrediction)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 1;
     options.frame_height = 2;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -768,7 +768,7 @@ TEST(DecoderTest, DecodeFrameUsesTopPrediction)
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 2> frame_payload{
         std::byte{0x8b},
         std::byte{0x38},
@@ -783,10 +783,10 @@ TEST(DecoderTest, DecodeFrameUsesTopPrediction)
 
 TEST(DecoderTest, DecodeFramePreservesStridePadding)
 {
-    ffv1::DecoderOptions options;
+    mffv1::DecoderOptions options;
     options.frame_width = 2;
     options.frame_height = 2;
-    const auto result = ffv1::create_decoder(options);
+    const auto result = mffv1::create_decoder(options);
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.decoder, nullptr);
 
@@ -795,7 +795,7 @@ TEST(DecoderTest, DecodeFramePreservesStridePadding)
     std::array<std::uint8_t, 8> storage{};
     storage.fill(0xee);
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 4);
-    ffv1::MutableFrameView output{&plane, 1};
+    mffv1::MutableFrameView output{&plane, 1};
     const auto frame_payload = zero_frame_payload();
 
     const auto status = result.decoder->decode_frame(frame_payload, output);

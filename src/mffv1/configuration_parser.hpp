@@ -3,10 +3,10 @@
 #include <cstdint>
 
 #include "entropy/symbol_reader.hpp"
-#include "ffv1/result.hpp"
-#include "ffv1/stream_parameters.hpp"
+#include "mffv1/result.hpp"
+#include "mffv1/stream_parameters.hpp"
 
-namespace ffv1::syntax {
+namespace mffv1::syntax {
 
 class ConfigurationParser {
 public:
@@ -22,5 +22,5 @@ private:
                              std::int64_t& out_len_count) const;
 };
 
-} // namespace ffv1::syntax
+} // namespace mffv1::syntax
 

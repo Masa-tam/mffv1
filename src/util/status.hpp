@@ -4,9 +4,9 @@
 #include <string>
 #include <utility>
 
-#include "ffv1/result.hpp"
+#include "mffv1/result.hpp"
 
-namespace ffv1 {
+namespace mffv1 {
 
 inline void set_byte_location_if_missing(Status& status, std::uint64_t byte_offset) noexcept
 {
@@ -31,4 +31,4 @@ inline Status make_byte_error(ErrorCode code, std::string message, std::uint64_t
     return status;
 }
 
-} // namespace ffv1
+} // namespace mffv1

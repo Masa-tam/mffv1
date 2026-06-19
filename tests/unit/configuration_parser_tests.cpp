@@ -1,4 +1,4 @@
-#include "ffv1/configuration_parser.hpp"
+#include "mffv1/configuration_parser.hpp"
 
 #include <cstdint>
 #include <deque>
@@ -22,14 +22,14 @@ struct Symbol {
     bool maximum_unsigned = false;
 };
 
-class ScriptedSymbolReader final : public ffv1::entropy::SymbolReader {
+class ScriptedSymbolReader final : public mffv1::entropy::SymbolReader {
 public:
     explicit ScriptedSymbolReader(std::deque<Symbol> symbols)
         : symbols_(std::move(symbols))
     {
     }
 
-    ffv1::Status read_bool(bool& out_value) override
+    mffv1::Status read_bool(bool& out_value) override
     {
         Symbol symbol{};
         auto status = pop(SymbolKind::Bool, symbol);
@@ -37,10 +37,10 @@ public:
             return status;
         }
         out_value = symbol.value != 0;
-        return ffv1::ok_status();
+        return mffv1::ok_status();
     }
 
-    ffv1::Status read_unsigned(std::uint64_t& out_value) override
+    mffv1::Status read_unsigned(std::uint64_t& out_value) override
     {
         Symbol symbol{};
         auto status = pop(SymbolKind::Unsigned, symbol);
@@ -49,16 +49,16 @@ public:
         }
         if (symbol.maximum_unsigned) {
             out_value = std::numeric_limits<std::uint64_t>::max();
-            return ffv1::ok_status();
+            return mffv1::ok_status();
         }
         if (symbol.value < 0) {
-            return ffv1::make_error(ffv1::ErrorCode::SyntaxError, "scripted unsigned symbol is negative");
+            return mffv1::make_error(mffv1::ErrorCode::SyntaxError, "scripted unsigned symbol is negative");
         }
         out_value = static_cast<std::uint64_t>(symbol.value);
-        return ffv1::ok_status();
+        return mffv1::ok_status();
     }
 
-    ffv1::Status read_signed(std::int64_t& out_value) override
+    mffv1::Status read_signed(std::int64_t& out_value) override
     {
         Symbol symbol{};
         auto status = pop(SymbolKind::Signed, symbol);
@@ -66,13 +66,13 @@ public:
             return status;
         }
         out_value = symbol.value;
-        return ffv1::ok_status();
+        return mffv1::ok_status();
     }
 
-    ffv1::Status read_signed(ffv1::entropy::ContextId context, std::int64_t& out_value) override
+    mffv1::Status read_signed(mffv1::entropy::ContextId context, std::int64_t& out_value) override
     {
         if (context != signed_read_count_ % 32) {
-            return ffv1::make_error(ffv1::ErrorCode::InternalError,
+            return mffv1::make_error(mffv1::ErrorCode::InternalError,
                                     "unexpected scripted signed context");
         }
         ++signed_read_count_;
@@ -80,21 +80,21 @@ public:
     }
 
 private:
-    ffv1::Status pop(SymbolKind expected, Symbol& out_symbol)
+    mffv1::Status pop(SymbolKind expected, Symbol& out_symbol)
     {
         if (symbols_.empty()) {
-            return ffv1::make_error(ffv1::ErrorCode::SyntaxError, "scripted symbol reader underflow");
+            return mffv1::make_error(mffv1::ErrorCode::SyntaxError, "scripted symbol reader underflow");
         }
         out_symbol = symbols_.front();
         symbols_.pop_front();
         if (out_symbol.kind != expected) {
-            return ffv1::make_error(ffv1::ErrorCode::InternalError, "scripted symbol kind mismatch");
+            return mffv1::make_error(mffv1::ErrorCode::InternalError, "scripted symbol kind mismatch");
         }
-        return ffv1::ok_status();
+        return mffv1::ok_status();
     }
 
     std::deque<Symbol> symbols_;
-    ffv1::entropy::ContextId signed_read_count_ = 0;
+    mffv1::entropy::ContextId signed_read_count_ = 0;
 };
 
 Symbol b(bool value)
@@ -147,15 +147,15 @@ std::deque<Symbol> minimal_v3_y_only_symbols()
 TEST(ConfigurationParserTest, ParsesMinimalVersion3YOnlyParameters)
 {
     ScriptedSymbolReader reader(minimal_v3_y_only_symbols());
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(stream.version, 3);
     EXPECT_EQ(stream.micro_version, 4);
-    EXPECT_EQ(stream.entropy_mode, ffv1::EntropyMode::Range);
+    EXPECT_EQ(stream.entropy_mode, mffv1::EntropyMode::Range);
     EXPECT_EQ(stream.colorspace_type, 0);
     EXPECT_EQ(stream.bits_per_raw_sample, 8);
     EXPECT_FALSE(stream.chroma_planes);
@@ -175,14 +175,14 @@ TEST(ConfigurationParserTest, RejectsUnstableVersion3MicroVersions)
         auto symbols = minimal_v3_y_only_symbols();
         symbols[1] = u(micro_version);
         ScriptedSymbolReader reader(std::move(symbols));
-        ffv1::syntax::ConfigurationParser parser;
-        ffv1::syntax::StreamParameters stream;
+        mffv1::syntax::ConfigurationParser parser;
+        mffv1::syntax::StreamParameters stream;
         stream.version = 1;
 
         const auto status = parser.parse(reader, stream);
 
         EXPECT_FALSE(status.ok()) << "micro_version=" << micro_version;
-        EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature)
+        EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature)
             << "micro_version=" << micro_version;
         EXPECT_EQ(stream.version, 1) << "micro_version=" << micro_version;
     }
@@ -193,8 +193,8 @@ TEST(ConfigurationParserTest, AcceptsFutureStableVersion3MicroVersion)
     auto symbols = minimal_v3_y_only_symbols();
     symbols[1] = u(5);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
@@ -208,8 +208,8 @@ TEST(ConfigurationParserTest, InterpretsReservedZeroBitDepthAsEight)
     auto symbols = minimal_v3_y_only_symbols();
     symbols[4] = u(0);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
@@ -223,8 +223,8 @@ TEST(ConfigurationParserTest, ParsesLargeChromaSubsamplingExponents)
     symbols[6] = u(40);
     symbols[7] = u(255);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
@@ -238,13 +238,13 @@ TEST(ConfigurationParserTest, RejectsUnrepresentableChromaSubsamplingExponent)
     auto symbols = minimal_v3_y_only_symbols();
     symbols[6] = u(256);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
 TEST(ConfigurationParserTest, RejectsUnsupportedVersion)
@@ -252,13 +252,13 @@ TEST(ConfigurationParserTest, RejectsUnsupportedVersion)
     auto symbols = minimal_v3_y_only_symbols();
     symbols.front() = u(2);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
 }
 
 TEST(ConfigurationParserTest, ParsesCustomRangeCoderStateTransitions)
@@ -269,13 +269,13 @@ TEST(ConfigurationParserTest, ParsesCustomRangeCoderStateTransitions)
         symbols.insert(symbols.begin() + 2 + state, s(state == 8 ? 5 : 0));
     }
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(stream.entropy_mode, ffv1::EntropyMode::Range);
+    EXPECT_EQ(stream.entropy_mode, mffv1::EntropyMode::Range);
     EXPECT_EQ(stream.state_transition[0], 0u);
     EXPECT_EQ(stream.state_transition[8], 25u);
     EXPECT_EQ(stream.state_transition[255], 0u);
@@ -287,13 +287,13 @@ TEST(ConfigurationParserTest, RejectsOutOfRangeCustomStateTransition)
     symbols[2] = u(2);
     symbols.insert(symbols.begin() + 3, s(-1));
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
 TEST(ConfigurationParserTest, RejectsCustomStateTransitionAboveByteRange)
@@ -302,13 +302,13 @@ TEST(ConfigurationParserTest, RejectsCustomStateTransitionAboveByteRange)
     symbols[2] = u(2);
     symbols.insert(symbols.begin() + 3, s(256));
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
 TEST(ConfigurationParserTest, RejectsReservedCoderType)
@@ -316,13 +316,13 @@ TEST(ConfigurationParserTest, RejectsReservedCoderType)
     auto symbols = minimal_v3_y_only_symbols();
     symbols[2] = u(3);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
 }
 
 TEST(ConfigurationParserTest, RejectsTruncatedCustomStateTransitions)
@@ -332,13 +332,13 @@ TEST(ConfigurationParserTest, RejectsTruncatedCustomStateTransitions)
     symbols.erase(symbols.begin() + 3, symbols.end());
     symbols.push_back(s(0));
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
 TEST(ConfigurationParserTest, RejectsOversizedQuantTableRun)
@@ -346,13 +346,13 @@ TEST(ConfigurationParserTest, RejectsOversizedQuantTableRun)
     auto symbols = minimal_v3_y_only_symbols();
     symbols[12] = u(128);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
 TEST(ConfigurationParserTest, RejectsOverflowingQuantTableRun)
@@ -360,13 +360,13 @@ TEST(ConfigurationParserTest, RejectsOverflowingQuantTableRun)
     auto symbols = minimal_v3_y_only_symbols();
     symbols[12] = u_max();
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(status.message, "quantization table run exceeds table boundary");
 }
 
@@ -376,13 +376,13 @@ TEST(ConfigurationParserTest, RejectsUnrepresentableSliceCountsBeforeIncrement)
         auto symbols = minimal_v3_y_only_symbols();
         symbols[symbol_index] = u_max();
         ScriptedSymbolReader reader(std::move(symbols));
-        ffv1::syntax::ConfigurationParser parser;
-        ffv1::syntax::StreamParameters stream;
+        mffv1::syntax::ConfigurationParser parser;
+        mffv1::syntax::StreamParameters stream;
 
         const auto status = parser.parse(reader, stream);
 
         EXPECT_FALSE(status.ok()) << "symbol_index=" << symbol_index;
-        EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError)
+        EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError)
             << "symbol_index=" << symbol_index;
     }
 }
@@ -392,13 +392,13 @@ TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)
     auto symbols = minimal_v3_y_only_symbols();
     symbols[3] = u(2);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
 }
 
 TEST(ConfigurationParserTest, ParsesRgbParameters)
@@ -407,8 +407,8 @@ TEST(ConfigurationParserTest, ParsesRgbParameters)
     symbols[3] = u(1);
     symbols[5] = b(true);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
@@ -427,13 +427,13 @@ TEST(ConfigurationParserTest, RejectsInvalidRgbPlaneLayout)
         symbols[5] = b(true);
         symbols[symbol_index] = symbol_index == 5 ? b(false) : u(1);
         ScriptedSymbolReader reader(std::move(symbols));
-        ffv1::syntax::ConfigurationParser parser;
-        ffv1::syntax::StreamParameters stream;
+        mffv1::syntax::ConfigurationParser parser;
+        mffv1::syntax::StreamParameters stream;
 
         const auto status = parser.parse(reader, stream);
 
         EXPECT_FALSE(status.ok()) << "symbol_index=" << symbol_index;
-        EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError)
+        EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError)
             << "symbol_index=" << symbol_index;
     }
 }
@@ -446,8 +446,8 @@ TEST(ConfigurationParserTest, ParsesCustomRangeCoderInitialStates)
         symbols.insert(symbols.begin() + 18 + state, s(state == 0 ? -129 : state - 16));
     }
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
@@ -472,8 +472,8 @@ TEST(ConfigurationParserTest, PredictsCustomInitialStatesFromPreviousContext)
         }
     }
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
@@ -493,13 +493,13 @@ TEST(ConfigurationParserTest, RejectsTruncatedCustomRangeCoderInitialStates)
     symbols.erase(symbols.begin() + 18, symbols.end());
     symbols.push_back(s(0));
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
 }
 
 TEST(ConfigurationParserTest, RejectsNonIntraStream)
@@ -507,14 +507,14 @@ TEST(ConfigurationParserTest, RejectsNonIntraStream)
     auto symbols = minimal_v3_y_only_symbols();
     symbols.back() = u(0);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
     stream.version = 1;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(stream.version, 1);
 }
 
@@ -523,13 +523,13 @@ TEST(ConfigurationParserTest, RejectsReservedIntraModeWithAccurateDiagnostic)
     auto symbols = minimal_v3_y_only_symbols();
     symbols.back() = u(2);
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(status.message, "unsupported intra mode");
 }
 
@@ -546,8 +546,8 @@ TEST(ConfigurationParserTest, Version0UsesDefaultZeroQuantTableSet)
     };
 
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 
@@ -564,8 +564,8 @@ TEST(ConfigurationParserTest, QuantTableMirrorsNegativeHalf)
     symbols.insert(symbols.begin() + 13, u(126)); // table 0: value 1 for indexes 1..127
 
     ScriptedSymbolReader reader(std::move(symbols));
-    ffv1::syntax::ConfigurationParser parser;
-    ffv1::syntax::StreamParameters stream;
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
 
     const auto status = parser.parse(reader, stream);
 

@@ -5,7 +5,7 @@
 #include <array>
 #include <cstdint>
 
-namespace ffv1::entropy {
+namespace mffv1::entropy {
 
 namespace {
 
@@ -74,4 +74,4 @@ Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
     return ok_status();
 }
 
-} // namespace ffv1::entropy
+} // namespace mffv1::entropy

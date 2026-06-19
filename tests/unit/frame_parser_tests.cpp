@@ -157,7 +157,7 @@ TEST(FrameParserTest, ParsesLegacyRangeKeyframeAndContentOffset)
     EXPECT_TRUE(frame.slices[0].continues_frame_range_state);
 }
 
-TEST(FrameParserTest, RejectsLegacyRangeNonKeyframe)
+TEST(FrameParserTest, RejectsLegacyRangeNonKeyframeForIntraOnlyStream)
 {
     auto stream = make_stream();
     stream.version = 0;
@@ -168,10 +168,28 @@ TEST(FrameParserTest, RejectsLegacyRangeNonKeyframe)
     const auto status = parser.parse(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(frame.slices.empty());
+}
+
+TEST(FrameParserTest, ParsesLegacyRangeNonKeyframe)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.intra_only = false;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    const std::array payload{std::byte{0x70}, std::byte{0x00}};
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_FALSE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
+    EXPECT_TRUE(frame.slices[0].continues_frame_range_state);
 }
 
 TEST(FrameParserTest, ParsesLegacyGolombRiceKeyframeBit)
@@ -230,22 +248,41 @@ TEST(FrameParserTest, ParsesAndDecodesLegacyGolombRiceKeyframe)
     }
 }
 
-TEST(FrameParserTest, RejectsLegacyGolombRiceNonKeyframe)
+TEST(FrameParserTest, RejectsLegacyGolombRiceNonKeyframeForIntraOnlyStream)
 {
     auto stream = make_stream();
     stream.version = 0;
     stream.entropy_mode = mffv1::EntropyMode::GolombRice;
     mffv1::codec::FrameParser parser(stream);
     mffv1::codec::FrameDecodeContext frame;
-    const std::array payload{std::byte{0x00}};
+    const std::array payload{std::byte{0x70}};
 
     const auto status = parser.parse(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(frame.slices.empty());
+}
+
+TEST(FrameParserTest, ParsesLegacyGolombRiceNonKeyframe)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.intra_only = false;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    const std::array payload{std::byte{0x70}};
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_FALSE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 0u);
+    EXPECT_EQ(frame.slices[0].content_bit_offset, 1u);
 }
 
 TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)

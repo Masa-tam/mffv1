@@ -762,9 +762,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             add_byte_offset(status, slice.payload_byte_offset);
             return status;
         }
-        if (!keyframe) {
-            return make_byte_error(ErrorCode::UnsupportedFeature,
-                                   "legacy non-keyframes are not implemented yet",
+        if (!keyframe && stream_.intra_only) {
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   "non-keyframe is invalid for an intra-only stream",
                                    slice.payload_byte_offset);
         }
         const auto local_content_offset = slice.content_byte_offset - slice.payload_byte_offset;

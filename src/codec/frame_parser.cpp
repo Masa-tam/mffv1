@@ -78,12 +78,11 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         if (!status.ok()) {
             return status;
         }
-        if (!keyframe) {
-            return make_byte_error(ErrorCode::UnsupportedFeature,
-                                   "legacy non-keyframes are not implemented yet",
-                                   0);
+        status = validate_keyframe(stream_, keyframe, 0);
+        if (!status.ok()) {
+            return status;
         }
-        out_frame.keyframe = true;
+        out_frame.keyframe = keyframe;
     } else if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
         bitstream::BitReader frame_bits(payload);
         std::uint8_t keyframe = 0;
@@ -91,12 +90,11 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         if (!status.ok()) {
             return status;
         }
-        if (keyframe == 0) {
-            return make_byte_error(ErrorCode::UnsupportedFeature,
-                                   "legacy non-keyframes are not implemented yet",
-                                   0);
+        status = validate_keyframe(stream_, keyframe != 0, 0);
+        if (!status.ok()) {
+            return status;
         }
-        out_frame.keyframe = true;
+        out_frame.keyframe = keyframe != 0;
     }
 
     syntax::SliceDescriptor slice;

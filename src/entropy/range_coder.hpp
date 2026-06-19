@@ -17,6 +17,8 @@ class RangeCoder final : public SymbolReader {
 public:
     static constexpr std::size_t kScalarContextSize = 32;
     using ScalarContextStates = std::array<std::uint8_t, kScalarContextSize>;
+    using ContextStateBank = std::vector<ScalarContextStates>;
+    using ContextStateBanks = std::vector<ContextStateBank>;
     static constexpr std::size_t kMaxScalarContextCount = 32768;
     static constexpr std::size_t kMaxContextBankCount = 4;
     static constexpr std::uint8_t kDefaultInitialState = 128;
@@ -38,6 +40,7 @@ public:
     Status reconfigure_contexts(
         std::span<const std::size_t> scalar_context_counts,
         std::span<const std::span<const ScalarContextStates>> initial_state_banks = {});
+    Status copy_contexts(ContextStateBanks& out_context_banks) const;
 
     [[nodiscard]] std::uint64_t byte_position() const noexcept override;
 

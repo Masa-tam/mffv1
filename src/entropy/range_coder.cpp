@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <utility>
 
 namespace mffv1::entropy {
 
@@ -127,6 +128,24 @@ Status RangeCoder::reconfigure_contexts(
     return initialize_contexts(scalar_context_counts,
                                initial_state_banks,
                                kDefaultInitialState);
+}
+
+Status RangeCoder::copy_contexts(ContextStateBanks& out_context_banks) const
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range coder is not initialized");
+    }
+
+    ContextStateBanks context_banks;
+    context_banks.reserve(scalar_context_bank_sizes_.size());
+    for (std::size_t bank = 0; bank < scalar_context_bank_sizes_.size(); ++bank) {
+        const auto offset = scalar_context_bank_offsets_[bank];
+        const auto size = scalar_context_bank_sizes_[bank];
+        const auto begin = scalar_contexts_.begin() + static_cast<std::ptrdiff_t>(offset);
+        context_banks.emplace_back(begin, begin + static_cast<std::ptrdiff_t>(size));
+    }
+    out_context_banks = std::move(context_banks);
+    return ok_status();
 }
 
 Status RangeCoder::initialize_contexts(

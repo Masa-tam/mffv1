@@ -1144,6 +1144,52 @@ TEST(SliceDecoderTest, AppliesHighBitDepthGolombRiceRgbCompatibilityTransform)
     EXPECT_EQ(b[0], 513u);
 }
 
+TEST(SliceDecoderTest, GolombRiceRgbAlphaDisablesCompatibilityTransform)
+{
+    auto stream = make_stream();
+    stream.width = 1;
+    stream.height = 1;
+    stream.bits_per_raw_sample = 10;
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    stream.extra_plane = true;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    std::array<std::uint16_t, 1> r{};
+    std::array<std::uint16_t, 1> g{};
+    std::array<std::uint16_t, 1> b{};
+    std::array<std::uint16_t, 1> alpha{};
+    std::array<ffv1::MutablePlaneView, 4> planes{};
+    planes[0] = {r.data(), {ffv1::PlaneRole::R, ffv1::SampleFormat::UInt16, 1, 1, 2}};
+    planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt16, 1, 1, 2}};
+    planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt16, 1, 1, 2}};
+    planes[3] = {alpha.data(), {ffv1::PlaneRole::Alpha, ffv1::SampleFormat::UInt16, 1, 1, 2}};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 2> payload{std::byte{0x44}, std::byte{0x44}};
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (std::size_t plane = 0; plane < 4; ++plane) {
+        EXPECT_EQ(state.line_state(plane).previous()[0], 1);
+    }
+    EXPECT_EQ(r[0], 514u);
+    EXPECT_EQ(g[0], 513u);
+    EXPECT_EQ(b[0], 514u);
+    EXPECT_EQ(alpha[0], 1u);
+}
+
 TEST(SliceDecoderTest, KeepsGolombRiceRgbContextAndPredictionAcrossRows)
 {
     auto stream = make_stream();

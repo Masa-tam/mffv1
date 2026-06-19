@@ -976,7 +976,7 @@ TEST(SliceDecoderTest, DecodesRgbExtraPlaneAfterColorLines)
     EXPECT_EQ(alpha[0], 0u);
 }
 
-TEST(SliceDecoderTest, RejectsGolombRiceRgbBeforeWritingOutput)
+TEST(SliceDecoderTest, DecodesGolombRiceRgbZeroRunsInLineOrder)
 {
     auto stream = make_stream();
     stream.width = 1;
@@ -992,7 +992,7 @@ TEST(SliceDecoderTest, RejectsGolombRiceRgbBeforeWritingOutput)
     planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt8, 1, 1, 1}};
     planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt8, 1, 1, 1}};
     ffv1::MutableFrameView frame{planes.data(), planes.size()};
-    const std::array<std::byte, 1> payload{std::byte{0xff}};
+    const std::array<std::byte, 1> payload{std::byte{0xe0}};
 
     ffv1::syntax::SliceDescriptor slice;
     slice.width = 1;
@@ -1008,11 +1008,10 @@ TEST(SliceDecoderTest, RejectsGolombRiceRgbBeforeWritingOutput)
     const ffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, ffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(r[0], 0xee);
-    EXPECT_EQ(g[0], 0xee);
-    EXPECT_EQ(b[0], 0xee);
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(r[0], 128u);
+    EXPECT_EQ(g[0], 128u);
+    EXPECT_EQ(b[0], 128u);
 }
 
 TEST(SliceDecoderTest, DecodesGolombRiceZeroRun)

@@ -288,6 +288,35 @@ Status store_rgb_line(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
+Status store_planar_line(const syntax::StreamParameters& stream,
+                         SliceOutputWindow& output,
+                         std::size_t plane,
+                         std::uint32_t y,
+                         syntax::LineState& line)
+{
+    auto* row_u8 = output.row_u8(plane, y);
+    auto* row_u16 = output.row_u16(plane, y);
+    if (stream.bits_per_raw_sample <= 8 && row_u8 == nullptr) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "slice output row is not writable as uint8");
+    }
+    if (stream.bits_per_raw_sample > 8 && row_u16 == nullptr) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "slice output row is not writable as uint16");
+    }
+
+    const auto width = output.plane_width(plane);
+    for (std::uint32_t x = 0; x < width; ++x) {
+        if (stream.bits_per_raw_sample <= 8) {
+            row_u8[x] = static_cast<std::uint8_t>(line.current()[x]);
+        } else {
+            row_u16[x] = static_cast<std::uint16_t>(line.current()[x]);
+        }
+    }
+    line.swap_lines();
+    return ok_status();
+}
+
 Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                 ByteSpan payload,
                                 std::uint64_t payload_offset,
@@ -343,17 +372,6 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
             auto& line = state.line_state(plane);
             const auto width = output.plane_width(plane);
             for (std::uint32_t y = 0; y < output.plane_height(plane); ++y) {
-                auto* row_u8 = output.row_u8(plane, y);
-                auto* row_u16 = output.row_u16(plane, y);
-                if (stream.bits_per_raw_sample <= 8 && row_u8 == nullptr) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "slice output row is not writable as uint8");
-                }
-                if (stream.bits_per_raw_sample > 8 && row_u16 == nullptr) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "slice output row is not writable as uint16");
-                }
-
                 status = decode_golomb_rice_line(bit_reader,
                                                  reader,
                                                  payload_offset,
@@ -365,14 +383,10 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                 if (!status.ok()) {
                     return status;
                 }
-                for (std::uint32_t x = 0; x < width; ++x) {
-                    if (stream.bits_per_raw_sample <= 8) {
-                        row_u8[x] = static_cast<std::uint8_t>(line.current()[x]);
-                    } else {
-                        row_u16[x] = static_cast<std::uint16_t>(line.current()[x]);
-                    }
+                status = store_planar_line(stream, output, plane, y, line);
+                if (!status.ok()) {
+                    return status;
                 }
-                line.swap_lines();
             }
         }
     }
@@ -750,15 +764,6 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         const auto& context_model = context_models[plane_index];
         auto& line = state.line_state(plane_index);
         for (std::uint32_t y = 0; y < output.plane_height(plane_index); ++y) {
-            auto* row_u8 = output.row_u8(plane_index, y);
-            auto* row_u16 = output.row_u16(plane_index, y);
-            if (stream_.bits_per_raw_sample <= 8 && row_u8 == nullptr) {
-                return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint8");
-            }
-            if (stream_.bits_per_raw_sample > 8 && row_u16 == nullptr) {
-                return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint16");
-            }
-
             const auto width = output.plane_width(plane_index);
             status = decode_range_line(reader,
                                        reader_base_offset,
@@ -771,14 +776,10 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             if (!status.ok()) {
                 return status;
             }
-            for (std::uint32_t x = 0; x < width; ++x) {
-                if (stream_.bits_per_raw_sample <= 8) {
-                    row_u8[x] = static_cast<std::uint8_t>(line.current()[x]);
-                } else {
-                    row_u16[x] = static_cast<std::uint16_t>(line.current()[x]);
-                }
+            status = store_planar_line(stream_, output, plane_index, y, line);
+            if (!status.ok()) {
+                return status;
             }
-            line.swap_lines();
         }
     }
 

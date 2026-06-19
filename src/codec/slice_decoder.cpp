@@ -236,6 +236,58 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
     return ok_status();
 }
 
+Status store_rgb_line(const syntax::StreamParameters& stream,
+                      SliceOutputWindow& output,
+                      std::uint32_t y,
+                      SliceState& state)
+{
+    std::array<std::uint8_t*, 4> rows_u8{};
+    std::array<std::uint16_t*, 4> rows_u16{};
+    for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
+        rows_u8[plane] = output.row_u8(plane, y);
+        rows_u16[plane] = output.row_u16(plane, y);
+        if (stream.bits_per_raw_sample <= 8 && rows_u8[plane] == nullptr) {
+            return make_error(ErrorCode::InvalidArgument,
+                              "RGB slice output row is not writable as uint8");
+        }
+        if (stream.bits_per_raw_sample > 8 && rows_u16[plane] == nullptr) {
+            return make_error(ErrorCode::InvalidArgument,
+                              "RGB slice output row is not writable as uint16");
+        }
+    }
+
+    const auto width = output.plane_width(0);
+    for (std::uint32_t x = 0; x < width; ++x) {
+        const auto rgb = syntax::inverse_jpeg2000_rct(
+            state.line_state(0).current()[x],
+            state.line_state(1).current()[x],
+            state.line_state(2).current()[x],
+            stream.bits_per_raw_sample,
+            stream.extra_plane);
+        if (stream.bits_per_raw_sample <= 8) {
+            rows_u8[0][x] = static_cast<std::uint8_t>(rgb.r);
+            rows_u8[1][x] = static_cast<std::uint8_t>(rgb.g);
+            rows_u8[2][x] = static_cast<std::uint8_t>(rgb.b);
+            if (stream.extra_plane) {
+                rows_u8[3][x] = static_cast<std::uint8_t>(
+                    state.line_state(3).current()[x]);
+            }
+        } else {
+            rows_u16[0][x] = rgb.r;
+            rows_u16[1][x] = rgb.g;
+            rows_u16[2][x] = rgb.b;
+            if (stream.extra_plane) {
+                rows_u16[3][x] = static_cast<std::uint16_t>(
+                    state.line_state(3).current()[x]);
+            }
+        }
+    }
+    for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
+        state.line_state(plane).swap_lines();
+    }
+    return ok_status();
+}
+
 Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                 ByteSpan payload,
                                 std::uint64_t payload_offset,
@@ -265,20 +317,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         const auto width = output.plane_width(0);
         const auto height = output.plane_height(0);
         for (std::uint32_t y = 0; y < height; ++y) {
-            std::array<std::uint8_t*, 4> rows_u8{};
-            std::array<std::uint16_t*, 4> rows_u16{};
             for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
-                rows_u8[plane] = output.row_u8(plane, y);
-                rows_u16[plane] = output.row_u16(plane, y);
-                if (stream.bits_per_raw_sample <= 8 && rows_u8[plane] == nullptr) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "RGB slice output row is not writable as uint8");
-                }
-                if (stream.bits_per_raw_sample > 8 && rows_u16[plane] == nullptr) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "RGB slice output row is not writable as uint16");
-                }
-
                 const auto reconstruction_bits = plane < 3
                     ? static_cast<std::uint8_t>(stream.bits_per_raw_sample + 1)
                     : stream.bits_per_raw_sample;
@@ -294,34 +333,9 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                     return status;
                 }
             }
-
-            for (std::uint32_t x = 0; x < width; ++x) {
-                const auto rgb = syntax::inverse_jpeg2000_rct(
-                    state.line_state(0).current()[x],
-                    state.line_state(1).current()[x],
-                    state.line_state(2).current()[x],
-                    stream.bits_per_raw_sample,
-                    stream.extra_plane);
-                if (stream.bits_per_raw_sample <= 8) {
-                    rows_u8[0][x] = static_cast<std::uint8_t>(rgb.r);
-                    rows_u8[1][x] = static_cast<std::uint8_t>(rgb.g);
-                    rows_u8[2][x] = static_cast<std::uint8_t>(rgb.b);
-                    if (stream.extra_plane) {
-                        rows_u8[3][x] = static_cast<std::uint8_t>(
-                            state.line_state(3).current()[x]);
-                    }
-                } else {
-                    rows_u16[0][x] = rgb.r;
-                    rows_u16[1][x] = rgb.g;
-                    rows_u16[2][x] = rgb.b;
-                    if (stream.extra_plane) {
-                        rows_u16[3][x] = static_cast<std::uint16_t>(
-                            state.line_state(3).current()[x]);
-                    }
-                }
-            }
-            for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
-                state.line_state(plane).swap_lines();
+            status = store_rgb_line(stream, output, y, state);
+            if (!status.ok()) {
+                return status;
             }
         }
     } else {
@@ -705,20 +719,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         const auto width = output.plane_width(0);
         const auto height = output.plane_height(0);
         for (std::uint32_t y = 0; y < height; ++y) {
-            std::array<std::uint8_t*, 4> rows_u8{};
-            std::array<std::uint16_t*, 4> rows_u16{};
             for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
-                rows_u8[plane_index] = output.row_u8(plane_index, y);
-                rows_u16[plane_index] = output.row_u16(plane_index, y);
-                if (stream_.bits_per_raw_sample <= 8 && rows_u8[plane_index] == nullptr) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "RGB slice output row is not writable as uint8");
-                }
-                if (stream_.bits_per_raw_sample > 8 && rows_u16[plane_index] == nullptr) {
-                    return make_error(ErrorCode::InvalidArgument,
-                                      "RGB slice output row is not writable as uint16");
-                }
-
                 auto& line = state.line_state(plane_index);
                 const auto reconstruction_bits = plane_index < 3
                     ? coded_bits
@@ -735,34 +736,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                     return status;
                 }
             }
-
-            for (std::uint32_t x = 0; x < width; ++x) {
-                const auto rgb = syntax::inverse_jpeg2000_rct(
-                    state.line_state(0).current()[x],
-                    state.line_state(1).current()[x],
-                    state.line_state(2).current()[x],
-                    stream_.bits_per_raw_sample,
-                    stream_.extra_plane);
-                if (stream_.bits_per_raw_sample <= 8) {
-                    rows_u8[0][x] = static_cast<std::uint8_t>(rgb.r);
-                    rows_u8[1][x] = static_cast<std::uint8_t>(rgb.g);
-                    rows_u8[2][x] = static_cast<std::uint8_t>(rgb.b);
-                    if (stream_.extra_plane) {
-                        rows_u8[3][x] = static_cast<std::uint8_t>(
-                            state.line_state(3).current()[x]);
-                    }
-                } else {
-                    rows_u16[0][x] = rgb.r;
-                    rows_u16[1][x] = rgb.g;
-                    rows_u16[2][x] = rgb.b;
-                    if (stream_.extra_plane) {
-                        rows_u16[3][x] = static_cast<std::uint16_t>(
-                            state.line_state(3).current()[x]);
-                    }
-                }
-            }
-            for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
-                state.line_state(plane_index).swap_lines();
+            status = store_rgb_line(stream_, output, y, state);
+            if (!status.ok()) {
+                return status;
             }
         }
         return ok_status();

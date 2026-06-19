@@ -1060,6 +1060,50 @@ TEST(SliceDecoderTest, DecodesGolombRiceRgbRunInterruptionsWithAlpha)
     EXPECT_EQ(alpha[0], 1u);
 }
 
+TEST(SliceDecoderTest, KeepsGolombRiceRgbContextAndPredictionAcrossRows)
+{
+    auto stream = make_stream();
+    stream.width = 1;
+    stream.height = 2;
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    stream.entropy_mode = ffv1::EntropyMode::GolombRice;
+    std::array<std::uint8_t, 2> r{0xee, 0xee};
+    std::array<std::uint8_t, 2> g{0xee, 0xee};
+    std::array<std::uint8_t, 2> b{0xee, 0xee};
+    std::array<ffv1::MutablePlaneView, 3> planes{};
+    planes[0] = {r.data(), {ffv1::PlaneRole::R, ffv1::SampleFormat::UInt8, 1, 2, 1}};
+    planes[1] = {g.data(), {ffv1::PlaneRole::G, ffv1::SampleFormat::UInt8, 1, 2, 1}};
+    planes[2] = {b.data(), {ffv1::PlaneRole::B, ffv1::SampleFormat::UInt8, 1, 2, 1}};
+    ffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 3> payload{
+        std::byte{0x44}, std::byte{0x44}, std::byte{0x90},
+    };
+
+    ffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    ffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    ffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const ffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (std::size_t plane = 0; plane < 3; ++plane) {
+        EXPECT_EQ(state.line_state(plane).second_previous()[0], 1);
+        EXPECT_EQ(state.line_state(plane).previous()[0], 2);
+    }
+    EXPECT_EQ(r, (std::array<std::uint8_t, 2>{130, 131}));
+    EXPECT_EQ(g, (std::array<std::uint8_t, 2>{129, 129}));
+    EXPECT_EQ(b, (std::array<std::uint8_t, 2>{130, 131}));
+}
+
 TEST(SliceDecoderTest, DecodesGolombRiceZeroRun)
 {
     auto stream = make_stream();

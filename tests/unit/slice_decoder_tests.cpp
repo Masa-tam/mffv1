@@ -259,6 +259,86 @@ TEST(SliceDecoderTest, RejectsInitialStateCountThatDoesNotMatchQuantizationConte
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
 }
 
+TEST(SliceDecoderTest, RestoresCapturedRangeContexts)
+{
+    auto stream = make_stream();
+    stream.width = 1;
+    stream.height = 1;
+    std::array<std::uint8_t, 1> storage{0xee};
+    mffv1::MutablePlaneView plane{
+        storage.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 1, 1, 1},
+    };
+    mffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0x80}, std::byte{0x00}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    mffv1::entropy::RangeCoder::ScalarContextStates context_states{};
+    context_states.fill(1);
+    const std::array<mffv1::entropy::RangeCoder::ScalarContextStates, 1> context_bank{
+        context_states};
+    const std::span<const mffv1::entropy::RangeCoder::ScalarContextStates> context_bank_span{
+        context_bank.data(), context_bank.size()};
+    const std::array<std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>, 1>
+        initial_state_banks{context_bank_span};
+    const std::array<std::size_t, 1> context_counts{1};
+    mffv1::entropy::RangeCoder previous_reader;
+    ASSERT_TRUE(previous_reader.reset(payload, context_counts, initial_state_banks).ok());
+    ASSERT_TRUE(state.capture_range_contexts(previous_reader).ok());
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_NE(storage[0], 0u);
+}
+
+TEST(SliceDecoderTest, RejectsCapturedRangeContextCountMismatch)
+{
+    auto stream = make_stream();
+    stream.width = 1;
+    stream.height = 1;
+    std::array<std::uint8_t, 1> storage{0xee};
+    mffv1::MutablePlaneView plane{
+        storage.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 1, 1, 1},
+    };
+    mffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    const std::array<std::size_t, 1> context_counts{2};
+    mffv1::entropy::RangeCoder previous_reader;
+    ASSERT_TRUE(previous_reader.reset(payload, context_counts).ok());
+    ASSERT_TRUE(state.capture_range_contexts(previous_reader).ok());
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(storage[0], 0xee);
+}
+
 TEST(SliceDecoderTest, RejectsContentOffsetOutsidePayload)
 {
     const auto stream = make_stream();

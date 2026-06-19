@@ -651,6 +651,22 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         }
     }
 
+    if (stream_.entropy_mode == EntropyMode::Range && state.has_range_contexts()) {
+        const auto& saved_contexts = state.range_contexts();
+        if (saved_contexts.size() != context_counts.size()) {
+            return make_error(ErrorCode::InvalidState,
+                              "saved range context bank count does not match slice plane count");
+        }
+        initial_state_banks.clear();
+        for (std::size_t plane_index = 0; plane_index < saved_contexts.size(); ++plane_index) {
+            if (saved_contexts[plane_index].size() != context_counts[plane_index]) {
+                return make_error(ErrorCode::InvalidState,
+                                  "saved range context count does not match quantization contexts");
+            }
+            initial_state_banks.emplace_back(saved_contexts[plane_index]);
+        }
+    }
+
     if (stream_.entropy_mode == EntropyMode::GolombRice) {
         return decode_golomb_rice_slice(stream_,
                                         content_payload,

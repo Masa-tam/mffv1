@@ -157,6 +157,35 @@ TEST(SliceExecutorTest, FailedFramePreservesReferenceState)
     EXPECT_TRUE(executor.has_reference_state());
 }
 
+TEST(SliceExecutorTest, NonKeyframeContinuesRangeContexts)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 1> continued_storage{0xee};
+    auto continued_plane = make_y_plane(continued_storage);
+    mffv1::MutableFrameView continued_output{&continued_plane, 1};
+    const std::array<std::byte, 2> keyframe_payload{std::byte{0xff}, std::byte{0x00}};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = keyframe_payload;
+    slice.quant_table_set_indexes.push_back(0);
+    std::array slices{slice};
+    mffv1::codec::SliceExecutor executor(stream);
+    ASSERT_TRUE(executor.decode(continued_output, slices, true).ok());
+
+    const std::array<std::byte, 2> next_payload{std::byte{0x70}, std::byte{0x00}};
+    slices[0].payload = next_payload;
+    ASSERT_TRUE(executor.decode(continued_output, slices, false).ok());
+
+    std::array<std::uint8_t, 1> fresh_storage{0xee};
+    auto fresh_plane = make_y_plane(fresh_storage);
+    mffv1::MutableFrameView fresh_output{&fresh_plane, 1};
+    mffv1::codec::SliceExecutor fresh_executor(stream);
+    ASSERT_TRUE(fresh_executor.decode(fresh_output, slices, true).ok());
+
+    EXPECT_NE(fresh_storage[0], continued_storage[0]);
+}
+
 TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
 {
     const auto stream = make_stream();

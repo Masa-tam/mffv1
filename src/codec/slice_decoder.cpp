@@ -106,6 +106,52 @@ void set_reader_byte_offset(Status& status,
     }
 }
 
+Status decode_range_line(entropy::RangeCoder& reader,
+                         std::uint64_t reader_base_offset,
+                         const syntax::ContextModel& context_model,
+                         std::size_t plane,
+                         std::uint32_t width,
+                         std::uint8_t reconstruction_bits,
+                         bool use_signed_16bit_prediction,
+                         syntax::LineState& line)
+{
+    for (std::uint32_t x = 0; x < width; ++x) {
+        const auto neighbors = line.neighbors(x);
+        const std::int32_t prediction = use_signed_16bit_prediction
+            ? syntax::Predictor::median_predict_signed_16bit(
+                neighbors.left, neighbors.top, neighbors.top_left)
+            : syntax::Predictor::median_predict(
+                neighbors.left, neighbors.top, neighbors.top_left);
+
+        syntax::ContextDecision context;
+        Status status = context_model.derive_context(neighbors, context);
+        if (!status.ok()) {
+            return status;
+        }
+
+        std::int64_t difference64 = 0;
+        status = reader.read_signed(plane, context.context, difference64);
+        if (!status.ok()) {
+            set_reader_byte_offset(status, reader_base_offset, reader.byte_position());
+            return status;
+        }
+        if (context.invert_difference) {
+            difference64 = -difference64;
+        }
+        if (difference64 < std::numeric_limits<std::int32_t>::min()
+            || difference64 > std::numeric_limits<std::int32_t>::max()) {
+            return make_error(ErrorCode::SyntaxError,
+                              "range-coded sample difference is outside int32 range");
+        }
+
+        line.mutable_current()[x] = syntax::Predictor::reconstruct(
+            prediction,
+            static_cast<std::int32_t>(difference64),
+            reconstruction_bits);
+    }
+    return ok_status();
+}
+
 Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                entropy::GolombRiceReader& reader,
                                std::uint64_t payload_offset,
@@ -677,34 +723,16 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 const auto reconstruction_bits = plane_index < 3
                     ? coded_bits
                     : stream_.bits_per_raw_sample;
-                for (std::uint32_t x = 0; x < width; ++x) {
-                    const auto neighbors = line.neighbors(x);
-                    const auto prediction = syntax::Predictor::median_predict(
-                        neighbors.left, neighbors.top, neighbors.top_left);
-                    syntax::ContextDecision context;
-                    status = context_models[plane_index].derive_context(neighbors, context);
-                    if (!status.ok()) {
-                        return status;
-                    }
-
-                    std::int64_t difference64 = 0;
-                    status = reader.read_signed(plane_index, context.context, difference64);
-                    if (!status.ok()) {
-                        set_reader_byte_offset(status, reader_base_offset, reader.byte_position());
-                        return status;
-                    }
-                    if (context.invert_difference) {
-                        difference64 = -difference64;
-                    }
-                    if (difference64 < std::numeric_limits<std::int32_t>::min()
-                        || difference64 > std::numeric_limits<std::int32_t>::max()) {
-                        return make_error(ErrorCode::SyntaxError,
-                                          "RGB sample difference is outside int32 range");
-                    }
-                    line.mutable_current()[x] = syntax::Predictor::reconstruct(
-                        prediction,
-                        static_cast<std::int32_t>(difference64),
-                        reconstruction_bits);
+                status = decode_range_line(reader,
+                                           reader_base_offset,
+                                           context_models[plane_index],
+                                           plane_index,
+                                           width,
+                                           reconstruction_bits,
+                                           false,
+                                           line);
+                if (!status.ok()) {
+                    return status;
                 }
             }
 
@@ -755,44 +783,24 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 return make_error(ErrorCode::InvalidArgument, "slice output row is not writable as uint16");
             }
 
-            for (std::uint32_t x = 0; x < output.plane_width(plane_index); ++x) {
-                const auto neighbors = line.neighbors(x);
-                const std::int32_t prediction = use_signed_16bit_prediction
-                    ? syntax::Predictor::median_predict_signed_16bit(
-                        neighbors.left, neighbors.top, neighbors.top_left)
-                    : syntax::Predictor::median_predict(
-                        neighbors.left, neighbors.top, neighbors.top_left);
-
-                syntax::ContextDecision context;
-                status = context_model.derive_context(neighbors, context);
-                if (!status.ok()) {
-                    return status;
-                }
-
-                std::int64_t difference64 = 0;
-                status = reader.read_signed(plane_index, context.context, difference64);
-                if (!status.ok()) {
-                    set_reader_byte_offset(status, reader_base_offset, reader.byte_position());
-                    return status;
-                }
-                if (context.invert_difference) {
-                    difference64 = -difference64;
-                }
-                if (difference64 < std::numeric_limits<std::int32_t>::min()
-                    || difference64 > std::numeric_limits<std::int32_t>::max()) {
-                    return make_error(ErrorCode::SyntaxError, "sample difference is outside int32 range");
-                }
-
-                const std::int32_t sample =
-                    syntax::Predictor::reconstruct(prediction,
-                                                   static_cast<std::int32_t>(difference64),
-                                                   stream_.bits_per_raw_sample);
+            const auto width = output.plane_width(plane_index);
+            status = decode_range_line(reader,
+                                       reader_base_offset,
+                                       context_model,
+                                       plane_index,
+                                       width,
+                                       stream_.bits_per_raw_sample,
+                                       use_signed_16bit_prediction,
+                                       line);
+            if (!status.ok()) {
+                return status;
+            }
+            for (std::uint32_t x = 0; x < width; ++x) {
                 if (stream_.bits_per_raw_sample <= 8) {
-                    row_u8[x] = static_cast<std::uint8_t>(sample);
+                    row_u8[x] = static_cast<std::uint8_t>(line.current()[x]);
                 } else {
-                    row_u16[x] = static_cast<std::uint16_t>(sample);
+                    row_u16[x] = static_cast<std::uint16_t>(line.current()[x]);
                 }
-                line.mutable_current()[x] = sample;
             }
             line.swap_lines();
         }

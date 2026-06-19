@@ -41,16 +41,44 @@ SliceExecutor::SliceExecutor(const syntax::StreamParameters& stream, int thread_
 {
 }
 
-Status SliceExecutor::decode(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const
+Status SliceExecutor::decode(MutableFrameView output,
+                             std::span<const syntax::SliceDescriptor> slices,
+                             bool keyframe)
 {
     Status status = validate_slices(output, slices);
     if (!status.ok()) {
         return status;
     }
-    if (thread_count_ <= 1 || slices.size() < 2) {
-        return decode_serial(output, slices);
+
+    std::vector<SliceState> working_states;
+    if (keyframe) {
+        working_states.resize(slices.size());
+    } else {
+        if (slice_states_.empty()) {
+            return make_error(ErrorCode::InvalidState,
+                              "non-keyframe requires reference slice states");
+        }
+        if (slice_states_.size() != slices.size()) {
+            return make_error(ErrorCode::SyntaxError,
+                              "non-keyframe slice count differs from the reference frame");
+        }
+        working_states = slice_states_;
     }
-    return decode_parallel(output, slices);
+
+    if (thread_count_ <= 1 || slices.size() < 2) {
+        status = decode_serial(output, slices, working_states);
+    } else {
+        status = decode_parallel(output, slices, working_states);
+    }
+    if (status.ok()) {
+        slice_states_ = std::move(working_states);
+    }
+    return status;
+}
+
+bool SliceExecutor::has_reference_state() const noexcept
+{
+    return !slice_states_.empty();
 }
 
 std::uint32_t SliceExecutor::thread_count() const noexcept
@@ -84,19 +112,23 @@ Status SliceExecutor::validate_slices(MutableFrameView output,
     return ok_status();
 }
 
-Status SliceExecutor::decode_serial(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const
+Status SliceExecutor::decode_serial(MutableFrameView output,
+                                    std::span<const syntax::SliceDescriptor> slices,
+                                    std::vector<SliceState>& states) const
 {
-    for (const auto& slice : slices) {
-        Status status = decode_slice(output, slice);
+    for (std::size_t i = 0; i < slices.size(); ++i) {
+        Status status = decode_slice(output, slices[i], states[i]);
         if (!status.ok()) {
-            set_slice_location_if_missing(status, slice.index);
+            set_slice_location_if_missing(status, slices[i].index);
             return status;
         }
     }
     return ok_status();
 }
 
-Status SliceExecutor::decode_parallel(MutableFrameView output, std::span<const syntax::SliceDescriptor> slices) const
+Status SliceExecutor::decode_parallel(MutableFrameView output,
+                                      std::span<const syntax::SliceDescriptor> slices,
+                                      std::vector<SliceState>& states) const
 {
     const auto worker_count = worker_count_for(slices.size());
     std::vector<std::future<Status>> futures;
@@ -109,8 +141,9 @@ Status SliceExecutor::decode_parallel(MutableFrameView output, std::span<const s
         futures.clear();
         for (std::size_t i = 0; i < batch_size; ++i) {
             const auto* slice = &slices[offset + i];
-            futures.push_back(std::async(std::launch::async, [this, output, slice]() {
-                return decode_slice(output, *slice);
+            auto* state = &states[offset + i];
+            futures.push_back(std::async(std::launch::async, [this, output, slice, state]() {
+                return decode_slice(output, *slice, *state);
             }));
         }
 
@@ -131,7 +164,9 @@ Status SliceExecutor::decode_parallel(MutableFrameView output, std::span<const s
     return ok_status();
 }
 
-Status SliceExecutor::decode_slice(MutableFrameView output, const syntax::SliceDescriptor& slice) const
+Status SliceExecutor::decode_slice(MutableFrameView output,
+                                   const syntax::SliceDescriptor& slice,
+                                   SliceState& state) const
 {
     SliceOutputWindow window;
     Status status = window.validate(stream_, output, slice);
@@ -139,7 +174,6 @@ Status SliceExecutor::decode_slice(MutableFrameView output, const syntax::SliceD
         return status;
     }
 
-    SliceState state;
     status = state.reset(window);
     if (!status.ok()) {
         return status;

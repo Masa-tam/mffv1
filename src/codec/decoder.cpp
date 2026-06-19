@@ -38,6 +38,7 @@ public:
         }
 
         stream_ = std::move(stream);
+        slice_executor_ = std::make_unique<codec::SliceExecutor>(*stream_, options_.thread_count);
         return ok_status();
     }
 
@@ -109,14 +110,17 @@ private:
         return parser.parse(frame_payload, frame);
     }
 
-    Status decode_slices(const codec::FrameDecodeContext& frame, MutableFrameView output) const
+    Status decode_slices(const codec::FrameDecodeContext& frame, MutableFrameView output)
     {
-        const codec::SliceExecutor executor(*stream_, options_.thread_count);
-        return executor.decode(output, frame.slices);
+        if (!slice_executor_) {
+            return make_error(ErrorCode::InvalidState, "slice executor is not configured");
+        }
+        return slice_executor_->decode(output, frame.slices, frame.keyframe);
     }
 
     DecoderOptions options_;
     std::optional<syntax::StreamParameters> stream_;
+    std::unique_ptr<codec::SliceExecutor> slice_executor_;
 };
 
 } // namespace

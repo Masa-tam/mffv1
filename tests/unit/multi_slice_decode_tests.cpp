@@ -68,7 +68,7 @@ TEST(MultiSliceDecodeTest, ContinuesRangeStateFromEachSliceHeader)
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage);
     mffv1::MutableFrameView output{&plane, 1};
-    const mffv1::codec::SliceExecutor executor(stream, 2);
+    mffv1::codec::SliceExecutor executor(stream, 2);
     status = executor.decode(output, frame.slices);
     ASSERT_TRUE(status.ok()) << status.message;
 
@@ -106,7 +106,7 @@ TEST(MultiSliceDecodeTest, DecodesBufferedSymbolWhenHeaderConsumesAllEntropyByte
     plane.info.height = 1;
     plane.info.stride_bytes = 1;
     mffv1::MutableFrameView output{&plane, 1};
-    const mffv1::codec::SliceExecutor executor(stream, 1);
+    mffv1::codec::SliceExecutor executor(stream, 1);
 
     status = executor.decode(output, frame.slices);
 

@@ -64,7 +64,7 @@ TEST(SliceExecutorTest, AcceptsEmptySliceList)
     mffv1::MutableFrameView output{&plane, 1};
     const std::vector<mffv1::syntax::SliceDescriptor> slices;
 
-    const mffv1::codec::SliceExecutor executor(stream);
+    mffv1::codec::SliceExecutor executor(stream);
     const auto status = executor.decode(output, slices);
 
     EXPECT_TRUE(status.ok()) << status.message;
@@ -109,6 +109,54 @@ TEST(SliceExecutorTest, CapsWorkerCountToSliceCount)
     EXPECT_EQ(executor.worker_count_for(9), 8u);
 }
 
+TEST(SliceExecutorTest, RejectsNonKeyframeWithoutReferenceState)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+    const std::array slices{slice};
+    mffv1::codec::SliceExecutor executor(stream);
+
+    const auto status = executor.decode(output, slices, false);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_FALSE(executor.has_reference_state());
+    EXPECT_EQ(storage[0], 0xee);
+}
+
+TEST(SliceExecutorTest, FailedFramePreservesReferenceState)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> valid_payload{std::byte{0xff}, std::byte{0x00}};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = valid_payload;
+    slice.quant_table_set_indexes.push_back(0);
+    std::array slices{slice};
+    mffv1::codec::SliceExecutor executor(stream);
+    ASSERT_TRUE(executor.decode(output, slices, true).ok());
+    ASSERT_TRUE(executor.has_reference_state());
+
+    const std::array<std::byte, 1> invalid_payload{std::byte{0xff}};
+    slices[0].payload = invalid_payload;
+    const auto status = executor.decode(output, slices, false);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_TRUE(executor.has_reference_state());
+}
+
 TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
 {
     const auto stream = make_stream();
@@ -125,7 +173,7 @@ TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
     slice.quant_table_set_indexes.push_back(0);
     const std::array slices{slice};
 
-    const mffv1::codec::SliceExecutor executor(stream);
+    mffv1::codec::SliceExecutor executor(stream);
     const auto status = executor.decode(output, slices);
 
     EXPECT_FALSE(status.ok());
@@ -154,7 +202,7 @@ TEST(SliceExecutorTest, ParallelDecodeReportsFirstFailingSliceInInputOrder)
 
     const std::array slices{first, second};
 
-    const mffv1::codec::SliceExecutor executor(stream, 2);
+    mffv1::codec::SliceExecutor executor(stream, 2);
     const auto status = executor.decode(output, slices);
 
     EXPECT_FALSE(status.ok());
@@ -182,13 +230,14 @@ TEST(SliceExecutorTest, ParallelDecodeProcessesAllBatches)
         slice.quant_table_set_indexes.push_back(0);
     }
 
-    const mffv1::codec::SliceExecutor executor(stream, 2);
+    mffv1::codec::SliceExecutor executor(stream, 2);
     const auto status = executor.decode(output, slices);
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(storage[0], 0u);
     EXPECT_EQ(storage[1], 0u);
     EXPECT_EQ(storage[2], 0u);
+    EXPECT_TRUE(executor.has_reference_state());
 }
 
 TEST(SliceExecutorTest, ValidatesAllSlicesBeforeWritingOutput)
@@ -212,7 +261,7 @@ TEST(SliceExecutorTest, ValidatesAllSlicesBeforeWritingOutput)
     second.quant_table_set_indexes[0] = 1;
     const std::array slices{first, second};
 
-    const mffv1::codec::SliceExecutor executor(stream);
+    mffv1::codec::SliceExecutor executor(stream);
     const auto status = executor.decode(output, slices);
 
     EXPECT_FALSE(status.ok());

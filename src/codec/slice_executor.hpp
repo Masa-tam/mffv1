@@ -6,6 +6,7 @@
 #include "mffv1/slice_descriptor.hpp"
 #include "mffv1/stream_parameters.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -26,6 +27,8 @@ public:
     [[nodiscard]] std::size_t worker_count_for(std::size_t slice_count) const noexcept;
 
 private:
+    using SliceLayout = std::array<std::uint32_t, 4>;
+
     Status validate_slices(MutableFrameView output,
                            std::span<const syntax::SliceDescriptor> slices) const;
     Status decode_serial(MutableFrameView output,
@@ -41,6 +44,7 @@ private:
     const syntax::StreamParameters& stream_;
     std::uint32_t thread_count_ = 1;
     std::vector<SliceState> slice_states_;
+    std::vector<SliceLayout> slice_layouts_;
 };
 
 } // namespace mffv1::codec

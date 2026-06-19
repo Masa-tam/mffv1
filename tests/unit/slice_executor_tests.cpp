@@ -186,6 +186,70 @@ TEST(SliceExecutorTest, NonKeyframeContinuesRangeContexts)
     EXPECT_NE(fresh_storage[0], continued_storage[0]);
 }
 
+TEST(SliceExecutorTest, RejectsChangedNonKeyframeSliceLayout)
+{
+    auto stream = make_stream(2, 1);
+    stream.num_h_slices = 2;
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.index = 4;
+    slice.width = 1;
+    slice.height = 1;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+    std::array slices{slice};
+    mffv1::codec::SliceExecutor executor(stream);
+    ASSERT_TRUE(executor.decode(output, slices, true).ok());
+
+    slices[0].raster_x = 1;
+    storage.fill(0xee);
+    const auto status = executor.decode(output, slices, false);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 4u);
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0xee);
+    EXPECT_TRUE(executor.has_reference_state());
+}
+
+TEST(SliceExecutorTest, MatchesNonKeyframeStatesBySliceLayout)
+{
+    auto stream = make_stream(2, 1);
+    stream.num_h_slices = 2;
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+    mffv1::syntax::SliceDescriptor left;
+    left.index = 0;
+    left.width = 1;
+    left.height = 1;
+    left.raster_width = 1;
+    left.raster_height = 1;
+    left.payload = payload;
+    left.quant_table_set_indexes.push_back(0);
+    auto right = left;
+    right.index = 1;
+    right.x = 1;
+    right.raster_x = 1;
+    std::array slices{left, right};
+    mffv1::codec::SliceExecutor executor(stream, 2);
+    ASSERT_TRUE(executor.decode(output, slices, true).ok());
+
+    std::swap(slices[0], slices[1]);
+    const auto status = executor.decode(output, slices, false);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(executor.has_reference_state());
+}
+
 TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
 {
     const auto stream = make_stream();

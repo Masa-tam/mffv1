@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <future>
+#include <numeric>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -26,6 +27,11 @@ std::uint32_t normalize_thread_count(int thread_count) noexcept
         return hardware_threads == 0 ? 1 : hardware_threads;
     }
     return static_cast<std::uint32_t>(thread_count);
+}
+
+std::array<std::uint32_t, 4> slice_layout(const syntax::SliceDescriptor& slice) noexcept
+{
+    return {slice.raster_x, slice.raster_y, slice.raster_width, slice.raster_height};
 }
 
 } // namespace
@@ -51,6 +57,11 @@ Status SliceExecutor::decode(MutableFrameView output,
     }
 
     std::vector<SliceState> working_states;
+    std::vector<SliceLayout> working_layouts;
+    working_layouts.reserve(slices.size());
+    for (const auto& slice : slices) {
+        working_layouts.push_back(slice_layout(slice));
+    }
     if (keyframe) {
         working_states.resize(slices.size());
     } else {
@@ -62,7 +73,39 @@ Status SliceExecutor::decode(MutableFrameView output,
             return make_error(ErrorCode::SyntaxError,
                               "non-keyframe slice count differs from the reference frame");
         }
-        working_states = slice_states_;
+        if (slice_layouts_.size() != slice_states_.size()) {
+            return make_error(ErrorCode::InvalidState,
+                              "reference slice layouts do not match reference states");
+        }
+
+        std::vector<std::size_t> reference_order(slice_layouts_.size());
+        std::vector<std::size_t> current_order(working_layouts.size());
+        std::iota(reference_order.begin(), reference_order.end(), 0);
+        std::iota(current_order.begin(), current_order.end(), 0);
+        std::sort(reference_order.begin(),
+                  reference_order.end(),
+                  [&](std::size_t lhs, std::size_t rhs) {
+                      return slice_layouts_[lhs] < slice_layouts_[rhs];
+                  });
+        std::sort(current_order.begin(),
+                  current_order.end(),
+                  [&](std::size_t lhs, std::size_t rhs) {
+                      return working_layouts[lhs] < working_layouts[rhs];
+                  });
+
+        working_states.resize(slices.size());
+        for (std::size_t rank = 0; rank < current_order.size(); ++rank) {
+            const auto current = current_order[rank];
+            const auto reference = reference_order[rank];
+            if (working_layouts[current] != slice_layouts_[reference]) {
+                Status mismatch = make_error(
+                    ErrorCode::SyntaxError,
+                    "non-keyframe slice layout differs from the reference frame");
+                set_slice_location_if_missing(mismatch, slices[current].index);
+                return mismatch;
+            }
+            working_states[current] = slice_states_[reference];
+        }
     }
 
     if (thread_count_ <= 1 || slices.size() < 2) {
@@ -72,6 +115,7 @@ Status SliceExecutor::decode(MutableFrameView output,
     }
     if (status.ok()) {
         slice_states_ = std::move(working_states);
+        slice_layouts_ = std::move(working_layouts);
     }
     return status;
 }

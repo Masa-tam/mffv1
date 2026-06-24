@@ -19,6 +19,7 @@ endif()
 
 add_executable(mffv1_unit_tests
     unit/bit_reader_tests.cpp
+    unit/bit_writer_tests.cpp
     unit/color_transform_tests.cpp
     unit/context_model_tests.cpp
     unit/crc32_tests.cpp

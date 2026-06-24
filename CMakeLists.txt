@@ -10,6 +10,7 @@ include(Mffv1Options)
 
 add_library(mffv1
     src/bitstream/bit_reader.cpp
+    src/bitstream/bit_writer.cpp
     src/codec/decoder.cpp
     src/codec/encoder.cpp
     src/codec/frame_parser.cpp

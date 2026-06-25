@@ -179,6 +179,22 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesChromaSubsampling)
     EXPECT_EQ(parsed.log2_v_chroma_subsample, 1u);
 }
 
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesExtraPlane)
+{
+    auto stream = make_initial_profile();
+    stream.extra_plane = true;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    ASSERT_TRUE(writer.write(stream, record).ok());
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_TRUE(parsed.extra_plane);
+    EXPECT_EQ(mffv1::syntax::coded_plane_count(parsed), 2u);
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordConfiguresPublicDecoder)
 {
     const auto stream = make_initial_profile();

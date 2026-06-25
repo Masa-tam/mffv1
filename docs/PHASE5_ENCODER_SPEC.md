@@ -28,9 +28,10 @@ necessary but not sufficient for final conformance; later milestones add
 independently produced vectors and black-box interoperability tests.
 
 The first post-milestone extensions add planar 8-bit YCbCr 4:4:4, 4:2:2, and
-4:2:0. Y, Cb, and Cr use separate prediction line state and separate range
-context banks, and are coded in planar order. Subsampled chroma dimensions use
-ceiling division, including for odd frame dimensions.
+4:2:0, plus an optional full-resolution extra plane. Every coded plane uses
+separate prediction line state and separate range context banks and is coded
+in planar order. Subsampled chroma dimensions use ceiling division, including
+for odd frame dimensions.
 
 ## Public API Contract
 

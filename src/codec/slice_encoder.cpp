@@ -24,11 +24,10 @@ Status SliceEncoder::validate_stream() const
 {
     if (stream_.entropy_mode != EntropyMode::Range
         || stream_.colorspace_type != 0
-        || stream_.bits_per_raw_sample != 8
-        || stream_.extra_plane) {
+        || stream_.bits_per_raw_sample != 8) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "slice encoder supports only range-coded 8-bit planar Y or YCbCr 4:4:4, 4:2:2, and 4:2:0 streams");
+            "slice encoder supports only range-coded 8-bit planar Y or YCbCr streams, with an optional extra plane");
     }
     if (!stream_.chroma_planes
         && (stream_.log2_h_chroma_subsample != 0

@@ -32,10 +32,9 @@ Status normalize_initial_profile(const EncoderOptions& options,
         return make_error(ErrorCode::UnsupportedFeature,
                           "encoder supports only range coding");
     }
-    if (info.bits_per_raw_sample != 8
-        || info.has_extra_plane) {
+    if (info.bits_per_raw_sample != 8) {
         return make_error(ErrorCode::UnsupportedFeature,
-                          "encoder supports only 8-bit planar Y or YCbCr 4:4:4, 4:2:2, and 4:2:0 streams");
+                          "encoder supports only 8-bit planar Y or YCbCr streams, with an optional extra plane");
     }
     if (!info.has_chroma_planes
         && (info.log2_h_chroma_subsample != 0
@@ -62,7 +61,7 @@ Status normalize_initial_profile(const EncoderOptions& options,
     stream.bits_per_raw_sample = 8;
     stream.colorspace_type = 0;
     stream.chroma_planes = info.has_chroma_planes;
-    stream.extra_plane = false;
+    stream.extra_plane = info.has_extra_plane;
     stream.log2_h_chroma_subsample = info.log2_h_chroma_subsample;
     stream.log2_v_chroma_subsample = info.log2_v_chroma_subsample;
     stream.num_h_slices = 1;

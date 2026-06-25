@@ -177,7 +177,7 @@ TEST(EncoderTest, FailedReconfigurePreservesUsablePreviousConfiguration)
     ASSERT_TRUE(result.encoder->configure(stream, record).ok());
     const auto original_record = record.bytes;
 
-    stream.has_extra_plane = true;
+    stream.bits_per_raw_sample = 9;
     ASSERT_FALSE(result.encoder->configure(stream, record).ok());
     EXPECT_EQ(record.bytes, original_record);
     mffv1::EncodedFrame frame;
@@ -359,8 +359,67 @@ TEST(EncoderTest, PublicEncoderRoundTripsPlanarYcbcr444)
     EXPECT_EQ(decoded_cr, cr);
 }
 
+TEST(EncoderTest, PublicEncoderRoundTripsYWithExtraPlane)
+{
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.has_extra_plane = true;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> y{};
+    std::array<std::uint8_t, 128> alpha{};
+    for (std::size_t index = 0; index < y.size(); ++index) {
+        y[index] = static_cast<std::uint8_t>((index * 43u) & 0xffu);
+        alpha[index] =
+            static_cast<std::uint8_t>((255u - index * 31u) & 0xffu);
+    }
+    std::array<mffv1::PlaneView, 2> input_planes{};
+    input_planes[0] = {
+        y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    input_planes[1] = {
+        alpha.data(),
+        {mffv1::PlaneRole::Alpha, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    const mffv1::FrameView input{
+        input_planes.data(), input_planes.size()};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    std::array<std::uint8_t, 128> decoded_y{};
+    std::array<std::uint8_t, 128> decoded_alpha{};
+    std::array<mffv1::MutablePlaneView, 2> output_planes{};
+    output_planes[0] = {
+        decoded_y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    output_planes[1] = {
+        decoded_alpha.data(),
+        {mffv1::PlaneRole::Alpha, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    mffv1::MutableFrameView output{
+        output_planes.data(), output_planes.size()};
+
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+    EXPECT_EQ(decoded_y, y);
+    EXPECT_EQ(decoded_alpha, alpha);
+}
+
 void expect_public_subsampled_round_trip(
-    std::uint8_t log2_v_chroma_subsample)
+    std::uint8_t log2_v_chroma_subsample,
+    bool has_extra_plane = false)
 {
     auto encoder = mffv1::create_encoder({});
     ASSERT_TRUE(encoder.status.ok());
@@ -371,7 +430,7 @@ void expect_public_subsampled_round_trip(
     stream.version = 3;
     stream.bits_per_raw_sample = 8;
     stream.has_chroma_planes = true;
-    stream.has_extra_plane = false;
+    stream.has_extra_plane = has_extra_plane;
     stream.log2_h_chroma_subsample = 1;
     stream.log2_v_chroma_subsample = log2_v_chroma_subsample;
     mffv1::ConfigurationRecord record;
@@ -383,14 +442,17 @@ void expect_public_subsampled_round_trip(
     std::vector<std::uint8_t> y(15);
     std::vector<std::uint8_t> cb(chroma_width * chroma_height);
     std::vector<std::uint8_t> cr(chroma_width * chroma_height);
+    std::vector<std::uint8_t> alpha(15);
     for (std::size_t index = 0; index < y.size(); ++index) {
         y[index] = static_cast<std::uint8_t>((index * 37u) & 0xffu);
+        alpha[index] =
+            static_cast<std::uint8_t>((255u - index * 11u) & 0xffu);
     }
     for (std::size_t index = 0; index < cb.size(); ++index) {
         cb[index] = static_cast<std::uint8_t>((128u + index * 19u) & 0xffu);
         cr[index] = static_cast<std::uint8_t>((255u - index * 23u) & 0xffu);
     }
-    std::array<mffv1::PlaneView, 3> input_planes{};
+    std::array<mffv1::PlaneView, 4> input_planes{};
     input_planes[0] = {
         y.data(),
         {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 3, 5},
@@ -411,8 +473,12 @@ void expect_public_subsampled_round_trip(
          chroma_height,
          static_cast<std::ptrdiff_t>(chroma_width)},
     };
+    input_planes[3] = {
+        alpha.data(),
+        {mffv1::PlaneRole::Alpha, mffv1::SampleFormat::UInt8, 5, 3, 5},
+    };
     const mffv1::FrameView input{
-        input_planes.data(), input_planes.size()};
+        input_planes.data(), has_extra_plane ? 4u : 3u};
     mffv1::EncodedFrame frame;
     ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
 
@@ -427,7 +493,8 @@ void expect_public_subsampled_round_trip(
     std::vector<std::uint8_t> decoded_y(y.size());
     std::vector<std::uint8_t> decoded_cb(cb.size());
     std::vector<std::uint8_t> decoded_cr(cr.size());
-    std::array<mffv1::MutablePlaneView, 3> output_planes{};
+    std::vector<std::uint8_t> decoded_alpha(alpha.size());
+    std::array<mffv1::MutablePlaneView, 4> output_planes{};
     output_planes[0] = {
         decoded_y.data(),
         {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 3, 5},
@@ -448,13 +515,20 @@ void expect_public_subsampled_round_trip(
          chroma_height,
          static_cast<std::ptrdiff_t>(chroma_width)},
     };
+    output_planes[3] = {
+        decoded_alpha.data(),
+        {mffv1::PlaneRole::Alpha, mffv1::SampleFormat::UInt8, 5, 3, 5},
+    };
     mffv1::MutableFrameView output{
-        output_planes.data(), output_planes.size()};
+        output_planes.data(), has_extra_plane ? 4u : 3u};
 
     ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
     EXPECT_EQ(decoded_y, y);
     EXPECT_EQ(decoded_cb, cb);
     EXPECT_EQ(decoded_cr, cr);
+    if (has_extra_plane) {
+        EXPECT_EQ(decoded_alpha, alpha);
+    }
 }
 
 TEST(EncoderTest, PublicEncoderRoundTripsOddSizedYcbcr422)
@@ -465,6 +539,11 @@ TEST(EncoderTest, PublicEncoderRoundTripsOddSizedYcbcr422)
 TEST(EncoderTest, PublicEncoderRoundTripsOddSizedYcbcr420)
 {
     expect_public_subsampled_round_trip(1);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsOddSizedYcbcr420WithExtraPlane)
+{
+    expect_public_subsampled_round_trip(1, true);
 }
 
 TEST(EncoderTest, EncodesSuccessiveFramesAsIndependentKeyframes)

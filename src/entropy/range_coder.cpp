@@ -16,25 +16,6 @@ std::uint64_t SymbolReader::byte_position() const noexcept
     return 0;
 }
 
-namespace {
-
-std::uint8_t zero_state(const syntax::StateTransitionTable& state_transition,
-                        std::uint8_t state) noexcept
-{
-    if (state == 0) {
-        return 0;
-    }
-    return static_cast<std::uint8_t>(256u - state_transition[256u - state]);
-}
-
-std::uint8_t one_state(const syntax::StateTransitionTable& state_transition,
-                       std::uint8_t state) noexcept
-{
-    return state_transition[state];
-}
-
-} // namespace
-
 Status RangeCoder::reset(ByteSpan payload,
                          std::size_t scalar_context_count,
                          std::uint8_t initial_state)
@@ -298,7 +279,7 @@ Status RangeCoder::read_rac(std::uint8_t& state, bool& out_bit)
     const std::uint32_t rangeoff = (range_ * state) >> 8;
     range_ -= rangeoff;
     if (low_ < range_) {
-        state = zero_state(state_transition_, state);
+        state = syntax::range_zero_state(state_transition_, state);
         out_bit = false;
         refill();
         return ok_status();
@@ -306,7 +287,7 @@ Status RangeCoder::read_rac(std::uint8_t& state, bool& out_bit)
 
     low_ -= range_;
     range_ = rangeoff;
-    state = one_state(state_transition_, state);
+    state = syntax::range_one_state(state_transition_, state);
     out_bit = true;
     refill();
     return ok_status();

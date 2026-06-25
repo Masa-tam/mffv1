@@ -26,4 +26,21 @@ inline constexpr StateTransitionTable kDefaultStateTransition = {
     241, 242, 243, 244, 245, 246, 247, 248, 248, 0, 0, 0, 0, 0, 0, 0,
 };
 
+[[nodiscard]] inline std::uint8_t range_zero_state(
+    const StateTransitionTable& state_transition,
+    std::uint8_t state) noexcept
+{
+    if (state == 0) {
+        return 0;
+    }
+    return static_cast<std::uint8_t>(256u - state_transition[256u - state]);
+}
+
+[[nodiscard]] inline std::uint8_t range_one_state(
+    const StateTransitionTable& state_transition,
+    std::uint8_t state) noexcept
+{
+    return state_transition[state];
+}
+
 } // namespace mffv1::syntax

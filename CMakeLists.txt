@@ -29,6 +29,7 @@ add_library(mffv1
     src/entropy/golomb_rice_reader.cpp
     src/entropy/golomb_rice_run.cpp
     src/entropy/range_coder.cpp
+    src/entropy/range_encoder.cpp
     src/mffv1/configuration_parser.cpp
     src/mffv1/predictor.cpp
     src/util/crc32.cpp

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bitstream/bit_reader.hpp"
+#include "bitstream/bit_writer.hpp"
 
 #include <cstdint>
 
@@ -22,5 +23,10 @@ Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
                                     std::uint32_t x,
                                     std::uint32_t width,
                                     GolombRiceRunSegment& out_segment) noexcept;
+Status write_golomb_rice_run(bitstream::BitWriter& writer,
+                             GolombRiceRunState& state,
+                             std::uint32_t x,
+                             std::uint32_t width,
+                             std::uint32_t count);
 
 } // namespace mffv1::entropy

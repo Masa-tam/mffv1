@@ -226,8 +226,10 @@ The scalar Golomb-Rice foundation writes canonical regular and escape
 codewords through `BitWriter`. Context-aware helpers invert the decoder's
 bias and drift mapping, then apply the identical context update after a
 successful write. Run-interruption symbols remove zero symmetrically with the
-decoder. Run-length coding and slice-level Golomb-Rice orchestration remain a
-separate increment.
+decoder. The run writer emits full prefixes and the canonical terminating
+remainder while preserving `run_index` across rows. Slice-level Golomb-Rice
+orchestration remains a separate increment because version 3 uses a
+range-coded slice header followed by byte-aligned Golomb-Rice content.
 
 ## Configuration Record Writer
 

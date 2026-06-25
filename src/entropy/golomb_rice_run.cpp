@@ -74,4 +74,61 @@ Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
     return ok_status();
 }
 
+Status write_golomb_rice_run(bitstream::BitWriter& writer,
+                             GolombRiceRunState& state,
+                             std::uint32_t x,
+                             std::uint32_t width,
+                             std::uint32_t count)
+{
+    if (state.run_index >= kLog2Run.size()) {
+        return make_error(ErrorCode::InvalidState,
+                          "Golomb-Rice run index is out of range");
+    }
+    if (x > width || count > width - x) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "Golomb-Rice run is outside the row");
+    }
+
+    auto next_run_index = state.run_index;
+    auto position = x;
+    auto remaining = count;
+    while (true) {
+        const auto log2_run = kLog2Run[next_run_index];
+        const auto full_count = std::uint32_t{1} << log2_run;
+        if (remaining >= full_count) {
+            if (next_run_index + 1 >= kLog2Run.size()) {
+                return make_error(
+                    ErrorCode::ResourceExhausted,
+                    "Golomb-Rice run index exceeds the supported table");
+            }
+            Status status = writer.write_bit(1);
+            if (!status.ok()) {
+                return status;
+            }
+            remaining -= full_count;
+            position += full_count;
+            ++next_run_index;
+            if (position == width) {
+                state.run_index = next_run_index;
+                return ok_status();
+            }
+            continue;
+        }
+
+        Status status = writer.write_bit(0);
+        if (!status.ok()) {
+            return status;
+        }
+        status = writer.write_bits(remaining, log2_run);
+        if (!status.ok()) {
+            return status;
+        }
+        if (next_run_index != 0) {
+            --next_run_index;
+        }
+        state.run_index = next_run_index;
+        return ok_status();
+    }
+}
+
 } // namespace mffv1::entropy

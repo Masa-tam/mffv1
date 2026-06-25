@@ -7,6 +7,11 @@
 
 namespace mffv1 {
 
+enum class ColorSpace : std::uint8_t {
+    YCbCr = 0,
+    Rgb = 1,
+};
+
 struct StreamInfo {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
@@ -16,6 +21,7 @@ struct StreamInfo {
     std::uint8_t log2_v_chroma_subsample = 0;
     bool has_chroma_planes = true;
     bool has_extra_plane = false;
+    ColorSpace color_space = ColorSpace::YCbCr;
 };
 
 struct ConfigurationRecord {
@@ -27,4 +33,3 @@ struct EncodedFrame {
 };
 
 } // namespace mffv1
-

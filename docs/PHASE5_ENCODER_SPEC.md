@@ -34,6 +34,10 @@ coded in planar order. Subsampled chroma dimensions use ceiling division,
 including for odd frame dimensions. Input values above the configured sample
 depth are rejected rather than truncated. Planar 16-bit range coding uses the
 normative signed-16 predictor interpretation shared with the decoder.
+RGB and RGBA input is transformed with the normative reversible color
+transform and coded in row-interleaved plane order. The three transformed
+color components use a `bits_per_raw_sample + 1` reconstruction domain;
+an optional alpha component retains the configured raw sample depth.
 
 ## Public API Contract
 
@@ -52,6 +56,10 @@ public:
 
 Public headers MUST remain declarative. Entropy coding, prediction, slice
 state, SIMD dispatch, and worker types stay private to the library.
+
+`StreamInfo::color_space` selects planar YCbCr or RGB input. RGB requires
+three full-resolution color planes without chroma subsampling. Plane roles
+remain explicit: `R`, `G`, `B`, then optional `Alpha`.
 
 `configure()` is transactional:
 

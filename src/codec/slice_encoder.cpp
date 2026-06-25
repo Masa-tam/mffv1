@@ -4,10 +4,12 @@
 #include "codec/slice_footer_writer.hpp"
 #include "codec/slice_header_writer.hpp"
 #include "entropy/range_encoder.hpp"
+#include "mffv1/color_transform.hpp"
 #include "mffv1/context_model.hpp"
 #include "mffv1/line_state.hpp"
 #include "mffv1/predictor.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -24,12 +26,21 @@ SliceEncoder::SliceEncoder(const syntax::StreamParameters& stream) noexcept
 Status SliceEncoder::validate_stream() const
 {
     if (stream_.entropy_mode != EntropyMode::Range
-        || stream_.colorspace_type != 0
+        || (stream_.colorspace_type != 0
+            && stream_.colorspace_type != 1)
         || stream_.bits_per_raw_sample < 8
         || stream_.bits_per_raw_sample > 16) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "slice encoder supports only range-coded 8-16 bit planar Y or YCbCr streams, with an optional extra plane");
+            "slice encoder supports only range-coded 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+    }
+    if (stream_.colorspace_type == 1
+        && (!stream_.chroma_planes
+            || stream_.log2_h_chroma_subsample != 0
+            || stream_.log2_v_chroma_subsample != 0)) {
+        return make_error(
+            ErrorCode::InvalidArgument,
+            "RGB streams require three full-resolution color planes");
     }
     if (!stream_.chroma_planes
         && (stream_.log2_h_chroma_subsample != 0
@@ -233,67 +244,170 @@ Status SliceEncoder::encode_samples(
         ? 0xffffu
         : (std::uint32_t{1} << stream_.bits_per_raw_sample) - 1u;
 
+    const auto read_sample = [&](std::size_t plane_index,
+                                 std::uint32_t x,
+                                 std::uint32_t y,
+                                 std::uint32_t& sample) -> Status {
+        const auto& plane = input.planes[plane_index];
+        const auto* base = static_cast<const std::byte*>(plane.data);
+        const auto* row = reinterpret_cast<const std::uint8_t*>(
+            base + static_cast<std::ptrdiff_t>(y)
+                * plane.info.stride_bytes);
+        if (stream_.bits_per_raw_sample <= 8) {
+            sample = row[x];
+        } else {
+            std::uint16_t wide_sample = 0;
+            std::memcpy(
+                &wide_sample,
+                row + static_cast<std::size_t>(x) * sizeof(wide_sample),
+                sizeof(wide_sample));
+            sample = wide_sample;
+        }
+        if (sample > maximum_sample) {
+            return make_error(
+                ErrorCode::InvalidArgument,
+                "input sample exceeds configured bit depth");
+        }
+        return ok_status();
+    };
+
+    const auto encode_sample = [&](std::size_t plane_index,
+                                   std::int32_t sample,
+                                   std::uint8_t reconstruction_bits,
+                                   bool signed_16bit_prediction,
+                                   syntax::LineState& line,
+                                   std::uint32_t x) -> Status {
+        const auto neighbors = line.neighbors(x);
+        const auto prediction = signed_16bit_prediction
+            ? syntax::Predictor::median_predict_signed_16bit(
+                neighbors.left,
+                neighbors.top,
+                neighbors.top_left)
+            : syntax::Predictor::median_predict(
+                neighbors.left,
+                neighbors.top,
+                neighbors.top_left);
+        syntax::ContextDecision context;
+        Status status = context_model.derive_context(neighbors, context);
+        if (!status.ok()) {
+            return status;
+        }
+        auto difference = syntax::Predictor::difference(
+            sample, prediction, reconstruction_bits);
+        if (context.invert_difference) {
+            difference = -difference;
+        }
+        status = writer.write_signed(
+            plane_index, context.context, difference);
+        if (!status.ok()) {
+            return status;
+        }
+        line.mutable_current()[x] = sample;
+        return ok_status();
+    };
+
+    if (stream_.colorspace_type == 1) {
+        const auto width = stream_.width;
+        const auto height = stream_.height;
+        const auto coded_bits =
+            static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
+        std::array<std::vector<std::int32_t>, 3> transformed;
+        for (auto& component : transformed) {
+            component.resize(width);
+        }
+
+        for (std::uint32_t y = 0; y < height; ++y) {
+            for (std::uint32_t x = 0; x < width; ++x) {
+                std::uint32_t r = 0;
+                std::uint32_t g = 0;
+                std::uint32_t b = 0;
+                Status status = read_sample(0, x, y, r);
+                if (!status.ok()) {
+                    return status;
+                }
+                status = read_sample(1, x, y, g);
+                if (!status.ok()) {
+                    return status;
+                }
+                status = read_sample(2, x, y, b);
+                if (!status.ok()) {
+                    return status;
+                }
+                const auto code = syntax::forward_jpeg2000_rct(
+                    static_cast<std::uint16_t>(r),
+                    static_cast<std::uint16_t>(g),
+                    static_cast<std::uint16_t>(b),
+                    stream_.bits_per_raw_sample,
+                    stream_.extra_plane);
+                transformed[0][x] = code.y;
+                transformed[1][x] = code.cb;
+                transformed[2][x] = code.cr;
+            }
+
+            for (std::size_t plane_index = 0;
+                 plane_index < plane_count;
+                 ++plane_index) {
+                auto& line = lines[plane_index];
+                for (std::uint32_t x = 0; x < width; ++x) {
+                    std::int32_t sample = 0;
+                    std::uint8_t reconstruction_bits = coded_bits;
+                    if (plane_index < 3) {
+                        sample = transformed[plane_index][x];
+                    } else {
+                        std::uint32_t alpha = 0;
+                        Status status =
+                            read_sample(plane_index, x, y, alpha);
+                        if (!status.ok()) {
+                            return status;
+                        }
+                        sample = static_cast<std::int32_t>(alpha);
+                        reconstruction_bits =
+                            stream_.bits_per_raw_sample;
+                    }
+                    Status status = encode_sample(
+                        plane_index,
+                        sample,
+                        reconstruction_bits,
+                        false,
+                        line,
+                        x);
+                    if (!status.ok()) {
+                        return status;
+                    }
+                }
+            }
+            for (auto& line : lines) {
+                line.swap_lines();
+            }
+        }
+        return ok_status();
+    }
+
     for (std::size_t plane_index = 0;
          plane_index < plane_count;
          ++plane_index) {
         auto& line = lines[plane_index];
-        const auto& plane = input.planes[plane_index];
-        const auto* base = static_cast<const std::byte*>(plane.data);
         const auto width = syntax::plane_width(stream_, plane_index);
         const auto height = syntax::plane_height(stream_, plane_index);
 
         for (std::uint32_t y = 0; y < height; ++y) {
-            const auto* row = reinterpret_cast<const std::uint8_t*>(
-                base + static_cast<std::ptrdiff_t>(y)
-                    * plane.info.stride_bytes);
             for (std::uint32_t x = 0; x < width; ++x) {
-                const auto neighbors = line.neighbors(x);
-                const auto prediction = use_signed_16bit_prediction
-                    ? syntax::Predictor::median_predict_signed_16bit(
-                        neighbors.left,
-                        neighbors.top,
-                        neighbors.top_left)
-                    : syntax::Predictor::median_predict(
-                        neighbors.left,
-                        neighbors.top,
-                        neighbors.top_left);
-                syntax::ContextDecision context;
-                Status status =
-                    context_model.derive_context(neighbors, context);
-                if (!status.ok()) {
-                    return status;
-                }
-
                 std::uint32_t sample = 0;
-                if (stream_.bits_per_raw_sample <= 8) {
-                    sample = row[x];
-                } else {
-                    std::uint16_t wide_sample = 0;
-                    std::memcpy(
-                        &wide_sample,
-                        row + static_cast<std::size_t>(x) * sizeof(wide_sample),
-                        sizeof(wide_sample));
-                    sample = wide_sample;
-                }
-                if (sample > maximum_sample) {
-                    return make_error(
-                        ErrorCode::InvalidArgument,
-                        "input sample exceeds configured bit depth");
-                }
-                auto difference = syntax::Predictor::difference(
-                    static_cast<std::int32_t>(sample),
-                    prediction,
-                    stream_.bits_per_raw_sample);
-                if (context.invert_difference) {
-                    difference = -difference;
-                }
-                status = writer.write_signed(
-                    plane_index, context.context, difference);
+                Status status =
+                    read_sample(plane_index, x, y, sample);
                 if (!status.ok()) {
                     return status;
                 }
-                line.mutable_current()[x] =
-                    static_cast<std::int32_t>(sample);
+                status = encode_sample(
+                    plane_index,
+                    static_cast<std::int32_t>(sample),
+                    stream_.bits_per_raw_sample,
+                    use_signed_16bit_prediction,
+                    line,
+                    x);
+                if (!status.ok()) {
+                    return status;
+                }
             }
             line.swap_lines();
         }

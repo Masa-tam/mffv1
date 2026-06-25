@@ -167,6 +167,24 @@ TEST(EncoderTest, ConfigureRejectsSubsamplingWithoutChroma)
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(EncoderTest, ConfigureRejectsInvalidRgbPlaneGeometry)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.color_space = mffv1::ColorSpace::Rgb;
+    stream.has_chroma_planes = false;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(EncoderTest, FailedReconfigurePreservesUsablePreviousConfiguration)
 {
     auto result = mffv1::create_encoder({});
@@ -735,6 +753,170 @@ TEST(EncoderTest, PublicEncoderRoundTripsTenBitYcbcr420WithExtraPlane)
     EXPECT_EQ(decoded_cb, cb);
     EXPECT_EQ(decoded_cr, cr);
     EXPECT_EQ(decoded_alpha, alpha);
+}
+
+void expect_public_rgb_round_trip(std::uint8_t bits_per_raw_sample,
+                                  bool has_extra_plane)
+{
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.width = 5;
+    stream.height = 3;
+    stream.bits_per_raw_sample = bits_per_raw_sample;
+    stream.has_chroma_planes = true;
+    stream.has_extra_plane = has_extra_plane;
+    stream.color_space = mffv1::ColorSpace::Rgb;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    const std::uint32_t maximum =
+        bits_per_raw_sample == 16
+        ? 0xffffu
+        : (std::uint32_t{1} << bits_per_raw_sample) - 1u;
+    std::array<std::uint16_t, 15> r{};
+    std::array<std::uint16_t, 15> g{};
+    std::array<std::uint16_t, 15> b{};
+    std::array<std::uint16_t, 15> alpha{};
+    for (std::size_t index = 0; index < r.size(); ++index) {
+        r[index] =
+            static_cast<std::uint16_t>((index * 251u) & maximum);
+        g[index] =
+            static_cast<std::uint16_t>((maximum - index * 47u) & maximum);
+        b[index] =
+            static_cast<std::uint16_t>((index * index * 73u) & maximum);
+        alpha[index] =
+            static_cast<std::uint16_t>((maximum - index * 19u) & maximum);
+    }
+
+    const auto format = bits_per_raw_sample <= 8
+        ? mffv1::SampleFormat::UInt8
+        : mffv1::SampleFormat::UInt16;
+    const std::ptrdiff_t stride =
+        bits_per_raw_sample <= 8 ? 5 : 10;
+    std::array<std::uint8_t, 15> r8{};
+    std::array<std::uint8_t, 15> g8{};
+    std::array<std::uint8_t, 15> b8{};
+    std::array<std::uint8_t, 15> alpha8{};
+    if (bits_per_raw_sample <= 8) {
+        for (std::size_t index = 0; index < r.size(); ++index) {
+            r8[index] = static_cast<std::uint8_t>(r[index]);
+            g8[index] = static_cast<std::uint8_t>(g[index]);
+            b8[index] = static_cast<std::uint8_t>(b[index]);
+            alpha8[index] = static_cast<std::uint8_t>(alpha[index]);
+        }
+    }
+    std::array<mffv1::PlaneView, 4> input_planes{};
+    input_planes[0] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<const void*>(r8.data())
+            : static_cast<const void*>(r.data()),
+        {mffv1::PlaneRole::R, format, 5, 3, stride},
+    };
+    input_planes[1] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<const void*>(g8.data())
+            : static_cast<const void*>(g.data()),
+        {mffv1::PlaneRole::G, format, 5, 3, stride},
+    };
+    input_planes[2] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<const void*>(b8.data())
+            : static_cast<const void*>(b.data()),
+        {mffv1::PlaneRole::B, format, 5, 3, stride},
+    };
+    input_planes[3] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<const void*>(alpha8.data())
+            : static_cast<const void*>(alpha.data()),
+        {mffv1::PlaneRole::Alpha, format, 5, 3, stride},
+    };
+    const mffv1::FrameView input{
+        input_planes.data(), has_extra_plane ? 4u : 3u};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    std::array<std::uint16_t, 15> decoded_r{};
+    std::array<std::uint16_t, 15> decoded_g{};
+    std::array<std::uint16_t, 15> decoded_b{};
+    std::array<std::uint16_t, 15> decoded_alpha{};
+    std::array<std::uint8_t, 15> decoded_r8{};
+    std::array<std::uint8_t, 15> decoded_g8{};
+    std::array<std::uint8_t, 15> decoded_b8{};
+    std::array<std::uint8_t, 15> decoded_alpha8{};
+    std::array<mffv1::MutablePlaneView, 4> output_planes{};
+    output_planes[0] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<void*>(decoded_r8.data())
+            : static_cast<void*>(decoded_r.data()),
+        {mffv1::PlaneRole::R, format, 5, 3, stride},
+    };
+    output_planes[1] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<void*>(decoded_g8.data())
+            : static_cast<void*>(decoded_g.data()),
+        {mffv1::PlaneRole::G, format, 5, 3, stride},
+    };
+    output_planes[2] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<void*>(decoded_b8.data())
+            : static_cast<void*>(decoded_b.data()),
+        {mffv1::PlaneRole::B, format, 5, 3, stride},
+    };
+    output_planes[3] = {
+        bits_per_raw_sample <= 8
+            ? static_cast<void*>(decoded_alpha8.data())
+            : static_cast<void*>(decoded_alpha.data()),
+        {mffv1::PlaneRole::Alpha, format, 5, 3, stride},
+    };
+    mffv1::MutableFrameView output{
+        output_planes.data(), has_extra_plane ? 4u : 3u};
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+
+    if (bits_per_raw_sample <= 8) {
+        EXPECT_EQ(decoded_r8, r8);
+        EXPECT_EQ(decoded_g8, g8);
+        EXPECT_EQ(decoded_b8, b8);
+        if (has_extra_plane) {
+            EXPECT_EQ(decoded_alpha8, alpha8);
+        }
+    } else {
+        EXPECT_EQ(decoded_r, r);
+        EXPECT_EQ(decoded_g, g);
+        EXPECT_EQ(decoded_b, b);
+        if (has_extra_plane) {
+            EXPECT_EQ(decoded_alpha, alpha);
+        }
+    }
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsEightBitRgb)
+{
+    expect_public_rgb_round_trip(8, false);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsTenBitRgbCompatibilityTransform)
+{
+    expect_public_rgb_round_trip(10, false);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsTenBitRgba)
+{
+    expect_public_rgb_round_trip(10, true);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsSixteenBitRgb)
+{
+    expect_public_rgb_round_trip(16, false);
 }
 
 TEST(EncoderTest, EncodesSuccessiveFramesAsIndependentKeyframes)

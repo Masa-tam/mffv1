@@ -210,6 +210,24 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesHighBitDepth)
     EXPECT_EQ(parsed.bits_per_raw_sample, 16u);
 }
 
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesRgbColorSpace)
+{
+    auto stream = make_initial_profile();
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    ASSERT_TRUE(writer.write(stream, record).ok());
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_EQ(parsed.colorspace_type, 1);
+    EXPECT_EQ(mffv1::syntax::expected_plane_role(parsed, 0),
+              mffv1::PlaneRole::R);
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordConfiguresPublicDecoder)
 {
     const auto stream = make_initial_profile();

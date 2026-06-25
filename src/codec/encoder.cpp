@@ -35,7 +35,21 @@ Status normalize_initial_profile(const EncoderOptions& options,
     if (info.bits_per_raw_sample < 8
         || info.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature,
-                          "encoder supports only 8-16 bit planar Y or YCbCr streams, with an optional extra plane");
+                          "encoder supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+    }
+    if (info.color_space != ColorSpace::YCbCr
+        && info.color_space != ColorSpace::Rgb) {
+        return make_error(
+            ErrorCode::UnsupportedFeature,
+            "encoder color space is unsupported");
+    }
+    if (info.color_space == ColorSpace::Rgb
+        && (!info.has_chroma_planes
+            || info.log2_h_chroma_subsample != 0
+            || info.log2_v_chroma_subsample != 0)) {
+        return make_error(
+            ErrorCode::InvalidArgument,
+            "RGB streams require three full-resolution color planes");
     }
     if (!info.has_chroma_planes
         && (info.log2_h_chroma_subsample != 0
@@ -60,7 +74,7 @@ Status normalize_initial_profile(const EncoderOptions& options,
     stream.width = info.width;
     stream.height = info.height;
     stream.bits_per_raw_sample = info.bits_per_raw_sample;
-    stream.colorspace_type = 0;
+    stream.colorspace_type = static_cast<int>(info.color_space);
     stream.chroma_planes = info.has_chroma_planes;
     stream.extra_plane = info.has_extra_plane;
     stream.log2_h_chroma_subsample = info.log2_h_chroma_subsample;

@@ -57,9 +57,22 @@ SliceEncodeExecutor::SliceEncodeExecutor(
 
 SliceEncodeExecutor::SliceEncodeExecutor(
     const syntax::StreamParameters& stream,
-    int thread_count) noexcept
+    int thread_count,
+    CpuFeatures cpu) noexcept
+    : SliceEncodeExecutor(
+        stream,
+        thread_count,
+        simd::make_codec_kernels(cpu))
+{
+}
+
+SliceEncodeExecutor::SliceEncodeExecutor(
+    const syntax::StreamParameters& stream,
+    int thread_count,
+    const simd::CodecKernels& kernels) noexcept
     : stream_(stream)
     , thread_count_(normalize_thread_count(thread_count))
+    , kernels_(kernels)
 {
 }
 
@@ -160,7 +173,7 @@ Status SliceEncodeExecutor::encode_slice(
     header.quant_table_set_indexes.assign(
         syntax::quant_table_set_index_count(stream_), 0);
 
-    const SliceEncoder encoder(stream_);
+    const SliceEncoder encoder(stream_, kernels_);
     return encoder.encode_slice(
         input,
         header,

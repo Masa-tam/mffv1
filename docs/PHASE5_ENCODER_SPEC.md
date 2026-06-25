@@ -369,6 +369,11 @@ Dispatch is selected once when the encoder instance is created from
 `std::unique_ptr<IEncoder>` factory result. SIMD kernels MUST produce identical
 bytes to scalar encoding, not merely equivalent decoded pixels.
 
+The initial dispatch foundation resolves compiled, detected, and caller-allowed
+features into an immutable `CodecKernels` table shared by slice workers. Until
+a SIMD kernel is installed, `active_features` remains zero and every function
+pointer targets the scalar reference implementation.
+
 ## Diagnostics And Resource Limits
 
 - Invalid caller data uses `InvalidArgument`.

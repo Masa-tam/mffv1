@@ -7,6 +7,7 @@
 #include "mffv1/frame.hpp"
 #include "mffv1/result.hpp"
 #include "mffv1/stream_parameters.hpp"
+#include "simd/codec_kernels.hpp"
 
 namespace mffv1::codec {
 
@@ -15,7 +16,11 @@ public:
     explicit SliceEncodeExecutor(
         const syntax::StreamParameters& stream) noexcept;
     SliceEncodeExecutor(const syntax::StreamParameters& stream,
-                        int thread_count) noexcept;
+                        int thread_count,
+                        CpuFeatures cpu = {}) noexcept;
+    SliceEncodeExecutor(const syntax::StreamParameters& stream,
+                        int thread_count,
+                        const simd::CodecKernels& kernels) noexcept;
 
     Status encode(FrameView input,
                   std::vector<std::byte>& out_frame) const;
@@ -34,6 +39,7 @@ private:
 
     const syntax::StreamParameters& stream_;
     std::uint32_t thread_count_ = 1;
+    simd::CodecKernels kernels_;
 };
 
 } // namespace mffv1::codec

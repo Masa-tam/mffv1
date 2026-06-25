@@ -57,7 +57,10 @@ TEST(SliceEncodeExecutorTest, ParallelEncodingMatchesSerialBitstream)
     std::vector<std::byte> serial_frame;
     std::vector<std::byte> parallel_frame;
 
-    const mffv1::codec::SliceEncodeExecutor serial(stream, 1);
+    mffv1::CpuFeatures scalar_cpu;
+    scalar_cpu.auto_detect = false;
+    const mffv1::codec::SliceEncodeExecutor serial(
+        stream, 1, scalar_cpu);
     const mffv1::codec::SliceEncodeExecutor parallel(stream, 3);
     ASSERT_TRUE(serial.encode(input, serial_frame).ok());
     ASSERT_TRUE(parallel.encode(input, parallel_frame).ok());

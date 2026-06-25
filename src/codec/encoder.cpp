@@ -3,6 +3,7 @@
 #include "codec/configuration_record_writer.hpp"
 #include "codec/slice_encode_executor.hpp"
 #include "mffv1/stream_parameters.hpp"
+#include "simd/codec_kernels.hpp"
 
 #include <memory>
 #include <optional>
@@ -129,6 +130,7 @@ class Encoder final : public IEncoder {
 public:
     explicit Encoder(EncoderOptions options)
         : options_(options)
+        , kernels_(simd::make_codec_kernels(options.cpu))
     {
     }
 
@@ -159,7 +161,7 @@ public:
         }
         std::vector<std::byte> frame_bytes;
         const codec::SliceEncodeExecutor executor(
-            *stream_, options_.thread_count);
+            *stream_, options_.thread_count, kernels_);
         Status status = executor.encode(input, frame_bytes);
         if (!status.ok()) {
             return status;
@@ -170,6 +172,7 @@ public:
 
 private:
     EncoderOptions options_;
+    simd::CodecKernels kernels_;
     std::optional<syntax::StreamParameters> stream_;
 };
 

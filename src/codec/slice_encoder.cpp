@@ -21,8 +21,26 @@
 
 namespace mffv1::codec {
 
+namespace {
+
+const simd::CodecKernels& scalar_kernels() noexcept
+{
+    static const simd::CodecKernels kernels;
+    return kernels;
+}
+
+} // namespace
+
 SliceEncoder::SliceEncoder(const syntax::StreamParameters& stream) noexcept
+    : SliceEncoder(stream, scalar_kernels())
+{
+}
+
+SliceEncoder::SliceEncoder(
+    const syntax::StreamParameters& stream,
+    const simd::CodecKernels& kernels) noexcept
     : stream_(stream)
+    , kernels_(kernels)
 {
 }
 
@@ -434,7 +452,7 @@ Status SliceEncoder::encode_samples(
                 if (!status.ok()) {
                     return status;
                 }
-                const auto code = syntax::forward_jpeg2000_rct(
+                const auto code = kernels_.forward_color_transform(
                     static_cast<std::uint16_t>(r),
                     static_cast<std::uint16_t>(g),
                     static_cast<std::uint16_t>(b),
@@ -684,7 +702,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
                 if (!status.ok()) {
                     return status;
                 }
-                const auto code = syntax::forward_jpeg2000_rct(
+                const auto code = kernels_.forward_color_transform(
                     static_cast<std::uint16_t>(r),
                     static_cast<std::uint16_t>(g),
                     static_cast<std::uint16_t>(b),

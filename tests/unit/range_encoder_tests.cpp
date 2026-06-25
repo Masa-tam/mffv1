@@ -2,8 +2,11 @@
 
 #include "entropy/range_coder.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <span>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -177,32 +180,237 @@ TEST(RangeEncoderTest, FinalizeSealsEncoderUntilReset)
     ASSERT_TRUE(encoder.finalize(payload).ok());
 }
 
-TEST(RangeEncoderTest, UnsupportedScalarWritesPreserveBinaryState)
+TEST(RangeEncoderTest, RoundTripsUnsignedScalarValues)
 {
+    const std::array<std::uint64_t, 12> values{
+        0,
+        1,
+        2,
+        3,
+        7,
+        8,
+        255,
+        256,
+        65'535,
+        65'536,
+        std::uint64_t{1} << 40,
+        static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()),
+    };
     mffv1::entropy::RangeEncoder encoder;
     ASSERT_TRUE(encoder.reset().ok());
-    ASSERT_TRUE(encoder.write_bool(false).ok());
-    const auto byte_count = encoder.byte_count();
-
-    auto status = encoder.write_unsigned(42);
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
-    EXPECT_EQ(encoder.byte_count(), byte_count);
-    status = encoder.write_signed(-42);
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
-    EXPECT_EQ(encoder.byte_count(), byte_count);
-    ASSERT_TRUE(encoder.write_bool(true).ok());
+    for (const auto value : values) {
+        ASSERT_TRUE(encoder.write_unsigned(value).ok()) << value;
+    }
 
     std::vector<std::byte> payload;
     ASSERT_TRUE(encoder.finalize(payload).ok());
     mffv1::entropy::RangeCoder decoder;
     ASSERT_TRUE(decoder.reset(payload).ok());
-    bool value = true;
-    ASSERT_TRUE(decoder.read_bool(value).ok());
-    EXPECT_FALSE(value);
-    ASSERT_TRUE(decoder.read_bool(value).ok());
-    EXPECT_TRUE(value);
+    for (const auto expected : values) {
+        std::uint64_t actual = 0;
+        ASSERT_TRUE(decoder.read_unsigned(actual).ok()) << expected;
+        EXPECT_EQ(actual, expected);
+    }
+}
+
+TEST(RangeEncoderTest, RoundTripsSignedScalarValues)
+{
+    const std::array<std::int64_t, 15> values{
+        0,
+        1,
+        -1,
+        2,
+        -2,
+        255,
+        -255,
+        256,
+        -256,
+        65'535,
+        -65'535,
+        std::int64_t{1} << 40,
+        -(std::int64_t{1} << 40),
+        std::numeric_limits<std::int64_t>::max(),
+        -std::numeric_limits<std::int64_t>::max(),
+    };
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset().ok());
+    for (const auto value : values) {
+        ASSERT_TRUE(encoder.write_signed(value).ok()) << value;
+    }
+
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(encoder.finalize(payload).ok());
+    mffv1::entropy::RangeCoder decoder;
+    ASSERT_TRUE(decoder.reset(payload).ok());
+    for (const auto expected : values) {
+        std::int64_t actual = 0;
+        ASSERT_TRUE(decoder.read_signed(actual).ok()) << expected;
+        EXPECT_EQ(actual, expected);
+    }
+}
+
+TEST(RangeEncoderTest, EncodesSelectedContextBanks)
+{
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset(context_counts).ok());
+    ASSERT_TRUE(encoder.write_signed(1, 1, -17).ok());
+    ASSERT_TRUE(encoder.write_unsigned(0, 0, 23).ok());
+    ASSERT_TRUE(encoder.write_signed(1, 0, 0).ok());
+
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(encoder.finalize(payload).ok());
+    mffv1::entropy::RangeCoder decoder;
+    ASSERT_TRUE(decoder.reset(payload, context_counts).ok());
+    std::int64_t signed_value = 0;
+    std::uint64_t unsigned_value = 0;
+    ASSERT_TRUE(decoder.read_signed(1, 1, signed_value).ok());
+    EXPECT_EQ(signed_value, -17);
+    ASSERT_TRUE(decoder.read_unsigned(0, 0, unsigned_value).ok());
+    EXPECT_EQ(unsigned_value, 23u);
+    ASSERT_TRUE(decoder.read_signed(1, 0, signed_value).ok());
+    EXPECT_EQ(signed_value, 0);
+}
+
+TEST(RangeEncoderTest, UsesCustomInitialStates)
+{
+    const std::array<std::size_t, 1> context_counts{1};
+    std::array<mffv1::entropy::RangeEncoder::ScalarContextStates, 1> states{};
+    states[0].fill(mffv1::entropy::RangeEncoder::kDefaultInitialState);
+    states[0][0] = 200;
+    states[0][1] = 180;
+    states[0][22] = 160;
+    const std::array<
+        std::span<const mffv1::entropy::RangeEncoder::ScalarContextStates>,
+        1> state_banks{states};
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset(
+        context_counts, state_banks, mffv1::syntax::kDefaultStateTransition).ok());
+    ASSERT_TRUE(encoder.write_unsigned(3).ok());
+
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(encoder.finalize(payload).ok());
+    mffv1::entropy::RangeCoder decoder;
+    ASSERT_TRUE(decoder.reset(payload, context_counts, state_banks).ok());
+    std::uint64_t value = 0;
+    ASSERT_TRUE(decoder.read_unsigned(value).ok());
+    EXPECT_EQ(value, 3u);
+}
+
+TEST(RangeEncoderTest, ReconfiguresContextsWithoutResettingArithmeticState)
+{
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset().ok());
+    ASSERT_TRUE(encoder.write_bool(true).ok());
+    const auto byte_count = encoder.byte_count();
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    ASSERT_TRUE(encoder.reconfigure_contexts(context_counts).ok());
+    EXPECT_EQ(encoder.byte_count(), byte_count);
+    ASSERT_TRUE(encoder.write_signed(1, 1, -9).ok());
+
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(encoder.finalize(payload).ok());
+    mffv1::entropy::RangeCoder decoder;
+    ASSERT_TRUE(decoder.reset(payload).ok());
+    bool flag = false;
+    ASSERT_TRUE(decoder.read_bool(flag).ok());
+    EXPECT_TRUE(flag);
+    ASSERT_TRUE(decoder.reconfigure_contexts(context_counts).ok());
+    std::int64_t value = 0;
+    ASSERT_TRUE(decoder.read_signed(1, 1, value).ok());
+    EXPECT_EQ(value, -9);
+}
+
+TEST(RangeEncoderTest, CopiesUpdatedContextBanks)
+{
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset(context_counts).ok());
+    ASSERT_TRUE(encoder.write_signed(1, 1, -17).ok());
+    mffv1::entropy::RangeEncoder::ContextStateBanks context_banks;
+
+    const auto status = encoder.copy_contexts(context_banks);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(context_banks.size(), 2u);
+    ASSERT_EQ(context_banks[0].size(), 1u);
+    ASSERT_EQ(context_banks[1].size(), 2u);
+    EXPECT_EQ(context_banks[0][0][0],
+              mffv1::entropy::RangeEncoder::kDefaultInitialState);
+    EXPECT_NE(context_banks[1][1][0],
+              mffv1::entropy::RangeEncoder::kDefaultInitialState);
+}
+
+TEST(RangeEncoderTest, RejectsUnrepresentableScalarValuesWithoutChangingState)
+{
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset().ok());
+    ASSERT_TRUE(encoder.write_bool(false).ok());
+    const auto byte_count = encoder.byte_count();
+    mffv1::entropy::RangeEncoder::ContextStateBanks contexts_before;
+    ASSERT_TRUE(encoder.copy_contexts(contexts_before).ok());
+
+    auto status = encoder.write_unsigned(
+        static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    status = encoder.write_signed(std::numeric_limits<std::int64_t>::min());
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(encoder.byte_count(), byte_count);
+    mffv1::entropy::RangeEncoder::ContextStateBanks contexts_after;
+    ASSERT_TRUE(encoder.copy_contexts(contexts_after).ok());
+    EXPECT_EQ(contexts_after, contexts_before);
+}
+
+TEST(RangeEncoderTest, RejectsInvalidContextSelectionWithoutChangingState)
+{
+    const std::array<std::size_t, 2> context_counts{1, 2};
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset(context_counts).ok());
+    ASSERT_TRUE(encoder.write_bool(false).ok());
+    const auto byte_count = encoder.byte_count();
+
+    auto status = encoder.write_unsigned(2, 0, 1);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    status = encoder.write_signed(0, 1, -1);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(encoder.byte_count(), byte_count);
+}
+
+TEST(RangeEncoderTest, FailedScalarWriteRollsBackArithmeticAndContextState)
+{
+    const std::array<std::size_t, 1> context_counts{1};
+    std::array<mffv1::entropy::RangeEncoder::ScalarContextStates, 1> states{};
+    states[0].fill(mffv1::entropy::RangeEncoder::kDefaultInitialState);
+    states[0][1] = 0;
+    const std::array<
+        std::span<const mffv1::entropy::RangeEncoder::ScalarContextStates>,
+        1> state_banks{states};
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset(
+        context_counts, state_banks, mffv1::syntax::kDefaultStateTransition).ok());
+    mffv1::entropy::RangeEncoder::ContextStateBanks contexts_before;
+    ASSERT_TRUE(encoder.copy_contexts(contexts_before).ok());
+
+    const auto status = encoder.write_unsigned(2);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    mffv1::entropy::RangeEncoder::ContextStateBanks contexts_after;
+    ASSERT_TRUE(encoder.copy_contexts(contexts_after).ok());
+    EXPECT_EQ(contexts_after, contexts_before);
+    ASSERT_TRUE(encoder.write_unsigned(0).ok());
+
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(encoder.finalize(payload).ok());
+    mffv1::entropy::RangeCoder decoder;
+    ASSERT_TRUE(decoder.reset(payload, context_counts, state_banks).ok());
+    std::uint64_t value = 99;
+    ASSERT_TRUE(decoder.read_unsigned(value).ok());
+    EXPECT_EQ(value, 0u);
 }
 
 } // namespace

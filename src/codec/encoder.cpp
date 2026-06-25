@@ -74,6 +74,16 @@ Status normalize_initial_profile(const EncoderOptions& options,
             ErrorCode::UnsupportedFeature,
             "encoder supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     }
+    if (info.num_h_slices == 0 || info.num_v_slices == 0) {
+        return make_error(
+            ErrorCode::InvalidArgument,
+            "encoder slice grid dimensions must be non-zero");
+    }
+    if (info.num_h_slices != 1 || info.num_v_slices != 1) {
+        return make_error(
+            ErrorCode::UnsupportedFeature,
+            "encoder frame assembly currently supports only one slice");
+    }
 
     syntax::StreamParameters stream;
     stream.version = 3;
@@ -87,8 +97,8 @@ Status normalize_initial_profile(const EncoderOptions& options,
     stream.extra_plane = info.has_extra_plane;
     stream.log2_h_chroma_subsample = info.log2_h_chroma_subsample;
     stream.log2_v_chroma_subsample = info.log2_v_chroma_subsample;
-    stream.num_h_slices = 1;
-    stream.num_v_slices = 1;
+    stream.num_h_slices = info.num_h_slices;
+    stream.num_v_slices = info.num_v_slices;
     stream.quant_table_sets.push_back(syntax::make_zero_quant_table_set());
     stream.intra_only = true;
     out_stream = std::move(stream);

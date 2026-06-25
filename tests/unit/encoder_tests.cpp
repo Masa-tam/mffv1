@@ -131,6 +131,42 @@ TEST(EncoderTest, ConfigureRejectsZeroDimensionsWithoutChangingOutput)
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
 
+TEST(EncoderTest, ConfigureRejectsZeroSliceGridWithoutChangingOutput)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_v_slices = 0;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    ASSERT_EQ(record.bytes.size(), 1u);
+    EXPECT_EQ(record.bytes[0], std::byte{0xaa});
+}
+
+TEST(EncoderTest, ConfigureRejectsMultipleSlicesUntilFrameAssemblySupportsThem)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 2;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    ASSERT_EQ(record.bytes.size(), 1u);
+    EXPECT_EQ(record.bytes[0], std::byte{0xaa});
+}
+
 TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
 {
     auto result = mffv1::create_encoder({});

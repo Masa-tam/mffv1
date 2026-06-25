@@ -22,6 +22,8 @@ struct StreamInfo {
     bool has_chroma_planes = true;
     bool has_extra_plane = false;
     ColorSpace color_space = ColorSpace::YCbCr;
+    std::uint32_t num_h_slices = 1;
+    std::uint32_t num_v_slices = 1;
 };
 
 struct ConfigurationRecord {

@@ -142,11 +142,11 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(0); // num_h_slices - 1
+    status = write_unsigned(stream.num_h_slices - 1);
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(0); // num_v_slices - 1
+    status = write_unsigned(stream.num_v_slices - 1);
     if (!status.ok()) {
         return status;
     }
@@ -228,10 +228,10 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             ErrorCode::UnsupportedFeature,
             "configuration writer supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     }
-    if (stream.num_h_slices != 1 || stream.num_v_slices != 1) {
+    if (stream.num_h_slices == 0 || stream.num_v_slices == 0) {
         return make_error(
-            ErrorCode::UnsupportedFeature,
-            "configuration writer supports only one slice");
+            ErrorCode::InvalidArgument,
+            "configuration slice grid dimensions must be non-zero");
     }
     if (stream.quant_table_sets.size() != 1
         || !is_zero_quant_table_set(stream.quant_table_sets[0])) {

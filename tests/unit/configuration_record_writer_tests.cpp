@@ -142,6 +142,23 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordRoundTripsThroughParser)
               stream.quant_table_sets[0].tables);
 }
 
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesSliceGrid)
+{
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 4;
+    stream.num_v_slices = 3;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    ASSERT_TRUE(writer.write(stream, record).ok());
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_EQ(parsed.num_h_slices, 4u);
+    EXPECT_EQ(parsed.num_v_slices, 3u);
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesGolombRiceMode)
 {
     auto stream = make_initial_profile();
@@ -289,6 +306,20 @@ TEST(ConfigurationRecordWriterTest, RejectsVerticalOnlySubsampling)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(ConfigurationRecordWriterTest, RejectsZeroSliceGridWithoutChangingOutput)
+{
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 0;
+    std::vector<std::byte> record{std::byte{0xaa}};
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

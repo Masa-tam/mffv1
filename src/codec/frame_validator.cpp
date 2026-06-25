@@ -76,6 +76,49 @@ Status validate_plane_info(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
+Status validate_input_plane_info(const syntax::StreamParameters& stream,
+                                 const PlaneInfo& info,
+                                 std::size_t plane_index)
+{
+    if (info.role != syntax::expected_plane_role(stream, plane_index)) {
+        return make_error(ErrorCode::InvalidArgument, "plane role does not match stream plane order");
+    }
+    if (info.sample_format != expected_sample_format(stream)) {
+        return make_error(ErrorCode::InvalidArgument, "plane sample format does not match stream bit depth");
+    }
+
+    const auto required_width = syntax::plane_width(stream, plane_index);
+    const auto required_height = syntax::plane_height(stream, plane_index);
+    if (info.width != required_width || info.height != required_height) {
+        return make_error(ErrorCode::InvalidArgument, "input plane dimensions do not match the stream");
+    }
+    if (info.stride_bytes < 0) {
+        return make_error(ErrorCode::UnsupportedFeature, "negative input plane stride is not supported");
+    }
+
+    std::ptrdiff_t minimum_stride = 0;
+    Status status = minimum_stride_bytes(stream, plane_index, minimum_stride);
+    if (!status.ok()) {
+        return status;
+    }
+    if (info.stride_bytes < minimum_stride) {
+        return make_error(ErrorCode::InvalidArgument, "plane stride is smaller than the stream requires");
+    }
+
+    const auto last_row = static_cast<std::uint64_t>(required_height - 1);
+    const auto stride = static_cast<std::uint64_t>(info.stride_bytes);
+    const auto row_bytes = static_cast<std::uint64_t>(minimum_stride);
+    const auto maximum_offset =
+        static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
+    if (row_bytes > maximum_offset
+        || (last_row != 0 && stride > (maximum_offset - row_bytes) / last_row)) {
+        return make_error(
+            ErrorCode::ResourceExhausted,
+            "input plane last row address is not representable");
+    }
+    return ok_status();
+}
+
 } // namespace
 
 Status FrameValidator::validate_output(const syntax::StreamParameters& stream,
@@ -116,8 +159,8 @@ Status FrameValidator::validate_input(const syntax::StreamParameters& stream,
     }
 
     const std::size_t required_planes = syntax::coded_plane_count(stream);
-    if (input.plane_count < required_planes) {
-        return make_error(ErrorCode::InvalidArgument, "input frame does not have enough planes");
+    if (input.plane_count != required_planes) {
+        return make_error(ErrorCode::InvalidArgument, "input frame plane count does not match the stream");
     }
     if (required_planes != 0 && input.planes == nullptr) {
         return make_error(ErrorCode::InvalidArgument, "input plane array is null");
@@ -127,7 +170,7 @@ Status FrameValidator::validate_input(const syntax::StreamParameters& stream,
         if (input.planes[i].data == nullptr) {
             return make_error(ErrorCode::InvalidArgument, "input plane data pointer is null");
         }
-        status = validate_plane_info(stream, input.planes[i].info, i);
+        status = validate_input_plane_info(stream, input.planes[i].info, i);
         if (!status.ok()) {
             return status;
         }

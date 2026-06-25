@@ -1,6 +1,7 @@
 #include "mffv1/codec.hpp"
 
 #include "codec/configuration_record_writer.hpp"
+#include "codec/frame_validator.hpp"
 #include "mffv1/stream_parameters.hpp"
 
 #include <memory>
@@ -92,8 +93,10 @@ public:
         if (!stream_.has_value()) {
             return make_error(ErrorCode::InvalidState, "encoder is not configured");
         }
-        if (input.planes == nullptr && input.plane_count != 0) {
-            return make_error(ErrorCode::InvalidArgument, "input plane pointer is null");
+        const codec::FrameValidator validator;
+        Status status = validator.validate_input(*stream_, input);
+        if (!status.ok()) {
+            return status;
         }
         (void)out_frame;
         return make_error(ErrorCode::NotImplemented, "frame encoding is not implemented yet");

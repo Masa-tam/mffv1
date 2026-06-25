@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 #include <gtest/gtest.h>
 
@@ -64,6 +65,25 @@ TEST(FrameValidatorTest, AcceptsValidInputFrame)
     EXPECT_TRUE(validator.validate_input(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, AcceptsPaddedInputStride)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 15> storage{};
+    mffv1::PlaneView plane;
+    plane.data = storage.data();
+    plane.info = {
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt8,
+        4,
+        3,
+        5,
+    };
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_input(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
 {
     const auto stream = make_y_stream();
@@ -73,6 +93,134 @@ TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsMissingInputPlaneArray)
+{
+    const auto stream = make_y_stream();
+    const mffv1::FrameView frame{nullptr, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsNullInputPlaneData)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    plane.data = nullptr;
+    const mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsExtraInputPlane)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    std::array<mffv1::PlaneView, 2> planes{
+        make_input_plane(storage),
+        make_input_plane(storage),
+    };
+    const mffv1::FrameView frame{planes.data(), planes.size()};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsWrongInputSampleFormat)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.sample_format = mffv1::SampleFormat::UInt16;
+    const mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsInputPlaneDimensionMismatch)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.width = 5;
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsShortInputStride)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.stride_bytes = 3;
+    const mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(FrameValidatorTest, RejectsNegativeInputStrideAsUnsupported)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.stride_bytes = -4;
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+}
+
+TEST(FrameValidatorTest, RejectsUnrepresentableInputLastRowAddress)
+{
+    auto stream = make_y_stream();
+    stream.width = 1;
+    stream.height = 2;
+    std::uint8_t storage = 0;
+    mffv1::PlaneView plane;
+    plane.data = &storage;
+    plane.info = {
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt8,
+        stream.width,
+        stream.height,
+        std::numeric_limits<std::ptrdiff_t>::max(),
+    };
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
 }
 
 TEST(FrameValidatorTest, RejectsWrongSampleFormat)

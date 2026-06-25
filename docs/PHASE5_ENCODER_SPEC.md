@@ -222,11 +222,12 @@ before frame coding begins.
 
 ## Input Validation
 
-### `codec::FrameInputValidator`
+### `codec::FrameValidator::validate_input`
 
-Location: `src/codec/frame_input_validator.hpp` and `.cpp`.
+Location: `src/codec/frame_validator.hpp` and `.cpp`.
 
-It validates the complete `FrameView` before any output or persistent state is
+The encoder uses the input-specific path of the shared frame validator. It
+validates the complete `FrameView` before any output or persistent state is
 modified:
 
 - Required plane count and order match normalized stream parameters.
@@ -346,7 +347,8 @@ Each milestone builds and passes the full test suite before commit:
 4. Add `ConfigurationRecordWriter` for the initial version 3 profile and
    round-trip it through the existing parser.
 5. Make `IEncoder::configure()` transactional and return that record.
-6. Add `FrameInputValidator` for Y-only 8-bit input.
+6. Complete `FrameValidator::validate_input()` for Y-only 8-bit input and
+   connect it to `IEncoder::encode_frame()`.
 7. Add single-slice scalar difference generation and range coding.
 8. Add version 3 slice header/footer assembly and CRC tests.
 9. Round-trip generated frames through the public decoder API.

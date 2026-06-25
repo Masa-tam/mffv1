@@ -2,7 +2,9 @@
 
 #include "util/crc32.hpp"
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 
 #include <gtest/gtest.h>
 
@@ -20,6 +22,18 @@ mffv1::StreamInfo make_initial_profile()
     stream.has_chroma_planes = false;
     stream.has_extra_plane = false;
     return stream;
+}
+
+mffv1::PlaneView make_input_plane(const std::array<std::uint8_t, 128>& storage)
+{
+    mffv1::PlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    plane.info.width = 16;
+    plane.info.height = 8;
+    plane.info.stride_bytes = 16;
+    return plane;
 }
 
 TEST(EncoderTest, FactoryCreatesEncoder)
@@ -136,7 +150,54 @@ TEST(EncoderTest, FailedReconfigurePreservesPreviousConfiguration)
     EXPECT_EQ(record.bytes, original_record);
     mffv1::EncodedFrame frame;
     frame.bytes.push_back(std::byte{0xaa});
-    const mffv1::FrameView input{};
+    std::array<std::uint8_t, 128> storage{};
+    const auto plane = make_input_plane(storage);
+    const mffv1::FrameView input{&plane, 1};
+
+    const auto status = result.encoder->encode_frame(input, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
+    ASSERT_EQ(frame.bytes.size(), 1u);
+    EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
+}
+
+TEST(EncoderTest, EncodeFrameRejectsInvalidInputWithoutChangingOutput)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+    std::array<std::uint8_t, 128> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.stride_bytes = 15;
+    const mffv1::FrameView input{&plane, 1};
+    mffv1::EncodedFrame frame;
+    frame.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->encode_frame(input, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    ASSERT_EQ(frame.bytes.size(), 1u);
+    EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
+}
+
+TEST(EncoderTest, EncodeFrameAcceptsValidInputBeforeCoding)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+    std::array<std::uint8_t, 128> storage{};
+    const auto plane = make_input_plane(storage);
+    const mffv1::FrameView input{&plane, 1};
+    mffv1::EncodedFrame frame;
+    frame.bytes.push_back(std::byte{0xaa});
 
     const auto status = result.encoder->encode_frame(input, frame);
 

@@ -8,7 +8,8 @@ general stable release still requires external conformance testing, fuzzing,
 sanitizer coverage, packaging, and final license documentation.
 
 This reference describes the implemented behavior of the current decoder. It
-does not describe the encoder, which remains under development.
+does not describe the encoder; see the
+[Encoder Reference](ENCODER_REFERENCE.md).
 
 ## Header And Namespace
 
@@ -23,6 +24,9 @@ All public names are in namespace `mffv1`.
 The library requires C++20. Decoder instances are returned as
 `std::unique_ptr<IDecoder>` and hide all parsing, entropy, threading, and SIMD
 implementation classes.
+
+Shared frame and plane layout rules are documented in the
+[Frame Buffer Reference](FRAME_BUFFER_REFERENCE.md).
 
 ## Lifecycle
 
@@ -75,7 +79,7 @@ On success, `status.ok()` is true and `decoder` is non-null. On failure,
 | `strict` | Reserved for a future relaxed parsing mode. It currently has no effect; decoding remains strict. |
 | `frame_width` | Coded frame width supplied by the container. |
 | `frame_height` | Coded frame height supplied by the container. |
-| `cpu` | Reserved for scalar/SIMD dispatch. The current implementation is scalar and does not use these flags. |
+| `cpu` | Reserved for decoder scalar/SIMD dispatch. The current decoder remains scalar and does not use these flags. |
 
 `frame_width` and `frame_height` must either both be zero or both be non-zero.
 They should normally be supplied because FFV1 version 3 Configuration Records

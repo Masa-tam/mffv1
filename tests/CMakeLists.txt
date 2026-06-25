@@ -26,6 +26,7 @@ add_executable(mffv1_unit_tests
     unit/decoder_tests.cpp
     unit/frame_parser_tests.cpp
     unit/configuration_parser_tests.cpp
+    unit/configuration_record_writer_tests.cpp
     unit/frame_validator_tests.cpp
     unit/golomb_rice_context_tests.cpp
     unit/golomb_rice_reader_tests.cpp

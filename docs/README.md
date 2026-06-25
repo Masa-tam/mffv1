@@ -10,6 +10,8 @@
 - [Frame Buffer Reference](FRAME_BUFFER_REFERENCE.md): shared frame ownership,
   plane order, sample storage, dimensions, stride, and buffer examples.
 - [Build Guide](BUILD.md): supported build workflow and CMake presets.
+- [License And Provenance](LICENSE_AND_PROVENANCE.md): MIT licensing,
+  clean-room rules, FFmpeg independence, and third-party boundaries.
 
 These references describe implemented public behavior and are the appropriate
 starting point for library integration.
@@ -25,4 +27,3 @@ starting point for library integration.
 
 Design documents may include future work. Public behavior should be taken from
 the API references and public headers when the documents differ.
-

@@ -8,10 +8,9 @@ and internal integration use. It produces independently decodable FFV1 version
 below.
 
 A stable general release still requires external interoperability testing,
-licensed conformance vectors, fuzzing, sanitizer coverage, packaging, and final
-license documentation. Runtime CPU dispatch is implemented, but no SIMD kernel
-is active yet; current encoded output is produced by the scalar reference
-implementation.
+licensed conformance vectors, fuzzing, sanitizer coverage, and packaging.
+Runtime CPU dispatch is implemented, but no SIMD kernel is active yet; current
+encoded output is produced by the scalar reference implementation.
 
 This document describes implemented public behavior. Internal design and
 future work are documented separately in the
@@ -383,5 +382,5 @@ Before declaring a stable encoder release, the project should complete:
 3. Encoder fuzzing and retained regression corpora.
 4. Sanitizer and MSVC runtime-analysis coverage.
 5. CMake install/export rules and a consumer build test.
-6. License, clean-room provenance, changelog, and support-policy documents.
+6. Changelog, release metadata, and support-policy documents.
 7. Measured SIMD kernels with exhaustive scalar equivalence tests.

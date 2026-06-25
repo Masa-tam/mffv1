@@ -5,7 +5,7 @@
 The mffv1 decoder is currently suitable for technical-preview and internal
 integration use. Its public API is small and stable enough to integrate, but a
 general stable release still requires external conformance testing, fuzzing,
-sanitizer coverage, packaging, and final license documentation.
+sanitizer coverage, and packaging.
 
 This reference describes the implemented behavior of the current decoder. It
 does not describe the encoder; see the
@@ -349,7 +349,6 @@ Before declaring a stable decoder release, the project should complete:
 4. AddressSanitizer, UndefinedBehaviorSanitizer, and equivalent MSVC checks
    where available.
 5. CMake install/export rules and a consumer-project build test.
-6. Top-level license, clean-room provenance, changelog, and support-policy
-   documents.
+6. Changelog, release metadata, and support-policy documents.
 7. Explicit tests or API changes for currently reserved `strict` and CPU
    options.

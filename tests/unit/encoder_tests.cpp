@@ -790,9 +790,13 @@ TEST(EncoderTest, PublicEncoderRoundTripsTenBitGolombRiceYcbcr420WithExtraPlane)
 }
 
 void expect_public_rgb_round_trip(std::uint8_t bits_per_raw_sample,
-                                  bool has_extra_plane)
+                                  bool has_extra_plane,
+                                  mffv1::EntropyMode entropy_mode =
+                                      mffv1::EntropyMode::Range)
 {
-    auto encoder = mffv1::create_encoder({});
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(options);
     ASSERT_TRUE(encoder.status.ok());
     ASSERT_NE(encoder.encoder, nullptr);
     auto stream = make_initial_profile();
@@ -953,6 +957,30 @@ TEST(EncoderTest, PublicEncoderRoundTripsSixteenBitRgb)
     expect_public_rgb_round_trip(16, false);
 }
 
+TEST(EncoderTest, PublicEncoderRoundTripsEightBitGolombRiceRgb)
+{
+    expect_public_rgb_round_trip(
+        8, false, mffv1::EntropyMode::GolombRice);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsTenBitGolombRiceRgb)
+{
+    expect_public_rgb_round_trip(
+        10, false, mffv1::EntropyMode::GolombRice);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsTenBitGolombRiceRgba)
+{
+    expect_public_rgb_round_trip(
+        10, true, mffv1::EntropyMode::GolombRice);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsSixteenBitGolombRiceRgb)
+{
+    expect_public_rgb_round_trip(
+        16, false, mffv1::EntropyMode::GolombRice);
+}
+
 TEST(EncoderTest, EncodesSuccessiveFramesAsIndependentKeyframes)
 {
     auto result = mffv1::create_encoder({});
@@ -1047,7 +1075,7 @@ TEST(EncoderTest, PublicEncoderRoundTripsGolombRiceFrame)
     EXPECT_EQ(decoded, source);
 }
 
-TEST(EncoderTest, ConfigureRejectsUnsupportedGolombRiceProfile)
+TEST(EncoderTest, ConfigureRejectsInvalidGolombRiceRgbGeometry)
 {
     mffv1::EncoderOptions options;
     options.entropy_mode = mffv1::EntropyMode::GolombRice;
@@ -1056,14 +1084,14 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedGolombRiceProfile)
     ASSERT_NE(result.encoder, nullptr);
     auto stream = make_initial_profile();
     stream.color_space = mffv1::ColorSpace::Rgb;
-    stream.has_chroma_planes = true;
+    stream.has_chroma_planes = false;
     mffv1::ConfigurationRecord record;
     record.bytes.push_back(std::byte{0xaa});
 
     const auto status = result.encoder->configure(stream, record);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

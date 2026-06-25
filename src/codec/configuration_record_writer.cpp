@@ -192,12 +192,11 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             "configuration writer supports Golomb-Rice or the default range coder");
     }
     if (stream.entropy_mode == EntropyMode::GolombRice
-        && (stream.colorspace_type != 0
-            || stream.bits_per_raw_sample < 8
+        && (stream.bits_per_raw_sample < 8
             || stream.bits_per_raw_sample > 16)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice configuration currently supports only 8-16 bit planar YCbCr streams");
+            "Golomb-Rice configuration supports only 8-16 bit streams");
     }
     if ((stream.colorspace_type != 0 && stream.colorspace_type != 1)
         || stream.bits_per_raw_sample < 8

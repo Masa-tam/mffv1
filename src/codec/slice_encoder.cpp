@@ -39,12 +39,11 @@ Status SliceEncoder::validate_stream() const
             "slice encoder supports only range or Golomb-Rice coding");
     }
     if (stream_.entropy_mode == EntropyMode::GolombRice
-        && (stream_.colorspace_type != 0
-            || stream_.bits_per_raw_sample < 8
+        && (stream_.bits_per_raw_sample < 8
             || stream_.bits_per_raw_sample > 16)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice slice encoding currently supports only 8-16 bit planar YCbCr streams");
+            "Golomb-Rice slice encoding supports only 8-16 bit streams");
     }
     if (stream_.colorspace_type == 1
         && (!stream_.chroma_planes
@@ -508,145 +507,218 @@ Status SliceEncoder::encode_golomb_rice_samples(
         ? 0xffffu
         : (std::uint32_t{1} << stream_.bits_per_raw_sample) - 1u;
 
+    const auto load_input_sample = [&](std::size_t plane_index,
+                                       std::uint32_t x,
+                                       std::uint32_t y,
+                                       std::uint32_t& sample) -> Status {
+        const auto& plane = input.planes[plane_index];
+        const auto* base = static_cast<const std::byte*>(plane.data);
+        const auto* row = reinterpret_cast<const std::uint8_t*>(
+            base + static_cast<std::ptrdiff_t>(y)
+                * plane.info.stride_bytes);
+        if (stream_.bits_per_raw_sample <= 8) {
+            sample = row[x];
+        } else {
+            std::uint16_t wide_sample = 0;
+            std::memcpy(
+                &wide_sample,
+                row + static_cast<std::size_t>(x) * sizeof(wide_sample),
+                sizeof(wide_sample));
+            sample = wide_sample;
+        }
+        if (sample > maximum_sample) {
+            return make_error(
+                ErrorCode::InvalidArgument,
+                "input sample exceeds configured bit depth");
+        }
+        return ok_status();
+    };
+
+    const auto encode_line = [&](std::span<const std::int32_t> samples,
+                                 std::uint8_t reconstruction_bits,
+                                 syntax::LineState& line,
+                                 std::vector<entropy::GolombRiceContextState>&
+                                     plane_contexts,
+                                 entropy::GolombRiceRunState& run_state)
+        -> Status {
+        const auto width = static_cast<std::uint32_t>(samples.size());
+        std::uint32_t x = 0;
+        while (x < width) {
+            const auto neighbors = line.neighbors(x);
+            const auto prediction = syntax::Predictor::median_predict(
+                neighbors.left, neighbors.top, neighbors.top_left);
+            syntax::ContextDecision context;
+            Status status =
+                context_model.derive_context(neighbors, context);
+            if (!status.ok()) {
+                return status;
+            }
+
+            if (context.context == 0) {
+                const auto run_start = x;
+                while (x < width) {
+                    const auto run_neighbors = line.neighbors(x);
+                    const auto run_prediction =
+                        syntax::Predictor::median_predict(
+                            run_neighbors.left,
+                            run_neighbors.top,
+                            run_neighbors.top_left);
+                    if (samples[x] != run_prediction) {
+                        break;
+                    }
+                    line.mutable_current()[x] = samples[x];
+                    ++x;
+                }
+                status = entropy::write_golomb_rice_run(
+                    bit_writer,
+                    run_state,
+                    run_start,
+                    width,
+                    x - run_start);
+                if (!status.ok()) {
+                    return status;
+                }
+                if (x == width) {
+                    continue;
+                }
+
+                const auto interruption_neighbors = line.neighbors(x);
+                const auto interruption_prediction =
+                    syntax::Predictor::median_predict(
+                        interruption_neighbors.left,
+                        interruption_neighbors.top,
+                        interruption_neighbors.top_left);
+                const auto difference = syntax::Predictor::difference(
+                    samples[x],
+                    interruption_prediction,
+                    reconstruction_bits);
+                status = entropy::write_golomb_rice_run_interruption(
+                    writer,
+                    plane_contexts[0],
+                    reconstruction_bits,
+                    difference);
+                if (!status.ok()) {
+                    return status;
+                }
+                line.mutable_current()[x] = samples[x];
+                ++x;
+                continue;
+            }
+
+            auto difference = syntax::Predictor::difference(
+                samples[x], prediction, reconstruction_bits);
+            if (context.invert_difference) {
+                difference = -difference;
+            }
+            status = entropy::write_golomb_rice_symbol(
+                writer,
+                plane_contexts[context.context],
+                reconstruction_bits,
+                difference);
+            if (!status.ok()) {
+                return status;
+            }
+            line.mutable_current()[x] = samples[x];
+            ++x;
+        }
+        line.swap_lines();
+        return ok_status();
+    };
+
+    if (stream_.colorspace_type == 1) {
+        const auto width = stream_.width;
+        const auto coded_bits =
+            static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
+        std::array<std::vector<std::int32_t>, 4> rows;
+        for (auto& row : rows) {
+            row.resize(width);
+        }
+
+        for (std::uint32_t y = 0; y < stream_.height; ++y) {
+            for (std::uint32_t x = 0; x < width; ++x) {
+                std::uint32_t r = 0;
+                std::uint32_t g = 0;
+                std::uint32_t b = 0;
+                Status status = load_input_sample(0, x, y, r);
+                if (!status.ok()) {
+                    return status;
+                }
+                status = load_input_sample(1, x, y, g);
+                if (!status.ok()) {
+                    return status;
+                }
+                status = load_input_sample(2, x, y, b);
+                if (!status.ok()) {
+                    return status;
+                }
+                const auto code = syntax::forward_jpeg2000_rct(
+                    static_cast<std::uint16_t>(r),
+                    static_cast<std::uint16_t>(g),
+                    static_cast<std::uint16_t>(b),
+                    stream_.bits_per_raw_sample,
+                    stream_.extra_plane);
+                rows[0][x] = code.y;
+                rows[1][x] = code.cb;
+                rows[2][x] = code.cr;
+                if (stream_.extra_plane) {
+                    std::uint32_t alpha = 0;
+                    status = load_input_sample(3, x, y, alpha);
+                    if (!status.ok()) {
+                        return status;
+                    }
+                    rows[3][x] = static_cast<std::int32_t>(alpha);
+                }
+            }
+
+            for (std::size_t plane_index = 0;
+                 plane_index < plane_count;
+                 ++plane_index) {
+                const auto reconstruction_bits = plane_index < 3
+                    ? coded_bits
+                    : stream_.bits_per_raw_sample;
+                Status status = encode_line(
+                    rows[plane_index],
+                    reconstruction_bits,
+                    lines[plane_index],
+                    contexts[plane_index],
+                    run_states[plane_index]);
+                if (!status.ok()) {
+                    return status;
+                }
+            }
+        }
+        return ok_status();
+    }
+
     for (std::size_t plane_index = 0;
          plane_index < plane_count;
          ++plane_index) {
         auto& line = lines[plane_index];
         auto& plane_contexts = contexts[plane_index];
         auto& run_state = run_states[plane_index];
-        const auto& plane = input.planes[plane_index];
-        const auto* base = static_cast<const std::byte*>(plane.data);
         const auto width = syntax::plane_width(stream_, plane_index);
         const auto height = syntax::plane_height(stream_, plane_index);
+        std::vector<std::int32_t> samples(width);
 
         for (std::uint32_t y = 0; y < height; ++y) {
-            const auto* row = reinterpret_cast<const std::uint8_t*>(
-                base + static_cast<std::ptrdiff_t>(y)
-                    * plane.info.stride_bytes);
-            const auto read_sample = [&](std::uint32_t x,
-                                         std::uint32_t& sample) -> Status {
-                if (stream_.bits_per_raw_sample <= 8) {
-                    sample = row[x];
-                } else {
-                    std::uint16_t wide_sample = 0;
-                    std::memcpy(
-                        &wide_sample,
-                        row + static_cast<std::size_t>(x)
-                            * sizeof(wide_sample),
-                        sizeof(wide_sample));
-                    sample = wide_sample;
-                }
-                if (sample > maximum_sample) {
-                    return make_error(
-                        ErrorCode::InvalidArgument,
-                        "input sample exceeds configured bit depth");
-                }
-                return ok_status();
-            };
-
-            std::uint32_t x = 0;
-            while (x < width) {
-                const auto neighbors = line.neighbors(x);
-                const auto prediction = syntax::Predictor::median_predict(
-                    neighbors.left, neighbors.top, neighbors.top_left);
-                syntax::ContextDecision context;
-                Status status =
-                    context_model.derive_context(neighbors, context);
-                if (!status.ok()) {
-                    return status;
-                }
-
-                if (context.context == 0) {
-                    const auto run_start = x;
-                    while (x < width) {
-                        const auto run_neighbors = line.neighbors(x);
-                        const auto run_prediction =
-                            syntax::Predictor::median_predict(
-                                run_neighbors.left,
-                                run_neighbors.top,
-                                run_neighbors.top_left);
-                        std::uint32_t sample = 0;
-                        status = read_sample(x, sample);
-                        if (!status.ok()) {
-                            return status;
-                        }
-                        if (run_prediction < 0
-                            || sample
-                                != static_cast<std::uint32_t>(
-                                    run_prediction)) {
-                            break;
-                        }
-                        line.mutable_current()[x] =
-                            static_cast<std::int32_t>(sample);
-                        ++x;
-                    }
-                    status = entropy::write_golomb_rice_run(
-                        bit_writer,
-                        run_state,
-                        run_start,
-                        width,
-                        x - run_start);
-                    if (!status.ok()) {
-                        return status;
-                    }
-                    if (x == width) {
-                        continue;
-                    }
-
-                    const auto interruption_neighbors = line.neighbors(x);
-                    const auto interruption_prediction =
-                        syntax::Predictor::median_predict(
-                            interruption_neighbors.left,
-                            interruption_neighbors.top,
-                            interruption_neighbors.top_left);
-                    std::uint32_t sample = 0;
-                    status = read_sample(x, sample);
-                    if (!status.ok()) {
-                        return status;
-                    }
-                    const auto difference = syntax::Predictor::difference(
-                        static_cast<std::int32_t>(sample),
-                        interruption_prediction,
-                        stream_.bits_per_raw_sample);
-                    status = entropy::write_golomb_rice_run_interruption(
-                        writer,
-                        plane_contexts[0],
-                        stream_.bits_per_raw_sample,
-                        difference);
-                    if (!status.ok()) {
-                        return status;
-                    }
-                    line.mutable_current()[x] =
-                        static_cast<std::int32_t>(sample);
-                    ++x;
-                    continue;
-                }
-
+            for (std::uint32_t x = 0; x < width; ++x) {
                 std::uint32_t sample = 0;
-                status = read_sample(x, sample);
+                Status status =
+                    load_input_sample(plane_index, x, y, sample);
                 if (!status.ok()) {
                     return status;
                 }
-                auto difference = syntax::Predictor::difference(
-                    static_cast<std::int32_t>(sample),
-                    prediction,
-                    stream_.bits_per_raw_sample);
-                if (context.invert_difference) {
-                    difference = -difference;
-                }
-                status = entropy::write_golomb_rice_symbol(
-                    writer,
-                    plane_contexts[context.context],
-                    stream_.bits_per_raw_sample,
-                    difference);
-                if (!status.ok()) {
-                    return status;
-                }
-                line.mutable_current()[x] =
-                    static_cast<std::int32_t>(sample);
-                ++x;
+                samples[x] = static_cast<std::int32_t>(sample);
             }
-            line.swap_lines();
+            Status status = encode_line(
+                samples,
+                stream_.bits_per_raw_sample,
+                line,
+                plane_contexts,
+                run_state);
+            if (!status.ok()) {
+                return status;
+            }
         }
     }
     return ok_status();

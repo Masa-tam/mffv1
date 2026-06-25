@@ -228,11 +228,13 @@ bias and drift mapping, then apply the identical context update after a
 successful write. Run-interruption symbols remove zero symmetrically with the
 decoder. The run writer emits full prefixes and the canonical terminating
 remainder while preserving `run_index` across rows. Slice-level Golomb-Rice
-orchestration supports 8-16 bit planar YCbCr, chroma subsampling, and an
-optional full-resolution extra plane. Version 3 uses an independently
-finalized range-coded keyframe and slice header followed by byte-aligned
-Golomb-Rice content. Adaptive contexts and `run_index` are independent per
-plane and reset for each independent slice.
+orchestration supports 8-16 bit planar YCbCr and RGB, chroma subsampling, and
+an optional full-resolution extra plane. RGB uses the same reversible
+transform and row-interleaved plane order as range coding; transformed color
+components use the `bits_per_raw_sample + 1` domain. Version 3 uses an
+independently finalized range-coded keyframe and slice header followed by
+byte-aligned Golomb-Rice content. Adaptive contexts and `run_index` are
+independent per plane and reset for each independent slice.
 
 ## Configuration Record Writer
 

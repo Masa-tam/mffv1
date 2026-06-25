@@ -40,12 +40,11 @@ Status SliceEncoder::validate_stream() const
     }
     if (stream_.entropy_mode == EntropyMode::GolombRice
         && (stream_.colorspace_type != 0
-            || stream_.bits_per_raw_sample != 8
-            || stream_.chroma_planes
-            || stream_.extra_plane)) {
+            || stream_.bits_per_raw_sample < 8
+            || stream_.bits_per_raw_sample > 16)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice slice encoding currently supports only 8-bit Y-only streams");
+            "Golomb-Rice slice encoding currently supports only 8-16 bit planar YCbCr streams");
     }
     if (stream_.colorspace_type == 1
         && (!stream_.chroma_planes
@@ -486,102 +485,169 @@ Status SliceEncoder::encode_golomb_rice_samples(
     FrameView input,
     bitstream::BitWriter& bit_writer) const
 {
-    syntax::LineState line;
-    Status status = line.reset(stream_.width);
-    if (!status.ok()) {
-        return status;
-    }
+    const auto plane_count =
+        static_cast<std::size_t>(syntax::coded_plane_count(stream_));
+    std::vector<syntax::LineState> lines(plane_count);
+    std::vector<std::vector<entropy::GolombRiceContextState>> contexts(
+        plane_count);
+    std::vector<entropy::GolombRiceRunState> run_states(plane_count);
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
-    std::vector<entropy::GolombRiceContextState> contexts(
-        context_model.context_count());
-    entropy::GolombRiceRunState run_state;
+    for (std::size_t plane_index = 0;
+         plane_index < plane_count;
+         ++plane_index) {
+        Status status = lines[plane_index].reset(
+            syntax::plane_width(stream_, plane_index));
+        if (!status.ok()) {
+            return status;
+        }
+        contexts[plane_index].resize(context_model.context_count());
+    }
     entropy::GolombRiceWriter writer(bit_writer);
-    const auto& plane = input.planes[0];
-    const auto* base = static_cast<const std::byte*>(plane.data);
+    const std::uint32_t maximum_sample =
+        stream_.bits_per_raw_sample == 16
+        ? 0xffffu
+        : (std::uint32_t{1} << stream_.bits_per_raw_sample) - 1u;
 
-    for (std::uint32_t y = 0; y < stream_.height; ++y) {
-        const auto* row = reinterpret_cast<const std::uint8_t*>(
-            base + static_cast<std::ptrdiff_t>(y)
-                * plane.info.stride_bytes);
-        std::uint32_t x = 0;
-        while (x < stream_.width) {
-            const auto neighbors = line.neighbors(x);
-            const auto prediction = syntax::Predictor::median_predict(
-                neighbors.left, neighbors.top, neighbors.top_left);
-            syntax::ContextDecision context;
-            status = context_model.derive_context(neighbors, context);
-            if (!status.ok()) {
-                return status;
-            }
+    for (std::size_t plane_index = 0;
+         plane_index < plane_count;
+         ++plane_index) {
+        auto& line = lines[plane_index];
+        auto& plane_contexts = contexts[plane_index];
+        auto& run_state = run_states[plane_index];
+        const auto& plane = input.planes[plane_index];
+        const auto* base = static_cast<const std::byte*>(plane.data);
+        const auto width = syntax::plane_width(stream_, plane_index);
+        const auto height = syntax::plane_height(stream_, plane_index);
 
-            if (context.context == 0) {
-                const auto run_start = x;
-                while (x < stream_.width) {
-                    const auto run_neighbors = line.neighbors(x);
-                    const auto run_prediction =
-                        syntax::Predictor::median_predict(
-                            run_neighbors.left,
-                            run_neighbors.top,
-                            run_neighbors.top_left);
-                    if (row[x] != run_prediction) {
-                        break;
-                    }
-                    line.mutable_current()[x] = row[x];
-                    ++x;
+        for (std::uint32_t y = 0; y < height; ++y) {
+            const auto* row = reinterpret_cast<const std::uint8_t*>(
+                base + static_cast<std::ptrdiff_t>(y)
+                    * plane.info.stride_bytes);
+            const auto read_sample = [&](std::uint32_t x,
+                                         std::uint32_t& sample) -> Status {
+                if (stream_.bits_per_raw_sample <= 8) {
+                    sample = row[x];
+                } else {
+                    std::uint16_t wide_sample = 0;
+                    std::memcpy(
+                        &wide_sample,
+                        row + static_cast<std::size_t>(x)
+                            * sizeof(wide_sample),
+                        sizeof(wide_sample));
+                    sample = wide_sample;
                 }
-                status = entropy::write_golomb_rice_run(
-                    bit_writer,
-                    run_state,
-                    run_start,
-                    stream_.width,
-                    x - run_start);
+                if (sample > maximum_sample) {
+                    return make_error(
+                        ErrorCode::InvalidArgument,
+                        "input sample exceeds configured bit depth");
+                }
+                return ok_status();
+            };
+
+            std::uint32_t x = 0;
+            while (x < width) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = syntax::Predictor::median_predict(
+                    neighbors.left, neighbors.top, neighbors.top_left);
+                syntax::ContextDecision context;
+                Status status =
+                    context_model.derive_context(neighbors, context);
                 if (!status.ok()) {
                     return status;
                 }
-                if (x == stream_.width) {
+
+                if (context.context == 0) {
+                    const auto run_start = x;
+                    while (x < width) {
+                        const auto run_neighbors = line.neighbors(x);
+                        const auto run_prediction =
+                            syntax::Predictor::median_predict(
+                                run_neighbors.left,
+                                run_neighbors.top,
+                                run_neighbors.top_left);
+                        std::uint32_t sample = 0;
+                        status = read_sample(x, sample);
+                        if (!status.ok()) {
+                            return status;
+                        }
+                        if (run_prediction < 0
+                            || sample
+                                != static_cast<std::uint32_t>(
+                                    run_prediction)) {
+                            break;
+                        }
+                        line.mutable_current()[x] =
+                            static_cast<std::int32_t>(sample);
+                        ++x;
+                    }
+                    status = entropy::write_golomb_rice_run(
+                        bit_writer,
+                        run_state,
+                        run_start,
+                        width,
+                        x - run_start);
+                    if (!status.ok()) {
+                        return status;
+                    }
+                    if (x == width) {
+                        continue;
+                    }
+
+                    const auto interruption_neighbors = line.neighbors(x);
+                    const auto interruption_prediction =
+                        syntax::Predictor::median_predict(
+                            interruption_neighbors.left,
+                            interruption_neighbors.top,
+                            interruption_neighbors.top_left);
+                    std::uint32_t sample = 0;
+                    status = read_sample(x, sample);
+                    if (!status.ok()) {
+                        return status;
+                    }
+                    const auto difference = syntax::Predictor::difference(
+                        static_cast<std::int32_t>(sample),
+                        interruption_prediction,
+                        stream_.bits_per_raw_sample);
+                    status = entropy::write_golomb_rice_run_interruption(
+                        writer,
+                        plane_contexts[0],
+                        stream_.bits_per_raw_sample,
+                        difference);
+                    if (!status.ok()) {
+                        return status;
+                    }
+                    line.mutable_current()[x] =
+                        static_cast<std::int32_t>(sample);
+                    ++x;
                     continue;
                 }
 
-                const auto interruption_neighbors = line.neighbors(x);
-                const auto interruption_prediction =
-                    syntax::Predictor::median_predict(
-                        interruption_neighbors.left,
-                        interruption_neighbors.top,
-                        interruption_neighbors.top_left);
-                const auto difference = syntax::Predictor::difference(
-                    row[x],
-                    interruption_prediction,
+                std::uint32_t sample = 0;
+                status = read_sample(x, sample);
+                if (!status.ok()) {
+                    return status;
+                }
+                auto difference = syntax::Predictor::difference(
+                    static_cast<std::int32_t>(sample),
+                    prediction,
                     stream_.bits_per_raw_sample);
-                status = entropy::write_golomb_rice_run_interruption(
+                if (context.invert_difference) {
+                    difference = -difference;
+                }
+                status = entropy::write_golomb_rice_symbol(
                     writer,
-                    contexts[0],
+                    plane_contexts[context.context],
                     stream_.bits_per_raw_sample,
                     difference);
                 if (!status.ok()) {
                     return status;
                 }
-                line.mutable_current()[x] = row[x];
+                line.mutable_current()[x] =
+                    static_cast<std::int32_t>(sample);
                 ++x;
-                continue;
             }
-
-            auto difference = syntax::Predictor::difference(
-                row[x], prediction, stream_.bits_per_raw_sample);
-            if (context.invert_difference) {
-                difference = -difference;
-            }
-            status = entropy::write_golomb_rice_symbol(
-                writer,
-                contexts[context.context],
-                stream_.bits_per_raw_sample,
-                difference);
-            if (!status.ok()) {
-                return status;
-            }
-            line.mutable_current()[x] = row[x];
-            ++x;
+            line.swap_lines();
         }
-        line.swap_lines();
     }
     return ok_status();
 }

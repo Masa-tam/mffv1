@@ -435,9 +435,13 @@ TEST(EncoderTest, PublicEncoderRoundTripsYWithExtraPlane)
     EXPECT_EQ(decoded_alpha, alpha);
 }
 
-void expect_public_high_bit_y_round_trip(std::uint8_t bits_per_raw_sample)
+void expect_public_high_bit_y_round_trip(
+    std::uint8_t bits_per_raw_sample,
+    mffv1::EntropyMode entropy_mode = mffv1::EntropyMode::Range)
 {
-    auto encoder = mffv1::create_encoder({});
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(options);
     ASSERT_TRUE(encoder.status.ok());
     ASSERT_NE(encoder.encoder, nullptr);
     auto stream = make_initial_profile();
@@ -503,6 +507,12 @@ TEST(EncoderTest, PublicEncoderRoundTripsSixteenBitSignedPredictionBoundaries)
     expect_public_high_bit_y_round_trip(16);
 }
 
+TEST(EncoderTest, PublicEncoderRoundTripsSixteenBitGolombRiceSamples)
+{
+    expect_public_high_bit_y_round_trip(
+        16, mffv1::EntropyMode::GolombRice);
+}
+
 TEST(EncoderTest, RejectsInputSampleAboveConfiguredBitDepth)
 {
     auto encoder = mffv1::create_encoder({});
@@ -536,9 +546,12 @@ TEST(EncoderTest, RejectsInputSampleAboveConfiguredBitDepth)
 
 void expect_public_subsampled_round_trip(
     std::uint8_t log2_v_chroma_subsample,
-    bool has_extra_plane = false)
+    bool has_extra_plane = false,
+    mffv1::EntropyMode entropy_mode = mffv1::EntropyMode::Range)
 {
-    auto encoder = mffv1::create_encoder({});
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(options);
     ASSERT_TRUE(encoder.status.ok());
     ASSERT_NE(encoder.encoder, nullptr);
     mffv1::StreamInfo stream;
@@ -663,9 +676,18 @@ TEST(EncoderTest, PublicEncoderRoundTripsOddSizedYcbcr420WithExtraPlane)
     expect_public_subsampled_round_trip(1, true);
 }
 
-TEST(EncoderTest, PublicEncoderRoundTripsTenBitYcbcr420WithExtraPlane)
+TEST(EncoderTest, PublicEncoderRoundTripsGolombRiceYcbcr420WithExtraPlane)
 {
-    auto encoder = mffv1::create_encoder({});
+    expect_public_subsampled_round_trip(
+        1, true, mffv1::EntropyMode::GolombRice);
+}
+
+void expect_public_ten_bit_ycbcr420_with_extra_plane(
+    mffv1::EntropyMode entropy_mode)
+{
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(options);
     ASSERT_TRUE(encoder.status.ok());
     ASSERT_NE(encoder.encoder, nullptr);
     auto stream = make_initial_profile();
@@ -753,6 +775,18 @@ TEST(EncoderTest, PublicEncoderRoundTripsTenBitYcbcr420WithExtraPlane)
     EXPECT_EQ(decoded_cb, cb);
     EXPECT_EQ(decoded_cr, cr);
     EXPECT_EQ(decoded_alpha, alpha);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsTenBitYcbcr420WithExtraPlane)
+{
+    expect_public_ten_bit_ycbcr420_with_extra_plane(
+        mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsTenBitGolombRiceYcbcr420WithExtraPlane)
+{
+    expect_public_ten_bit_ycbcr420_with_extra_plane(
+        mffv1::EntropyMode::GolombRice);
 }
 
 void expect_public_rgb_round_trip(std::uint8_t bits_per_raw_sample,
@@ -1021,7 +1055,8 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedGolombRiceProfile)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.encoder, nullptr);
     auto stream = make_initial_profile();
-    stream.bits_per_raw_sample = 10;
+    stream.color_space = mffv1::ColorSpace::Rgb;
+    stream.has_chroma_planes = true;
     mffv1::ConfigurationRecord record;
     record.bytes.push_back(std::byte{0xaa});
 

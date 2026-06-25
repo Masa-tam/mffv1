@@ -54,12 +54,11 @@ Status normalize_initial_profile(const EncoderOptions& options,
     }
     if (options.entropy_mode == EntropyMode::GolombRice
         && (info.color_space != ColorSpace::YCbCr
-            || info.bits_per_raw_sample != 8
-            || info.has_chroma_planes
-            || info.has_extra_plane)) {
+            || info.bits_per_raw_sample < 8
+            || info.bits_per_raw_sample > 16)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice encoding currently supports only 8-bit Y-only streams");
+            "Golomb-Rice encoding currently supports only 8-16 bit planar YCbCr streams");
     }
     if (!info.has_chroma_planes
         && (info.log2_h_chroma_subsample != 0

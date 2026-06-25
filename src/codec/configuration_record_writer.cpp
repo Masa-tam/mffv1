@@ -193,12 +193,11 @@ Status ConfigurationRecordWriter::validate_initial_profile(
     }
     if (stream.entropy_mode == EntropyMode::GolombRice
         && (stream.colorspace_type != 0
-            || stream.bits_per_raw_sample != 8
-            || stream.chroma_planes
-            || stream.extra_plane)) {
+            || stream.bits_per_raw_sample < 8
+            || stream.bits_per_raw_sample > 16)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice configuration currently supports only 8-bit Y-only streams");
+            "Golomb-Rice configuration currently supports only 8-16 bit planar YCbCr streams");
     }
     if ((stream.colorspace_type != 0 && stream.colorspace_type != 1)
         || stream.bits_per_raw_sample < 8

@@ -5,6 +5,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -136,7 +137,8 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.encoder, nullptr);
     auto stream = make_initial_profile();
-    stream.log2_h_chroma_subsample = 1;
+    stream.has_chroma_planes = true;
+    stream.log2_h_chroma_subsample = 2;
     mffv1::ConfigurationRecord record;
     record.bytes.push_back(std::byte{0xaa});
 
@@ -146,6 +148,23 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     ASSERT_EQ(record.bytes.size(), 1u);
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
+}
+
+TEST(EncoderTest, ConfigureRejectsSubsamplingWithoutChroma)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.log2_h_chroma_subsample = 1;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 TEST(EncoderTest, FailedReconfigurePreservesUsablePreviousConfiguration)
@@ -338,6 +357,114 @@ TEST(EncoderTest, PublicEncoderRoundTripsPlanarYcbcr444)
     EXPECT_EQ(decoded_y, y);
     EXPECT_EQ(decoded_cb, cb);
     EXPECT_EQ(decoded_cr, cr);
+}
+
+void expect_public_subsampled_round_trip(
+    std::uint8_t log2_v_chroma_subsample)
+{
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    mffv1::StreamInfo stream;
+    stream.width = 5;
+    stream.height = 3;
+    stream.version = 3;
+    stream.bits_per_raw_sample = 8;
+    stream.has_chroma_planes = true;
+    stream.has_extra_plane = false;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = log2_v_chroma_subsample;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    const std::uint32_t chroma_width = 3;
+    const std::uint32_t chroma_height =
+        log2_v_chroma_subsample == 0 ? 3u : 2u;
+    std::vector<std::uint8_t> y(15);
+    std::vector<std::uint8_t> cb(chroma_width * chroma_height);
+    std::vector<std::uint8_t> cr(chroma_width * chroma_height);
+    for (std::size_t index = 0; index < y.size(); ++index) {
+        y[index] = static_cast<std::uint8_t>((index * 37u) & 0xffu);
+    }
+    for (std::size_t index = 0; index < cb.size(); ++index) {
+        cb[index] = static_cast<std::uint8_t>((128u + index * 19u) & 0xffu);
+        cr[index] = static_cast<std::uint8_t>((255u - index * 23u) & 0xffu);
+    }
+    std::array<mffv1::PlaneView, 3> input_planes{};
+    input_planes[0] = {
+        y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 3, 5},
+    };
+    input_planes[1] = {
+        cb.data(),
+        {mffv1::PlaneRole::Cb,
+         mffv1::SampleFormat::UInt8,
+         chroma_width,
+         chroma_height,
+         static_cast<std::ptrdiff_t>(chroma_width)},
+    };
+    input_planes[2] = {
+        cr.data(),
+        {mffv1::PlaneRole::Cr,
+         mffv1::SampleFormat::UInt8,
+         chroma_width,
+         chroma_height,
+         static_cast<std::ptrdiff_t>(chroma_width)},
+    };
+    const mffv1::FrameView input{
+        input_planes.data(), input_planes.size()};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    std::vector<std::uint8_t> decoded_y(y.size());
+    std::vector<std::uint8_t> decoded_cb(cb.size());
+    std::vector<std::uint8_t> decoded_cr(cr.size());
+    std::array<mffv1::MutablePlaneView, 3> output_planes{};
+    output_planes[0] = {
+        decoded_y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 3, 5},
+    };
+    output_planes[1] = {
+        decoded_cb.data(),
+        {mffv1::PlaneRole::Cb,
+         mffv1::SampleFormat::UInt8,
+         chroma_width,
+         chroma_height,
+         static_cast<std::ptrdiff_t>(chroma_width)},
+    };
+    output_planes[2] = {
+        decoded_cr.data(),
+        {mffv1::PlaneRole::Cr,
+         mffv1::SampleFormat::UInt8,
+         chroma_width,
+         chroma_height,
+         static_cast<std::ptrdiff_t>(chroma_width)},
+    };
+    mffv1::MutableFrameView output{
+        output_planes.data(), output_planes.size()};
+
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+    EXPECT_EQ(decoded_y, y);
+    EXPECT_EQ(decoded_cb, cb);
+    EXPECT_EQ(decoded_cr, cr);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsOddSizedYcbcr422)
+{
+    expect_public_subsampled_round_trip(0);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsOddSizedYcbcr420)
+{
+    expect_public_subsampled_round_trip(1);
 }
 
 TEST(EncoderTest, EncodesSuccessiveFramesAsIndependentKeyframes)

@@ -25,12 +25,25 @@ Status SliceEncoder::validate_stream() const
     if (stream_.entropy_mode != EntropyMode::Range
         || stream_.colorspace_type != 0
         || stream_.bits_per_raw_sample != 8
-        || stream_.extra_plane
-        || stream_.log2_h_chroma_subsample != 0
-        || stream_.log2_v_chroma_subsample != 0) {
+        || stream_.extra_plane) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "slice encoder supports only range-coded 8-bit planar Y or YCbCr 4:4:4 streams");
+            "slice encoder supports only range-coded 8-bit planar Y or YCbCr 4:4:4, 4:2:2, and 4:2:0 streams");
+    }
+    if (!stream_.chroma_planes
+        && (stream_.log2_h_chroma_subsample != 0
+            || stream_.log2_v_chroma_subsample != 0)) {
+        return make_error(
+            ErrorCode::InvalidArgument,
+            "chroma subsampling requires chroma planes");
+    }
+    if (stream_.log2_h_chroma_subsample > 1
+        || stream_.log2_v_chroma_subsample > 1
+        || stream_.log2_v_chroma_subsample
+            > stream_.log2_h_chroma_subsample) {
+        return make_error(
+            ErrorCode::UnsupportedFeature,
+            "slice encoder supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     }
     if (stream_.quant_table_sets.size() != 1) {
         return make_error(

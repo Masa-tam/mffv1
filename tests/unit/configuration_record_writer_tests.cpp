@@ -160,6 +160,25 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesChromaPlanes)
     EXPECT_EQ(mffv1::syntax::coded_plane_count(parsed), 3u);
 }
 
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesChromaSubsampling)
+{
+    auto stream = make_initial_profile();
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    ASSERT_TRUE(writer.write(stream, record).ok());
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_TRUE(parsed.chroma_planes);
+    EXPECT_EQ(parsed.log2_h_chroma_subsample, 1u);
+    EXPECT_EQ(parsed.log2_v_chroma_subsample, 1u);
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordConfiguresPublicDecoder)
 {
     const auto stream = make_initial_profile();
@@ -181,7 +200,8 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordConfiguresPublicDecoder)
 TEST(ConfigurationRecordWriterTest, RejectsUnsupportedProfileWithoutChangingOutput)
 {
     auto stream = make_initial_profile();
-    stream.log2_h_chroma_subsample = 1;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 2;
     std::vector<std::byte> record{std::byte{0xaa}};
     const mffv1::codec::ConfigurationRecordWriter writer;
 
@@ -191,6 +211,21 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedProfileWithoutChangingOutp
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     ASSERT_EQ(record.size(), 1u);
     EXPECT_EQ(record[0], std::byte{0xaa});
+}
+
+TEST(ConfigurationRecordWriterTest, RejectsVerticalOnlySubsampling)
+{
+    auto stream = make_initial_profile();
+    stream.chroma_planes = true;
+    stream.log2_v_chroma_subsample = 1;
+    std::vector<std::byte> record{std::byte{0xaa}};
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 TEST(ConfigurationRecordWriterTest, AcceptsNormalizedEmptyInitialStateSet)

@@ -232,6 +232,81 @@ TEST(SliceEncoderTest, RoundTripsPlanarYcbcr444)
     EXPECT_EQ(decoded_cr, cr);
 }
 
+TEST(SliceEncoderTest, RoundTripsOddSizedYcbcr420)
+{
+    auto stream = make_stream();
+    stream.width = 5;
+    stream.height = 3;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+    const std::array<std::uint8_t, 15> y{
+        0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9,
+        10, 11, 12, 13, 14,
+    };
+    const std::array<std::uint8_t, 6> cb{
+        128, 129, 130, 131, 132, 133,
+    };
+    const std::array<std::uint8_t, 6> cr{
+        255, 254, 253, 252, 251, 250,
+    };
+    std::array<mffv1::PlaneView, 3> input_planes{};
+    input_planes[0] = {
+        y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 3, 5},
+    };
+    input_planes[1] = {
+        cb.data(),
+        {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 3, 2, 3},
+    };
+    input_planes[2] = {
+        cr.data(),
+        {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 3, 2, 3},
+    };
+    const mffv1::FrameView input{
+        input_planes.data(), input_planes.size()};
+    std::vector<std::byte> payload;
+    const mffv1::codec::SliceEncoder encoder(stream);
+    ASSERT_TRUE(encoder.encode_slice(input, true, payload).ok());
+
+    mffv1::codec::FrameDecodeContext frame;
+    const mffv1::codec::FrameParser parser(stream);
+    ASSERT_TRUE(parser.parse_with_range_header(payload, frame).ok());
+    ASSERT_EQ(frame.slices.size(), 1u);
+
+    std::array<std::uint8_t, 15> decoded_y{};
+    std::array<std::uint8_t, 6> decoded_cb{};
+    std::array<std::uint8_t, 6> decoded_cr{};
+    std::array<mffv1::MutablePlaneView, 3> output_planes{};
+    output_planes[0] = {
+        decoded_y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 3, 5},
+    };
+    output_planes[1] = {
+        decoded_cb.data(),
+        {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 3, 2, 3},
+    };
+    output_planes[2] = {
+        decoded_cr.data(),
+        {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 3, 2, 3},
+    };
+    mffv1::MutableFrameView output{
+        output_planes.data(), output_planes.size()};
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(
+        window.validate(stream, output, frame.slices[0]).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    const mffv1::codec::SliceDecoder decoder(stream);
+
+    ASSERT_TRUE(
+        decoder.decode(frame.slices[0], window, state).ok());
+    EXPECT_EQ(decoded_y, y);
+    EXPECT_EQ(decoded_cb, cb);
+    EXPECT_EQ(decoded_cr, cr);
+}
+
 TEST(SliceEncoderTest, RejectsNonKeyframeForIntraStream)
 {
     const auto stream = make_stream();

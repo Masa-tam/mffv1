@@ -128,11 +128,11 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(0); // log2_h_chroma_subsample
+    status = write_unsigned(stream.log2_h_chroma_subsample);
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(0); // log2_v_chroma_subsample
+    status = write_unsigned(stream.log2_v_chroma_subsample);
     if (!status.ok()) {
         return status;
     }
@@ -189,12 +189,25 @@ Status ConfigurationRecordWriter::validate_initial_profile(
     }
     if (stream.colorspace_type != 0
         || stream.bits_per_raw_sample != 8
-        || stream.extra_plane
-        || stream.log2_h_chroma_subsample != 0
-        || stream.log2_v_chroma_subsample != 0) {
+        || stream.extra_plane) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports only 8-bit planar Y or YCbCr 4:4:4 streams");
+            "configuration writer supports only 8-bit planar Y or YCbCr 4:4:4, 4:2:2, and 4:2:0 streams");
+    }
+    if (!stream.chroma_planes
+        && (stream.log2_h_chroma_subsample != 0
+            || stream.log2_v_chroma_subsample != 0)) {
+        return make_error(
+            ErrorCode::InvalidArgument,
+            "chroma subsampling requires chroma planes");
+    }
+    if (stream.log2_h_chroma_subsample > 1
+        || stream.log2_v_chroma_subsample > 1
+        || stream.log2_v_chroma_subsample
+            > stream.log2_h_chroma_subsample) {
+        return make_error(
+            ErrorCode::UnsupportedFeature,
+            "configuration writer supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     }
     if (stream.num_h_slices != 1 || stream.num_v_slices != 1) {
         return make_error(

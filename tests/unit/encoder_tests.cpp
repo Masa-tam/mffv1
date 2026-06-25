@@ -184,6 +184,24 @@ TEST(EncoderTest, ConfigureRejectsSliceGridWithEmptyChromaRegion)
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(EncoderTest, ConfigureRejectsLargeFrameWithTooFewSlices)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.width = 353;
+    stream.height = 288;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
 {
     auto result = mffv1::create_encoder({});

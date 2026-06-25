@@ -346,6 +346,8 @@ The executor follows the decoder scheduler's deterministic contract:
 - Each worker owns its output bytes and working state.
 - Error selection is deterministic by lowest input slice index.
 - No worker writes shared frame bytes.
+- Version 3 frames larger than CIF use at least four raster cells so each
+  emitted one-cell slice satisfies the normative parallel slice-area limit.
 
 ### `codec::FrameAssembler`
 

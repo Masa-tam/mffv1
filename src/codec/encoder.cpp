@@ -1,8 +1,7 @@
 #include "mffv1/codec.hpp"
 
 #include "codec/configuration_record_writer.hpp"
-#include "codec/frame_validator.hpp"
-#include "codec/slice_encoder.hpp"
+#include "codec/slice_encode_executor.hpp"
 #include "mffv1/stream_parameters.hpp"
 
 #include <memory>
@@ -12,6 +11,8 @@
 namespace mffv1 {
 
 namespace {
+
+constexpr std::uint64_t kCifPixelCount = 352u * 288u;
 
 Status normalize_initial_profile(const EncoderOptions& options,
                                  const StreamInfo& info,
@@ -94,6 +95,17 @@ Status normalize_initial_profile(const EncoderOptions& options,
     stream.log2_v_chroma_subsample = info.log2_v_chroma_subsample;
     stream.num_h_slices = info.num_h_slices;
     stream.num_v_slices = info.num_v_slices;
+    const auto slice_count =
+        static_cast<std::uint64_t>(stream.num_h_slices)
+        * static_cast<std::uint64_t>(stream.num_v_slices);
+    const auto frame_pixel_count =
+        static_cast<std::uint64_t>(stream.width)
+        * static_cast<std::uint64_t>(stream.height);
+    if (frame_pixel_count > kCifPixelCount && slice_count < 4) {
+        return make_error(
+            ErrorCode::InvalidArgument,
+            "version 3 frames larger than CIF require at least four slices");
+    }
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream));
     for (std::size_t plane_index = 0;
@@ -145,45 +157,12 @@ public:
         if (!stream_.has_value()) {
             return make_error(ErrorCode::InvalidState, "encoder is not configured");
         }
-        const codec::FrameValidator validator;
-        Status status = validator.validate_input(*stream_, input);
+        std::vector<std::byte> frame_bytes;
+        const codec::SliceEncodeExecutor executor(
+            *stream_, options_.thread_count);
+        Status status = executor.encode(input, frame_bytes);
         if (!status.ok()) {
             return status;
-        }
-
-        std::vector<std::byte> frame_bytes;
-        const codec::SliceEncoder encoder(*stream_);
-        bool first_slice = true;
-        for (std::uint32_t y = 0; y < stream_->num_v_slices; ++y) {
-            for (std::uint32_t x = 0; x < stream_->num_h_slices; ++x) {
-                codec::SliceHeaderValues header;
-                header.x = x;
-                header.y = y;
-                header.width = 1;
-                header.height = 1;
-                header.quant_table_set_indexes.assign(
-                    syntax::quant_table_set_index_count(*stream_), 0);
-
-                std::vector<std::byte> slice_bytes;
-                status = encoder.encode_slice(
-                    input,
-                    header,
-                    first_slice,
-                    true,
-                    slice_bytes);
-                if (!status.ok()) {
-                    return status;
-                }
-                if (slice_bytes.size()
-                    > frame_bytes.max_size() - frame_bytes.size()) {
-                    return make_error(
-                        ErrorCode::ResourceExhausted,
-                        "encoded frame exceeds vector capacity");
-                }
-                frame_bytes.insert(
-                    frame_bytes.end(), slice_bytes.begin(), slice_bytes.end());
-                first_slice = false;
-            }
         }
         out_frame.bytes = std::move(frame_bytes);
         return ok_status();

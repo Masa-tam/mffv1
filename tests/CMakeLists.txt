@@ -32,6 +32,7 @@ add_executable(mffv1_unit_tests
     unit/golomb_rice_context_tests.cpp
     unit/golomb_rice_reader_tests.cpp
     unit/golomb_rice_run_tests.cpp
+    unit/golomb_rice_writer_tests.cpp
     unit/predictor_tests.cpp
     unit/range_coder_tests.cpp
     unit/range_encoder_tests.cpp

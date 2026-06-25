@@ -46,6 +46,26 @@ std::int32_t sign_extend(std::int64_t value, std::uint8_t bits) noexcept
                                          : static_cast<std::int64_t>(encoded));
 }
 
+void update_state(GolombRiceContextState& state, std::int64_t value) noexcept
+{
+    state.error_sum += value < 0 ? -value : value;
+    state.drift += value;
+    if (state.count == 128) {
+        state.count >>= 1;
+        state.drift = util::arithmetic_right_shift(state.drift, 1);
+        state.error_sum >>= 1;
+    }
+    ++state.count;
+    if (state.drift <= -state.count) {
+        state.bias = std::max<std::int64_t>(state.bias - 1, -128);
+        state.drift = std::max<std::int64_t>(state.drift + state.count,
+                                             -state.count + 1);
+    } else if (state.drift > 0) {
+        state.bias = std::min<std::int64_t>(state.bias + 1, 127);
+        state.drift = std::min<std::int64_t>(state.drift - state.count, 0);
+    }
+}
+
 } // namespace
 
 void GolombRiceContextState::reset() noexcept
@@ -84,22 +104,7 @@ Status read_golomb_rice_symbol(GolombRiceReader& reader,
     }
     const auto decoded = sign_extend(value + state.bias, bits_per_raw_sample);
 
-    state.error_sum += value < 0 ? -value : value;
-    state.drift += value;
-    if (state.count == 128) {
-        state.count >>= 1;
-        state.drift = util::arithmetic_right_shift(state.drift, 1);
-        state.error_sum >>= 1;
-    }
-    ++state.count;
-    if (state.drift <= -state.count) {
-        state.bias = std::max<std::int64_t>(state.bias - 1, -128);
-        state.drift = std::max<std::int64_t>(state.drift + state.count,
-                                             -state.count + 1);
-    } else if (state.drift > 0) {
-        state.bias = std::min<std::int64_t>(state.bias + 1, 127);
-        state.drift = std::min<std::int64_t>(state.drift - state.count, 0);
-    }
+    update_state(state, value);
 
     out_value = decoded;
     return ok_status();
@@ -120,6 +125,55 @@ Status read_golomb_rice_run_interruption(GolombRiceReader& reader,
     }
     out_value = value;
     return ok_status();
+}
+
+Status write_golomb_rice_symbol(GolombRiceWriter& writer,
+                                GolombRiceContextState& state,
+                                std::uint8_t bits_per_raw_sample,
+                                std::int32_t value)
+{
+    Status status = validate_state(state);
+    if (!status.ok()) {
+        return status;
+    }
+    if (bits_per_raw_sample == 0 || bits_per_raw_sample > 31) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "Golomb-Rice raw sample width must be in the range 1..31");
+    }
+
+    std::uint8_t k = 0;
+    status = derive_k(state, k);
+    if (!status.ok()) {
+        return status;
+    }
+    const auto adaptive_value = sign_extend(
+        static_cast<std::int64_t>(value) - state.bias,
+        bits_per_raw_sample);
+    const auto coded_value = 2 * state.drift < -state.count
+        ? -1 - adaptive_value
+        : adaptive_value;
+    status = writer.write_signed(k, bits_per_raw_sample, coded_value);
+    if (!status.ok()) {
+        return status;
+    }
+    update_state(state, adaptive_value);
+    return ok_status();
+}
+
+Status write_golomb_rice_run_interruption(
+    GolombRiceWriter& writer,
+    GolombRiceContextState& state,
+    std::uint8_t bits_per_raw_sample,
+    std::int32_t value)
+{
+    if (value == 0) {
+        return make_error(
+            ErrorCode::InvalidArgument,
+            "Golomb-Rice run interruption difference must be nonzero");
+    }
+    const auto mapped = value > 0 ? value - 1 : value;
+    return write_golomb_rice_symbol(
+        writer, state, bits_per_raw_sample, mapped);
 }
 
 } // namespace mffv1::entropy

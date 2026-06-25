@@ -218,6 +218,17 @@ codec, context-bank separation, custom transitions, carry propagation, long
 runs, and finalization boundaries. Test expected bytes only when derived
 directly from the RFC or from project-owned arithmetic derivations.
 
+### `entropy::GolombRiceWriter`
+
+Location: `src/entropy/golomb_rice_writer.hpp` and `.cpp`.
+
+The scalar Golomb-Rice foundation writes canonical regular and escape
+codewords through `BitWriter`. Context-aware helpers invert the decoder's
+bias and drift mapping, then apply the identical context update after a
+successful write. Run-interruption symbols remove zero symmetrically with the
+decoder. Run-length coding and slice-level Golomb-Rice orchestration remain a
+separate increment.
+
 ## Configuration Record Writer
 
 ### `codec::ConfigurationRecordWriter`

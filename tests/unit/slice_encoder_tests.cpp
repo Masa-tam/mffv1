@@ -1,6 +1,8 @@
 #include "codec/slice_encoder.hpp"
 
 #include "codec/slice_decoder.hpp"
+#include "codec/frame_decode_context.hpp"
+#include "codec/frame_parser.hpp"
 #include "codec/slice_output_window.hpp"
 #include "codec/slice_state.hpp"
 #include "mffv1/configuration_parser.hpp"
@@ -117,6 +119,64 @@ TEST(SliceEncoderTest, RoundTripsInvertedContextWithCustomInitialState)
     stream.initial_states[0].contexts[1].fill(96);
 
     expect_round_trip({10, 20, 20, 20, 20, 20, 20, 20}, stream);
+}
+
+TEST(SliceEncoderTest, AssemblesVersionThreeSliceAcceptedByFrameParser)
+{
+    const auto stream = make_stream();
+    const std::array<std::uint8_t, 8> source{
+        0, 255, 128, 1, 255, 0, 127, 254,
+    };
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+    std::vector<std::byte> payload;
+    const mffv1::codec::SliceEncoder encoder(stream);
+    ASSERT_TRUE(encoder.encode_slice(input, true, payload).ok());
+
+    mffv1::codec::FrameDecodeContext frame;
+    const mffv1::codec::FrameParser parser(stream);
+    ASSERT_TRUE(parser.parse_with_range_header(payload, frame).ok());
+    ASSERT_TRUE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].slice_size, payload.size());
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
+    EXPECT_LT(frame.slices[0].content_byte_offset,
+              frame.slices[0].footer_byte_offset);
+
+    std::array<std::uint8_t, 8> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(
+        window.validate(stream, output, frame.slices[0]).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    const mffv1::codec::SliceDecoder decoder(stream);
+
+    const auto status =
+        decoder.decode(frame.slices[0], window, state);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decoded, source);
+}
+
+TEST(SliceEncoderTest, RejectsNonKeyframeForIntraStream)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 8> storage{};
+    const auto plane = make_input_plane(storage);
+    const mffv1::FrameView input{&plane, 1};
+    std::vector<std::byte> payload{std::byte{0xaa}};
+    const mffv1::codec::SliceEncoder encoder(stream);
+
+    const auto status = encoder.encode_slice(input, false, payload);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(payload, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 TEST(SliceEncoderTest, ReadsPaddedInputStride)

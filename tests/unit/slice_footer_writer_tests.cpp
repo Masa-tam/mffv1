@@ -1,0 +1,95 @@
+#include "codec/slice_footer_writer.hpp"
+
+#include "codec/slice_footer_parser.hpp"
+#include "util/crc32.hpp"
+
+#include <cstddef>
+#include <vector>
+
+#include <gtest/gtest.h>
+
+namespace {
+
+TEST(SliceFooterWriterTest, AppendsCompleteSliceSize)
+{
+    mffv1::syntax::StreamParameters stream;
+    std::vector<std::byte> payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+    };
+    const mffv1::codec::SliceFooterWriter writer;
+
+    const auto status = writer.append(stream, 0, payload);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(
+        payload,
+        (std::vector<std::byte>{
+            std::byte{0xaa},
+            std::byte{0xbb},
+            std::byte{0x00},
+            std::byte{0x00},
+            std::byte{0x05},
+        }));
+    mffv1::syntax::SliceDescriptor descriptor;
+    const mffv1::codec::SliceFooterParser parser;
+    EXPECT_TRUE(parser.read_from_end(payload, stream, descriptor).ok());
+}
+
+TEST(SliceFooterWriterTest, AppendsErrorStatusAndCrcParity)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    std::vector<std::byte> payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+    };
+    const mffv1::codec::SliceFooterWriter writer;
+
+    const auto status = writer.append(stream, 2, payload);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(payload.size(), 10u);
+    EXPECT_EQ(payload[2], std::byte{0x00});
+    EXPECT_EQ(payload[3], std::byte{0x00});
+    EXPECT_EQ(payload[4], std::byte{0x0a});
+    EXPECT_EQ(payload[5], std::byte{0x02});
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(payload), 0u);
+
+    mffv1::syntax::SliceDescriptor descriptor;
+    const mffv1::codec::SliceFooterParser parser;
+    ASSERT_TRUE(parser.read_from_end(payload, stream, descriptor, true).ok());
+    EXPECT_EQ(descriptor.error_status, 2u);
+    EXPECT_TRUE(descriptor.has_crc);
+}
+
+TEST(SliceFooterWriterTest, RejectsReservedStatusWithoutChangingPayload)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    std::vector<std::byte> payload{std::byte{0xaa}};
+    const auto original = payload;
+    const mffv1::codec::SliceFooterWriter writer;
+
+    const auto status = writer.append(stream, 3, payload);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(payload, original);
+}
+
+TEST(SliceFooterWriterTest, RejectsStatusWhenEcIsDisabled)
+{
+    mffv1::syntax::StreamParameters stream;
+    std::vector<std::byte> payload{std::byte{0xaa}};
+    const auto original = payload;
+    const mffv1::codec::SliceFooterWriter writer;
+
+    const auto status = writer.append(stream, 1, payload);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(payload, original);
+}
+
+} // namespace

@@ -41,7 +41,9 @@ add_executable(mffv1_unit_tests
     unit/slice_encoder_tests.cpp
     unit/slice_executor_tests.cpp
     unit/slice_footer_parser_tests.cpp
+    unit/slice_footer_writer_tests.cpp
     unit/slice_header_parser_tests.cpp
+    unit/slice_header_writer_tests.cpp
     unit/slice_output_window_tests.cpp
     unit/slice_payload_locator_tests.cpp
     unit/slice_raster_validator_tests.cpp

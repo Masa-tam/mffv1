@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "entropy/range_encoder.hpp"
 #include "mffv1/frame.hpp"
 #include "mffv1/result.hpp"
 #include "mffv1/stream_parameters.hpp"
@@ -14,9 +15,14 @@ public:
 
     Status encode_content(FrameView input,
                           std::vector<std::byte>& out_payload) const;
+    Status encode_slice(FrameView input,
+                        bool keyframe,
+                        std::vector<std::byte>& out_payload) const;
 
 private:
     Status validate_stream() const;
+    Status encode_samples(FrameView input,
+                          entropy::RangeEncoder& writer) const;
 
     const syntax::StreamParameters& stream_;
 };

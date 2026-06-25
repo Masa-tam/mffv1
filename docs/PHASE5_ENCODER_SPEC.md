@@ -27,6 +27,10 @@ The output MUST be accepted by the mffv1 decoder. Internal round-trip tests are
 necessary but not sufficient for final conformance; later milestones add
 independently produced vectors and black-box interoperability tests.
 
+The first post-milestone extension adds planar 8-bit YCbCr 4:4:4. Y, Cb, and
+Cr use separate prediction line state and separate range context banks, and
+are coded in planar order. Chroma subsampling remains a later increment.
+
 ## Public API Contract
 
 The existing public API remains the boundary:

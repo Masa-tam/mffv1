@@ -124,7 +124,7 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    status = write_bool(false); // chroma_planes
+    status = write_bool(stream.chroma_planes);
     if (!status.ok()) {
         return status;
     }
@@ -189,13 +189,12 @@ Status ConfigurationRecordWriter::validate_initial_profile(
     }
     if (stream.colorspace_type != 0
         || stream.bits_per_raw_sample != 8
-        || stream.chroma_planes
         || stream.extra_plane
         || stream.log2_h_chroma_subsample != 0
         || stream.log2_v_chroma_subsample != 0) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports only 8-bit Y-only streams");
+            "configuration writer supports only 8-bit planar Y or YCbCr 4:4:4 streams");
     }
     if (stream.num_h_slices != 1 || stream.num_v_slices != 1) {
         return make_error(

@@ -8,7 +8,6 @@
 #include "mffv1/line_state.hpp"
 #include "mffv1/predictor.hpp"
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -26,11 +25,12 @@ Status SliceEncoder::validate_stream() const
     if (stream_.entropy_mode != EntropyMode::Range
         || stream_.colorspace_type != 0
         || stream_.bits_per_raw_sample != 8
-        || stream_.chroma_planes
-        || stream_.extra_plane) {
+        || stream_.extra_plane
+        || stream_.log2_h_chroma_subsample != 0
+        || stream_.log2_v_chroma_subsample != 0) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "slice encoder supports only range-coded 8-bit Y-only streams");
+            "slice encoder supports only range-coded 8-bit planar Y or YCbCr 4:4:4 streams");
     }
     if (stream_.quant_table_sets.size() != 1) {
         return make_error(
@@ -75,13 +75,17 @@ Status SliceEncoder::encode_content(
     }
 
     entropy::RangeEncoder writer;
+    const auto plane_count =
+        static_cast<std::size_t>(syntax::coded_plane_count(stream_));
     const auto context_count =
         static_cast<std::size_t>(stream_.quant_table_sets[0].context_count);
-    const std::array context_counts{context_count};
-    std::array<std::span<const entropy::RangeEncoder::ScalarContextStates>, 1>
-        initial_state_banks{};
+    std::vector<std::size_t> context_counts(plane_count, context_count);
+    std::vector<std::span<const entropy::RangeEncoder::ScalarContextStates>>
+        initial_state_banks(plane_count);
     if (!stream_.initial_states.empty()) {
-        initial_state_banks[0] = stream_.initial_states[0].contexts;
+        for (auto& bank : initial_state_banks) {
+            bank = stream_.initial_states[0].contexts;
+        }
     }
 
     status = writer.reset(
@@ -155,13 +159,17 @@ Status SliceEncoder::encode_slice(
         return status;
     }
 
+    const auto plane_count =
+        static_cast<std::size_t>(syntax::coded_plane_count(stream_));
     const auto context_count =
         static_cast<std::size_t>(stream_.quant_table_sets[0].context_count);
-    const std::array context_counts{context_count};
-    std::array<std::span<const entropy::RangeEncoder::ScalarContextStates>, 1>
-        initial_state_banks{};
+    std::vector<std::size_t> context_counts(plane_count, context_count);
+    std::vector<std::span<const entropy::RangeEncoder::ScalarContextStates>>
+        initial_state_banks(plane_count);
     if (!stream_.initial_states.empty()) {
-        initial_state_banks[0] = stream_.initial_states[0].contexts;
+        for (auto& bank : initial_state_banks) {
+            bank = stream_.initial_states[0].contexts;
+        }
     }
     status = writer.reconfigure_contexts(
         context_counts, initial_state_banks);
@@ -191,41 +199,59 @@ Status SliceEncoder::encode_samples(
     FrameView input,
     entropy::RangeEncoder& writer) const
 {
-    syntax::LineState line;
-    Status status = line.reset(stream_.width);
-    if (!status.ok()) {
-        return status;
+    const auto plane_count =
+        static_cast<std::size_t>(syntax::coded_plane_count(stream_));
+    std::vector<syntax::LineState> lines(plane_count);
+    for (std::size_t plane_index = 0;
+         plane_index < plane_count;
+         ++plane_index) {
+        Status status = lines[plane_index].reset(
+            syntax::plane_width(stream_, plane_index));
+        if (!status.ok()) {
+            return status;
+        }
     }
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
-    const auto& plane = input.planes[0];
-    const auto* base = static_cast<const std::byte*>(plane.data);
 
-    for (std::uint32_t y = 0; y < stream_.height; ++y) {
-        const auto* row = reinterpret_cast<const std::uint8_t*>(
-            base + static_cast<std::ptrdiff_t>(y) * plane.info.stride_bytes);
-        for (std::uint32_t x = 0; x < stream_.width; ++x) {
-            const auto neighbors = line.neighbors(x);
-            const auto prediction = syntax::Predictor::median_predict(
-                neighbors.left, neighbors.top, neighbors.top_left);
-            syntax::ContextDecision context;
-            status = context_model.derive_context(neighbors, context);
-            if (!status.ok()) {
-                return status;
-            }
+    for (std::size_t plane_index = 0;
+         plane_index < plane_count;
+         ++plane_index) {
+        auto& line = lines[plane_index];
+        const auto& plane = input.planes[plane_index];
+        const auto* base = static_cast<const std::byte*>(plane.data);
+        const auto width = syntax::plane_width(stream_, plane_index);
+        const auto height = syntax::plane_height(stream_, plane_index);
 
-            const auto sample = static_cast<std::int32_t>(row[x]);
-            auto difference = syntax::Predictor::difference(
-                sample, prediction, stream_.bits_per_raw_sample);
-            if (context.invert_difference) {
-                difference = -difference;
+        for (std::uint32_t y = 0; y < height; ++y) {
+            const auto* row = reinterpret_cast<const std::uint8_t*>(
+                base + static_cast<std::ptrdiff_t>(y)
+                    * plane.info.stride_bytes);
+            for (std::uint32_t x = 0; x < width; ++x) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = syntax::Predictor::median_predict(
+                    neighbors.left, neighbors.top, neighbors.top_left);
+                syntax::ContextDecision context;
+                Status status =
+                    context_model.derive_context(neighbors, context);
+                if (!status.ok()) {
+                    return status;
+                }
+
+                const auto sample = static_cast<std::int32_t>(row[x]);
+                auto difference = syntax::Predictor::difference(
+                    sample, prediction, stream_.bits_per_raw_sample);
+                if (context.invert_difference) {
+                    difference = -difference;
+                }
+                status = writer.write_signed(
+                    plane_index, context.context, difference);
+                if (!status.ok()) {
+                    return status;
+                }
+                line.mutable_current()[x] = sample;
             }
-            status = writer.write_signed(0, context.context, difference);
-            if (!status.ok()) {
-                return status;
-            }
-            line.mutable_current()[x] = sample;
+            line.swap_lines();
         }
-        line.swap_lines();
     }
     return ok_status();
 }

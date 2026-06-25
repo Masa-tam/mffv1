@@ -136,7 +136,7 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
     ASSERT_TRUE(result.status.ok());
     ASSERT_NE(result.encoder, nullptr);
     auto stream = make_initial_profile();
-    stream.has_chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
     mffv1::ConfigurationRecord record;
     record.bytes.push_back(std::byte{0xaa});
 
@@ -266,6 +266,78 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
 
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(decoded, source);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsPlanarYcbcr444)
+{
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.has_chroma_planes = true;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> y{};
+    std::array<std::uint8_t, 128> cb{};
+    std::array<std::uint8_t, 128> cr{};
+    for (std::size_t index = 0; index < y.size(); ++index) {
+        y[index] = static_cast<std::uint8_t>((index * 73u) & 0xffu);
+        cb[index] = static_cast<std::uint8_t>((128u + index * 29u) & 0xffu);
+        cr[index] = static_cast<std::uint8_t>((255u - index * 17u) & 0xffu);
+    }
+    std::array<mffv1::PlaneView, 3> input_planes{};
+    input_planes[0] = {
+        y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    input_planes[1] = {
+        cb.data(),
+        {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    input_planes[2] = {
+        cr.data(),
+        {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    const mffv1::FrameView input{
+        input_planes.data(), input_planes.size()};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    std::array<std::uint8_t, 128> decoded_y{};
+    std::array<std::uint8_t, 128> decoded_cb{};
+    std::array<std::uint8_t, 128> decoded_cr{};
+    std::array<mffv1::MutablePlaneView, 3> output_planes{};
+    output_planes[0] = {
+        decoded_y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    output_planes[1] = {
+        decoded_cb.data(),
+        {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    output_planes[2] = {
+        decoded_cr.data(),
+        {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 16, 8, 16},
+    };
+    mffv1::MutableFrameView output{
+        output_planes.data(), output_planes.size()};
+
+    const auto status =
+        decoder.decoder->decode_frame(frame.bytes, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decoded_y, y);
+    EXPECT_EQ(decoded_cb, cb);
+    EXPECT_EQ(decoded_cr, cr);
 }
 
 TEST(EncoderTest, EncodesSuccessiveFramesAsIndependentKeyframes)

@@ -163,6 +163,75 @@ TEST(SliceEncoderTest, AssemblesVersionThreeSliceAcceptedByFrameParser)
     EXPECT_EQ(decoded, source);
 }
 
+TEST(SliceEncoderTest, RoundTripsPlanarYcbcr444)
+{
+    auto stream = make_stream();
+    stream.chroma_planes = true;
+    const std::array<std::uint8_t, 8> y{
+        0, 255, 128, 1, 255, 0, 127, 254,
+    };
+    const std::array<std::uint8_t, 8> cb{
+        128, 129, 127, 0, 255, 64, 192, 32,
+    };
+    const std::array<std::uint8_t, 8> cr{
+        255, 0, 1, 254, 2, 253, 3, 252,
+    };
+    std::array<mffv1::PlaneView, 3> input_planes{};
+    input_planes[0] = {
+        y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 4, 2, 4},
+    };
+    input_planes[1] = {
+        cb.data(),
+        {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 4, 2, 4},
+    };
+    input_planes[2] = {
+        cr.data(),
+        {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 4, 2, 4},
+    };
+    const mffv1::FrameView input{
+        input_planes.data(), input_planes.size()};
+    std::vector<std::byte> payload;
+    const mffv1::codec::SliceEncoder encoder(stream);
+    ASSERT_TRUE(encoder.encode_slice(input, true, payload).ok());
+
+    mffv1::codec::FrameDecodeContext frame;
+    const mffv1::codec::FrameParser parser(stream);
+    ASSERT_TRUE(parser.parse_with_range_header(payload, frame).ok());
+    ASSERT_EQ(frame.slices.size(), 1u);
+
+    std::array<std::uint8_t, 8> decoded_y{};
+    std::array<std::uint8_t, 8> decoded_cb{};
+    std::array<std::uint8_t, 8> decoded_cr{};
+    std::array<mffv1::MutablePlaneView, 3> output_planes{};
+    output_planes[0] = {
+        decoded_y.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 4, 2, 4},
+    };
+    output_planes[1] = {
+        decoded_cb.data(),
+        {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 4, 2, 4},
+    };
+    output_planes[2] = {
+        decoded_cr.data(),
+        {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 4, 2, 4},
+    };
+    mffv1::MutableFrameView output{
+        output_planes.data(), output_planes.size()};
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(
+        window.validate(stream, output, frame.slices[0]).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    const mffv1::codec::SliceDecoder decoder(stream);
+
+    ASSERT_TRUE(
+        decoder.decode(frame.slices[0], window, state).ok());
+    EXPECT_EQ(decoded_y, y);
+    EXPECT_EQ(decoded_cb, cb);
+    EXPECT_EQ(decoded_cr, cr);
+}
+
 TEST(SliceEncoderTest, RejectsNonKeyframeForIntraStream)
 {
     const auto stream = make_stream();

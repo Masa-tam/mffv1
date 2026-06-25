@@ -1,7 +1,7 @@
 #include "mffv1/codec.hpp"
 
 #include "codec/configuration_record_writer.hpp"
-#include "codec/frame_validator.hpp"
+#include "codec/slice_encoder.hpp"
 #include "mffv1/stream_parameters.hpp"
 
 #include <memory>
@@ -93,13 +93,14 @@ public:
         if (!stream_.has_value()) {
             return make_error(ErrorCode::InvalidState, "encoder is not configured");
         }
-        const codec::FrameValidator validator;
-        Status status = validator.validate_input(*stream_, input);
+        std::vector<std::byte> frame_bytes;
+        const codec::SliceEncoder encoder(*stream_);
+        Status status = encoder.encode_slice(input, true, frame_bytes);
         if (!status.ok()) {
             return status;
         }
-        (void)out_frame;
-        return make_error(ErrorCode::NotImplemented, "frame encoding is not implemented yet");
+        out_frame.bytes = std::move(frame_bytes);
+        return ok_status();
     }
 
 private:

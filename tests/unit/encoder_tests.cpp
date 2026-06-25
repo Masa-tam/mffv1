@@ -36,6 +36,19 @@ mffv1::PlaneView make_input_plane(const std::array<std::uint8_t, 128>& storage)
     return plane;
 }
 
+mffv1::MutablePlaneView make_output_plane(
+    std::array<std::uint8_t, 128>& storage)
+{
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    plane.info.width = 16;
+    plane.info.height = 8;
+    plane.info.stride_bytes = 16;
+    return plane;
+}
+
 TEST(EncoderTest, FactoryCreatesEncoder)
 {
     const auto result = mffv1::create_encoder({});
@@ -135,7 +148,7 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
 
-TEST(EncoderTest, FailedReconfigurePreservesPreviousConfiguration)
+TEST(EncoderTest, FailedReconfigurePreservesUsablePreviousConfiguration)
 {
     auto result = mffv1::create_encoder({});
     ASSERT_TRUE(result.status.ok());
@@ -156,10 +169,8 @@ TEST(EncoderTest, FailedReconfigurePreservesPreviousConfiguration)
 
     const auto status = result.encoder->encode_frame(input, frame);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
-    ASSERT_EQ(frame.bytes.size(), 1u);
-    EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_GT(frame.bytes.size(), 3u);
 }
 
 TEST(EncoderTest, EncodeFrameRejectsInvalidInputWithoutChangingOutput)
@@ -185,7 +196,7 @@ TEST(EncoderTest, EncodeFrameRejectsInvalidInputWithoutChangingOutput)
     EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
 }
 
-TEST(EncoderTest, EncodeFrameAcceptsValidInputBeforeCoding)
+TEST(EncoderTest, EncodeFrameProducesCompleteFrame)
 {
     auto result = mffv1::create_encoder({});
     ASSERT_TRUE(result.status.ok());
@@ -201,10 +212,101 @@ TEST(EncoderTest, EncodeFrameAcceptsValidInputBeforeCoding)
 
     const auto status = result.encoder->encode_frame(input, frame);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
-    ASSERT_EQ(frame.bytes.size(), 1u);
-    EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_GT(frame.bytes.size(), 3u);
+    const auto encoded_size = frame.bytes.size();
+    EXPECT_EQ(
+        (static_cast<std::uint32_t>(frame.bytes[encoded_size - 3]) << 16)
+            | (static_cast<std::uint32_t>(frame.bytes[encoded_size - 2]) << 8)
+            | static_cast<std::uint32_t>(frame.bytes[encoded_size - 1]),
+        static_cast<std::uint32_t>(encoded_size));
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
+{
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> source{};
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = static_cast<std::uint8_t>(
+            (index * 73u + (index / 16u) * 29u) & 0xffu);
+    }
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.width, stream.width);
+    EXPECT_EQ(info.height, stream.height);
+    EXPECT_EQ(info.version, stream.version);
+    EXPECT_EQ(info.bits_per_raw_sample, stream.bits_per_raw_sample);
+    EXPECT_EQ(info.plane_count, 1u);
+
+    std::array<std::uint8_t, 128> decoded{};
+    decoded.fill(0xee);
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame.bytes, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decoded, source);
+}
+
+TEST(EncoderTest, EncodesSuccessiveFramesAsIndependentKeyframes)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> first{};
+    std::array<std::uint8_t, 128> second{};
+    second.fill(0xff);
+    const auto first_plane = make_input_plane(first);
+    const auto second_plane = make_input_plane(second);
+    const mffv1::FrameView first_input{&first_plane, 1};
+    const mffv1::FrameView second_input{&second_plane, 1};
+    mffv1::EncodedFrame first_frame;
+    mffv1::EncodedFrame second_frame;
+
+    ASSERT_TRUE(result.encoder->encode_frame(first_input, first_frame).ok());
+    ASSERT_TRUE(result.encoder->encode_frame(second_input, second_frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    std::array<std::uint8_t, 128> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    ASSERT_TRUE(decoder.decoder->decode_frame(first_frame.bytes, output).ok());
+    EXPECT_EQ(decoded, first);
+
+    decoded.fill(0);
+    ASSERT_TRUE(decoder.decoder->decode_frame(second_frame.bytes, output).ok());
+    EXPECT_EQ(decoded, second);
 }
 
 TEST(EncoderTest, EncodeFrameRequiresConfigurationWithoutChangingOutput)

@@ -72,7 +72,7 @@ IEncoder / Encoder
   uses ConfigurationRecordWriter
 
 encode_frame(FrameView)
-  -> FrameInputValidator
+  -> FrameValidator::validate_input
   -> SlicePlanner
   -> SliceEncodeExecutor
        -> SliceEncoder per independent slice
@@ -87,6 +87,10 @@ encode_frame(FrameView)
 The encoder MUST NOT write directly into caller-visible output while an
 operation can still fail. Each slice produces an owned byte vector; the frame
 assembler commits the final vector only after every slice succeeds.
+
+The initial one-slice implementation invokes `SliceEncoder` directly after
+validation. `SlicePlanner`, `SliceEncodeExecutor`, and `FrameAssembler` become
+separate orchestration objects when multiple slices are introduced.
 
 ## Shared Scalar Semantics
 

@@ -24,6 +24,7 @@ add_library(mffv1
     src/codec/slice_footer_writer.cpp
     src/codec/slice_header_parser.cpp
     src/codec/slice_header_writer.cpp
+    src/codec/slice_input_window.cpp
     src/codec/slice_output_window.cpp
     src/codec/slice_payload_locator.cpp
     src/codec/slice_raster_validator.cpp

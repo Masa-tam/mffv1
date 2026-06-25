@@ -63,9 +63,9 @@ remain explicit: `R`, `G`, `B`, then optional `Alpha`.
 
 `StreamInfo::num_h_slices` and `StreamInfo::num_v_slices` declare the version
 3 slice raster and default to one. Configuration record serialization supports
-all non-zero 32-bit grid dimensions. Until multi-slice frame assembly is
-implemented, the public encoder reports grids other than `1 x 1` as
-`UnsupportedFeature` rather than silently encoding a different layout.
+all non-zero 32-bit grid dimensions. The encoder emits one independent slice
+per raster cell in row-major order. Prediction, entropy, and run state restart
+at every slice boundary; only the first slice carries the frame keyframe flag.
 
 `configure()` is transactional:
 

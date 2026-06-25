@@ -3,6 +3,8 @@
 #include <vector>
 
 #include "bitstream/bit_writer.hpp"
+#include "codec/slice_header_parser.hpp"
+#include "codec/slice_input_window.hpp"
 #include "entropy/range_encoder.hpp"
 #include "mffv1/frame.hpp"
 #include "mffv1/result.hpp"
@@ -19,13 +21,18 @@ public:
     Status encode_slice(FrameView input,
                         bool keyframe,
                         std::vector<std::byte>& out_payload) const;
+    Status encode_slice(FrameView input,
+                        const SliceHeaderValues& header,
+                        bool write_keyframe,
+                        bool keyframe,
+                        std::vector<std::byte>& out_payload) const;
 
 private:
     Status validate_stream() const;
-    Status encode_samples(FrameView input,
+    Status encode_samples(const SliceInputWindow& input,
                           entropy::RangeEncoder& writer) const;
     Status encode_golomb_rice_samples(
-        FrameView input,
+        const SliceInputWindow& input,
         bitstream::BitWriter& writer) const;
 
     const syntax::StreamParameters& stream_;

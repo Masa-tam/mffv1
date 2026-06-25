@@ -1,6 +1,7 @@
 #include "mffv1/codec.hpp"
 
 #include "codec/configuration_record_writer.hpp"
+#include "codec/frame_validator.hpp"
 #include "codec/slice_encoder.hpp"
 #include "mffv1/stream_parameters.hpp"
 
@@ -79,12 +80,6 @@ Status normalize_initial_profile(const EncoderOptions& options,
             ErrorCode::InvalidArgument,
             "encoder slice grid dimensions must be non-zero");
     }
-    if (info.num_h_slices != 1 || info.num_v_slices != 1) {
-        return make_error(
-            ErrorCode::UnsupportedFeature,
-            "encoder frame assembly currently supports only one slice");
-    }
-
     syntax::StreamParameters stream;
     stream.version = 3;
     stream.micro_version = 4;
@@ -99,6 +94,19 @@ Status normalize_initial_profile(const EncoderOptions& options,
     stream.log2_v_chroma_subsample = info.log2_v_chroma_subsample;
     stream.num_h_slices = info.num_h_slices;
     stream.num_v_slices = info.num_v_slices;
+    const auto plane_count =
+        static_cast<std::size_t>(syntax::coded_plane_count(stream));
+    for (std::size_t plane_index = 0;
+         plane_index < plane_count;
+         ++plane_index) {
+        if (stream.num_h_slices > syntax::plane_width(stream, plane_index)
+            || stream.num_v_slices
+                > syntax::plane_height(stream, plane_index)) {
+            return make_error(
+                ErrorCode::InvalidArgument,
+                "encoder slice grid would create an empty plane region");
+        }
+    }
     stream.quant_table_sets.push_back(syntax::make_zero_quant_table_set());
     stream.intra_only = true;
     out_stream = std::move(stream);
@@ -137,11 +145,45 @@ public:
         if (!stream_.has_value()) {
             return make_error(ErrorCode::InvalidState, "encoder is not configured");
         }
-        std::vector<std::byte> frame_bytes;
-        const codec::SliceEncoder encoder(*stream_);
-        Status status = encoder.encode_slice(input, true, frame_bytes);
+        const codec::FrameValidator validator;
+        Status status = validator.validate_input(*stream_, input);
         if (!status.ok()) {
             return status;
+        }
+
+        std::vector<std::byte> frame_bytes;
+        const codec::SliceEncoder encoder(*stream_);
+        bool first_slice = true;
+        for (std::uint32_t y = 0; y < stream_->num_v_slices; ++y) {
+            for (std::uint32_t x = 0; x < stream_->num_h_slices; ++x) {
+                codec::SliceHeaderValues header;
+                header.x = x;
+                header.y = y;
+                header.width = 1;
+                header.height = 1;
+                header.quant_table_set_indexes.assign(
+                    syntax::quant_table_set_index_count(*stream_), 0);
+
+                std::vector<std::byte> slice_bytes;
+                status = encoder.encode_slice(
+                    input,
+                    header,
+                    first_slice,
+                    true,
+                    slice_bytes);
+                if (!status.ok()) {
+                    return status;
+                }
+                if (slice_bytes.size()
+                    > frame_bytes.max_size() - frame_bytes.size()) {
+                    return make_error(
+                        ErrorCode::ResourceExhausted,
+                        "encoded frame exceeds vector capacity");
+                }
+                frame_bytes.insert(
+                    frame_bytes.end(), slice_bytes.begin(), slice_bytes.end());
+                first_slice = false;
+            }
         }
         out_frame.bytes = std::move(frame_bytes);
         return ok_status();

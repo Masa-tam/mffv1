@@ -149,7 +149,7 @@ TEST(EncoderTest, ConfigureRejectsZeroSliceGridWithoutChangingOutput)
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
 
-TEST(EncoderTest, ConfigureRejectsMultipleSlicesUntilFrameAssemblySupportsThem)
+TEST(EncoderTest, ConfigureAcceptsMultipleSlices)
 {
     auto result = mffv1::create_encoder({});
     ASSERT_TRUE(result.status.ok());
@@ -157,14 +157,31 @@ TEST(EncoderTest, ConfigureRejectsMultipleSlicesUntilFrameAssemblySupportsThem)
     auto stream = make_initial_profile();
     stream.num_h_slices = 2;
     mffv1::ConfigurationRecord record;
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_FALSE(record.bytes.empty());
+}
+
+TEST(EncoderTest, ConfigureRejectsSliceGridWithEmptyChromaRegion)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.width = 3;
+    stream.height = 2;
+    stream.has_chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.num_h_slices = 3;
+    mffv1::ConfigurationRecord record;
     record.bytes.push_back(std::byte{0xaa});
 
     const auto status = result.encoder->configure(stream, record);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    ASSERT_EQ(record.bytes.size(), 1u);
-    EXPECT_EQ(record.bytes[0], std::byte{0xaa});
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
@@ -339,6 +356,61 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
 
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(decoded, source);
+}
+
+void expect_public_multi_slice_y_round_trip(mffv1::EntropyMode entropy_mode)
+{
+    mffv1::EncoderOptions encoder_options;
+    encoder_options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(encoder_options);
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> source{};
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = static_cast<std::uint8_t>(
+            (index * 43u + (index / 16u) * 61u) & 0xffu);
+    }
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+
+    std::array<std::uint8_t, 128> decoded{};
+    decoded.fill(0xee);
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame.bytes, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decoded, source);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsMultiSliceRangeFrame)
+{
+    expect_public_multi_slice_y_round_trip(mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsMultiSliceGolombRiceFrame)
+{
+    expect_public_multi_slice_y_round_trip(mffv1::EntropyMode::GolombRice);
 }
 
 TEST(EncoderTest, PublicEncoderRoundTripsPlanarYcbcr444)
@@ -583,7 +655,9 @@ TEST(EncoderTest, RejectsInputSampleAboveConfiguredBitDepth)
 void expect_public_subsampled_round_trip(
     std::uint8_t log2_v_chroma_subsample,
     bool has_extra_plane = false,
-    mffv1::EntropyMode entropy_mode = mffv1::EntropyMode::Range)
+    mffv1::EntropyMode entropy_mode = mffv1::EntropyMode::Range,
+    std::uint32_t num_h_slices = 1,
+    std::uint32_t num_v_slices = 1)
 {
     mffv1::EncoderOptions options;
     options.entropy_mode = entropy_mode;
@@ -599,6 +673,8 @@ void expect_public_subsampled_round_trip(
     stream.has_extra_plane = has_extra_plane;
     stream.log2_h_chroma_subsample = 1;
     stream.log2_v_chroma_subsample = log2_v_chroma_subsample;
+    stream.num_h_slices = num_h_slices;
+    stream.num_v_slices = num_v_slices;
     mffv1::ConfigurationRecord record;
     ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
 
@@ -716,6 +792,12 @@ TEST(EncoderTest, PublicEncoderRoundTripsGolombRiceYcbcr420WithExtraPlane)
 {
     expect_public_subsampled_round_trip(
         1, true, mffv1::EntropyMode::GolombRice);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsOddSizedMultiSliceYcbcr420)
+{
+    expect_public_subsampled_round_trip(
+        1, false, mffv1::EntropyMode::Range, 2, 2);
 }
 
 void expect_public_ten_bit_ycbcr420_with_extra_plane(

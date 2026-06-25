@@ -110,9 +110,26 @@ Status SliceEncoder::encode_content(
         return status;
     }
 
+    SliceHeaderValues header;
+    header.width = stream_.num_h_slices;
+    header.height = stream_.num_v_slices;
+    header.quant_table_set_indexes.assign(
+        syntax::quant_table_set_index_count(stream_), 0);
+    syntax::SliceDescriptor descriptor;
+    const SliceHeaderParser header_parser;
+    status = header_parser.apply_raster(stream_, header, descriptor);
+    if (!status.ok()) {
+        return status;
+    }
+    SliceInputWindow window;
+    status = window.validate(stream_, input, descriptor);
+    if (!status.ok()) {
+        return status;
+    }
+
     if (stream_.entropy_mode == EntropyMode::GolombRice) {
         bitstream::BitWriter bits;
-        status = encode_golomb_rice_samples(input, bits);
+        status = encode_golomb_rice_samples(window, bits);
         if (!status.ok()) {
             return status;
         }
@@ -151,7 +168,7 @@ Status SliceEncoder::encode_content(
         return status;
     }
 
-    status = encode_samples(input, writer);
+    status = encode_samples(window, writer);
     if (!status.ok()) {
         return status;
     }
@@ -170,18 +187,31 @@ Status SliceEncoder::encode_slice(
     bool keyframe,
     std::vector<std::byte>& out_payload) const
 {
+    SliceHeaderValues header;
+    header.width = stream_.num_h_slices;
+    header.height = stream_.num_v_slices;
+    header.quant_table_set_indexes.assign(
+        syntax::quant_table_set_index_count(stream_), 0);
+    return encode_slice(input, header, true, keyframe, out_payload);
+}
+
+Status SliceEncoder::encode_slice(
+    FrameView input,
+    const SliceHeaderValues& header,
+    bool write_keyframe,
+    bool keyframe,
+    std::vector<std::byte>& out_payload) const
+{
     Status status = validate_stream();
     if (!status.ok()) {
         return status;
     }
-    if (stream_.version != 3
-        || stream_.num_h_slices != 1
-        || stream_.num_v_slices != 1) {
+    if (stream_.version != 3) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "slice assembly supports only one FFV1 version 3 slice");
+            "slice assembly supports only FFV1 version 3");
     }
-    if (!keyframe && stream_.intra_only) {
+    if (write_keyframe && !keyframe && stream_.intra_only) {
         return make_error(
             ErrorCode::InvalidArgument,
             "non-keyframe is invalid for an intra-only stream");
@@ -193,21 +223,30 @@ Status SliceEncoder::encode_slice(
         return status;
     }
 
+    syntax::SliceDescriptor descriptor;
+    const SliceHeaderParser header_parser;
+    status = header_parser.apply_raster(stream_, header, descriptor);
+    if (!status.ok()) {
+        return status;
+    }
+    SliceInputWindow window;
+    status = window.validate(stream_, input, descriptor);
+    if (!status.ok()) {
+        return status;
+    }
+
     entropy::RangeEncoder writer;
     status = writer.reset(stream_.state_transition);
     if (!status.ok()) {
         return status;
     }
-    status = writer.write_bool(keyframe);
-    if (!status.ok()) {
-        return status;
+    if (write_keyframe) {
+        status = writer.write_bool(keyframe);
+        if (!status.ok()) {
+            return status;
+        }
     }
 
-    SliceHeaderValues header;
-    header.width = 1;
-    header.height = 1;
-    header.quant_table_set_indexes.assign(
-        syntax::quant_table_set_index_count(stream_), 0);
     const SliceHeaderWriter header_writer;
     status = header_writer.write(writer, stream_, header);
     if (!status.ok()) {
@@ -221,7 +260,7 @@ Status SliceEncoder::encode_slice(
             return status;
         }
         bitstream::BitWriter content_writer;
-        status = encode_golomb_rice_samples(input, content_writer);
+        status = encode_golomb_rice_samples(window, content_writer);
         if (!status.ok()) {
             return status;
         }
@@ -266,7 +305,7 @@ Status SliceEncoder::encode_slice(
     if (!status.ok()) {
         return status;
     }
-    status = encode_samples(input, writer);
+    status = encode_samples(window, writer);
     if (!status.ok()) {
         return status;
     }
@@ -286,7 +325,7 @@ Status SliceEncoder::encode_slice(
 }
 
 Status SliceEncoder::encode_samples(
-    FrameView input,
+    const SliceInputWindow& input,
     entropy::RangeEncoder& writer) const
 {
     const auto plane_count =
@@ -296,7 +335,7 @@ Status SliceEncoder::encode_samples(
          plane_index < plane_count;
          ++plane_index) {
         Status status = lines[plane_index].reset(
-            syntax::plane_width(stream_, plane_index));
+            input.plane_width(plane_index));
         if (!status.ok()) {
             return status;
         }
@@ -313,18 +352,15 @@ Status SliceEncoder::encode_samples(
                                  std::uint32_t x,
                                  std::uint32_t y,
                                  std::uint32_t& sample) -> Status {
-        const auto& plane = input.planes[plane_index];
-        const auto* base = static_cast<const std::byte*>(plane.data);
-        const auto* row = reinterpret_cast<const std::uint8_t*>(
-            base + static_cast<std::ptrdiff_t>(y)
-                * plane.info.stride_bytes);
         if (stream_.bits_per_raw_sample <= 8) {
+            const auto* row = input.row_u8(plane_index, y);
             sample = row[x];
         } else {
+            const auto* row = input.row_u16(plane_index, y);
             std::uint16_t wide_sample = 0;
             std::memcpy(
                 &wide_sample,
-                row + static_cast<std::size_t>(x) * sizeof(wide_sample),
+                row + x,
                 sizeof(wide_sample));
             sample = wide_sample;
         }
@@ -372,8 +408,8 @@ Status SliceEncoder::encode_samples(
     };
 
     if (stream_.colorspace_type == 1) {
-        const auto width = stream_.width;
-        const auto height = stream_.height;
+        const auto width = input.plane_width(0);
+        const auto height = input.plane_height(0);
         const auto coded_bits =
             static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
         std::array<std::vector<std::int32_t>, 3> transformed;
@@ -452,8 +488,8 @@ Status SliceEncoder::encode_samples(
          plane_index < plane_count;
          ++plane_index) {
         auto& line = lines[plane_index];
-        const auto width = syntax::plane_width(stream_, plane_index);
-        const auto height = syntax::plane_height(stream_, plane_index);
+        const auto width = input.plane_width(plane_index);
+        const auto height = input.plane_height(plane_index);
 
         for (std::uint32_t y = 0; y < height; ++y) {
             for (std::uint32_t x = 0; x < width; ++x) {
@@ -481,7 +517,7 @@ Status SliceEncoder::encode_samples(
 }
 
 Status SliceEncoder::encode_golomb_rice_samples(
-    FrameView input,
+    const SliceInputWindow& input,
     bitstream::BitWriter& bit_writer) const
 {
     const auto plane_count =
@@ -495,7 +531,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
          plane_index < plane_count;
          ++plane_index) {
         Status status = lines[plane_index].reset(
-            syntax::plane_width(stream_, plane_index));
+            input.plane_width(plane_index));
         if (!status.ok()) {
             return status;
         }
@@ -511,18 +547,15 @@ Status SliceEncoder::encode_golomb_rice_samples(
                                        std::uint32_t x,
                                        std::uint32_t y,
                                        std::uint32_t& sample) -> Status {
-        const auto& plane = input.planes[plane_index];
-        const auto* base = static_cast<const std::byte*>(plane.data);
-        const auto* row = reinterpret_cast<const std::uint8_t*>(
-            base + static_cast<std::ptrdiff_t>(y)
-                * plane.info.stride_bytes);
         if (stream_.bits_per_raw_sample <= 8) {
+            const auto* row = input.row_u8(plane_index, y);
             sample = row[x];
         } else {
+            const auto* row = input.row_u16(plane_index, y);
             std::uint16_t wide_sample = 0;
             std::memcpy(
                 &wide_sample,
-                row + static_cast<std::size_t>(x) * sizeof(wide_sample),
+                row + x,
                 sizeof(wide_sample));
             sample = wide_sample;
         }
@@ -626,7 +659,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
     };
 
     if (stream_.colorspace_type == 1) {
-        const auto width = stream_.width;
+        const auto width = input.plane_width(0);
         const auto coded_bits =
             static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
         std::array<std::vector<std::int32_t>, 4> rows;
@@ -634,7 +667,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
             row.resize(width);
         }
 
-        for (std::uint32_t y = 0; y < stream_.height; ++y) {
+        for (std::uint32_t y = 0; y < input.plane_height(0); ++y) {
             for (std::uint32_t x = 0; x < width; ++x) {
                 std::uint32_t r = 0;
                 std::uint32_t g = 0;
@@ -696,8 +729,8 @@ Status SliceEncoder::encode_golomb_rice_samples(
         auto& line = lines[plane_index];
         auto& plane_contexts = contexts[plane_index];
         auto& run_state = run_states[plane_index];
-        const auto width = syntax::plane_width(stream_, plane_index);
-        const auto height = syntax::plane_height(stream_, plane_index);
+        const auto width = input.plane_width(plane_index);
+        const auto height = input.plane_height(plane_index);
         std::vector<std::int32_t> samples(width);
 
         for (std::uint32_t y = 0; y < height; ++y) {

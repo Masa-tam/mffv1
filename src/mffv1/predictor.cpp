@@ -49,4 +49,17 @@ std::int32_t Predictor::reconstruct(std::int32_t prediction,
     return wrapped;
 }
 
+std::int32_t Predictor::difference(std::int32_t sample,
+                                   std::int32_t prediction,
+                                   std::uint8_t bits_per_raw_sample) noexcept
+{
+    const auto raw_difference = static_cast<std::int64_t>(sample) - prediction;
+    if (bits_per_raw_sample == 0 || bits_per_raw_sample >= 31) {
+        return static_cast<std::int32_t>(raw_difference);
+    }
+    return util::wrap_sample_difference(
+        static_cast<std::int32_t>(raw_difference),
+        bits_per_raw_sample);
+}
+
 } // namespace mffv1::syntax

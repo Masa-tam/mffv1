@@ -33,6 +33,7 @@ std::int32_t wrap_sample_difference(std::int32_t value, std::uint8_t bits_per_ra
         return value;
     }
 
+    // RFC 9043 Section 3.8, Figure 10.
     const std::int32_t range = std::int32_t{1} << bits_per_raw_sample;
     const std::int32_t half_range = range >> 1;
 
@@ -46,4 +47,3 @@ std::int32_t wrap_sample_difference(std::int32_t value, std::uint8_t bits_per_ra
 }
 
 } // namespace mffv1::util
-

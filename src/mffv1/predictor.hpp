@@ -16,6 +16,9 @@ public:
     static std::int32_t reconstruct(std::int32_t prediction,
                                     std::int32_t difference,
                                     std::uint8_t bits_per_raw_sample) noexcept;
+    static std::int32_t difference(std::int32_t sample,
+                                   std::int32_t prediction,
+                                   std::uint8_t bits_per_raw_sample) noexcept;
 };
 
 } // namespace mffv1::syntax

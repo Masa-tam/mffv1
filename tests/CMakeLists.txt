@@ -24,6 +24,7 @@ add_executable(mffv1_unit_tests
     unit/context_model_tests.cpp
     unit/crc32_tests.cpp
     unit/decoder_tests.cpp
+    unit/encoder_tests.cpp
     unit/frame_parser_tests.cpp
     unit/configuration_parser_tests.cpp
     unit/configuration_record_writer_tests.cpp

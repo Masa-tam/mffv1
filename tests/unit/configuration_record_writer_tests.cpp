@@ -142,6 +142,21 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordRoundTripsThroughParser)
               stream.quant_table_sets[0].tables);
 }
 
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesGolombRiceMode)
+{
+    auto stream = make_initial_profile();
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    ASSERT_TRUE(writer.write(stream, record).ok());
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_EQ(parsed.entropy_mode, mffv1::EntropyMode::GolombRice);
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesChromaPlanes)
 {
     auto stream = make_initial_profile();

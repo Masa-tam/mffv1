@@ -5,6 +5,9 @@
 #include "codec/frame_parser.hpp"
 #include "codec/slice_output_window.hpp"
 #include "codec/slice_state.hpp"
+#include "codec/slice_footer_writer.hpp"
+#include "codec/slice_header_writer.hpp"
+#include "entropy/range_encoder.hpp"
 #include "mffv1/configuration_parser.hpp"
 
 #include <array>
@@ -160,6 +163,103 @@ TEST(SliceEncoderTest, AssemblesVersionThreeSliceAcceptedByFrameParser)
         decoder.decode(frame.slices[0], window, state);
 
     ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decoded, source);
+}
+
+TEST(SliceEncoderTest, LocatesGolombRiceContentAfterRangeHeader)
+{
+    auto stream = make_stream();
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    mffv1::entropy::RangeEncoder header;
+    ASSERT_TRUE(header.reset().ok());
+    ASSERT_TRUE(header.write_bool(true).ok());
+    mffv1::codec::SliceHeaderValues values;
+    values.width = 1;
+    values.height = 1;
+    values.quant_table_set_indexes = {0, 0};
+    const mffv1::codec::SliceHeaderWriter header_writer;
+    ASSERT_TRUE(header_writer.write(header, stream, values).ok());
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(header.finalize(payload).ok());
+    const auto expected_content_offset = payload.size();
+    payload.push_back(std::byte{0x80});
+    const mffv1::codec::SliceFooterWriter footer_writer;
+    ASSERT_TRUE(footer_writer.append(stream, 0, payload).ok());
+
+    mffv1::codec::FrameDecodeContext frame;
+    const mffv1::codec::FrameParser parser(stream);
+    ASSERT_TRUE(parser.parse_with_range_header(payload, frame).ok());
+
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_TRUE(frame.keyframe);
+    EXPECT_EQ(
+        frame.slices[0].content_byte_offset,
+        expected_content_offset);
+    EXPECT_EQ(frame.slices[0].content_bit_offset, 0u);
+}
+
+TEST(SliceEncoderTest, RoundTripsGolombRiceContent)
+{
+    auto stream = make_stream();
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    const std::array<std::uint8_t, 8> source{
+        0, 0, 4, 4, 4, 9, 9, 0,
+    };
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+    std::vector<std::byte> payload;
+    const mffv1::codec::SliceEncoder encoder(stream);
+    ASSERT_TRUE(encoder.encode_content(input, payload).ok());
+
+    std::array<std::uint8_t, 8> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = stream.width;
+    slice.height = stream.height;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes = {0, 0};
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, output, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    const mffv1::codec::SliceDecoder decoder(stream);
+
+    ASSERT_TRUE(decoder.decode(slice, window, state).ok());
+    EXPECT_EQ(decoded, source);
+}
+
+TEST(SliceEncoderTest, AssemblesGolombRiceSliceAcceptedByFrameParser)
+{
+    auto stream = make_stream();
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    const std::array<std::uint8_t, 8> source{
+        0, 0, 4, 4, 4, 9, 9, 0,
+    };
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+    std::vector<std::byte> payload;
+    const mffv1::codec::SliceEncoder encoder(stream);
+    ASSERT_TRUE(encoder.encode_slice(input, true, payload).ok());
+
+    mffv1::codec::FrameDecodeContext frame;
+    const mffv1::codec::FrameParser parser(stream);
+    ASSERT_TRUE(parser.parse_with_range_header(payload, frame).ok());
+    ASSERT_EQ(frame.slices.size(), 1u);
+
+    std::array<std::uint8_t, 8> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(
+        window.validate(stream, output, frame.slices[0]).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    const mffv1::codec::SliceDecoder decoder(stream);
+
+    ASSERT_TRUE(decoder.decode(frame.slices[0], window, state).ok());
     EXPECT_EQ(decoded, source);
 }
 

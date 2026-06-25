@@ -112,7 +112,8 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(1); // default range coder
+    status = write_unsigned(
+        stream.entropy_mode == EntropyMode::GolombRice ? 0 : 1);
     if (!status.ok()) {
         return status;
     }
@@ -182,11 +183,22 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             ErrorCode::UnsupportedFeature,
             "configuration writer supports only FFV1 version 3 micro-version 4");
     }
-    if (stream.entropy_mode != EntropyMode::Range
-        || stream.state_transition != syntax::kDefaultStateTransition) {
+    if ((stream.entropy_mode != EntropyMode::Range
+         && stream.entropy_mode != EntropyMode::GolombRice)
+        || (stream.entropy_mode == EntropyMode::Range
+            && stream.state_transition != syntax::kDefaultStateTransition)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports only the default range coder");
+            "configuration writer supports Golomb-Rice or the default range coder");
+    }
+    if (stream.entropy_mode == EntropyMode::GolombRice
+        && (stream.colorspace_type != 0
+            || stream.bits_per_raw_sample != 8
+            || stream.chroma_planes
+            || stream.extra_plane)) {
+        return make_error(
+            ErrorCode::UnsupportedFeature,
+            "Golomb-Rice configuration currently supports only 8-bit Y-only streams");
     }
     if ((stream.colorspace_type != 0 && stream.colorspace_type != 1)
         || stream.bits_per_raw_sample < 8

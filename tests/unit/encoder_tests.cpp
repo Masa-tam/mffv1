@@ -977,7 +977,7 @@ TEST(EncoderTest, EncodeFrameRequiresConfigurationWithoutChangingOutput)
     EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
 }
 
-TEST(EncoderTest, ConfigureRejectsGolombRiceOption)
+TEST(EncoderTest, PublicEncoderRoundTripsGolombRiceFrame)
 {
     mffv1::EncoderOptions options;
     options.entropy_mode = mffv1::EntropyMode::GolombRice;
@@ -986,12 +986,50 @@ TEST(EncoderTest, ConfigureRejectsGolombRiceOption)
     ASSERT_NE(result.encoder, nullptr);
     const auto stream = make_initial_profile();
     mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+    std::array<std::uint8_t, 128> source{};
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = index < 24
+            ? 0
+            : static_cast<std::uint8_t>((index * 31u) & 0xffu);
+    }
+    const auto plane = make_input_plane(source);
+    const mffv1::FrameView input{&plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(result.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+    std::array<std::uint8_t, 128> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+    EXPECT_EQ(decoded, source);
+}
+
+TEST(EncoderTest, ConfigureRejectsUnsupportedGolombRiceProfile)
+{
+    mffv1::EncoderOptions options;
+    options.entropy_mode = mffv1::EntropyMode::GolombRice;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.bits_per_raw_sample = 10;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
 
     const auto status = result.encoder->configure(stream, record);
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_TRUE(record.bytes.empty());
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 } // namespace

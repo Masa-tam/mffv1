@@ -28,9 +28,10 @@ Status normalize_initial_profile(const EncoderOptions& options,
         return make_error(ErrorCode::UnsupportedFeature,
                           "encoder supports only FFV1 version 3");
     }
-    if (options.entropy_mode != EntropyMode::Range) {
+    if (options.entropy_mode != EntropyMode::Range
+        && options.entropy_mode != EntropyMode::GolombRice) {
         return make_error(ErrorCode::UnsupportedFeature,
-                          "encoder supports only range coding");
+                          "encoder entropy mode is unsupported");
     }
     if (info.bits_per_raw_sample < 8
         || info.bits_per_raw_sample > 16) {
@@ -51,6 +52,15 @@ Status normalize_initial_profile(const EncoderOptions& options,
             ErrorCode::InvalidArgument,
             "RGB streams require three full-resolution color planes");
     }
+    if (options.entropy_mode == EntropyMode::GolombRice
+        && (info.color_space != ColorSpace::YCbCr
+            || info.bits_per_raw_sample != 8
+            || info.has_chroma_planes
+            || info.has_extra_plane)) {
+        return make_error(
+            ErrorCode::UnsupportedFeature,
+            "Golomb-Rice encoding currently supports only 8-bit Y-only streams");
+    }
     if (!info.has_chroma_planes
         && (info.log2_h_chroma_subsample != 0
             || info.log2_v_chroma_subsample != 0)) {
@@ -70,7 +80,7 @@ Status normalize_initial_profile(const EncoderOptions& options,
     syntax::StreamParameters stream;
     stream.version = 3;
     stream.micro_version = 4;
-    stream.entropy_mode = EntropyMode::Range;
+    stream.entropy_mode = options.entropy_mode;
     stream.width = info.width;
     stream.height = info.height;
     stream.bits_per_raw_sample = info.bits_per_raw_sample;

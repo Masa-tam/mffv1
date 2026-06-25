@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "bitstream/bit_writer.hpp"
 #include "entropy/range_encoder.hpp"
 #include "mffv1/frame.hpp"
 #include "mffv1/result.hpp"
@@ -23,6 +24,9 @@ private:
     Status validate_stream() const;
     Status encode_samples(FrameView input,
                           entropy::RangeEncoder& writer) const;
+    Status encode_golomb_rice_samples(
+        FrameView input,
+        bitstream::BitWriter& writer) const;
 
     const syntax::StreamParameters& stream_;
 };

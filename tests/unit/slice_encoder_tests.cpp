@@ -367,7 +367,7 @@ TEST(SliceEncoderTest, ReadsPaddedInputStride)
 TEST(SliceEncoderTest, RejectsUnsupportedStreamWithoutChangingOutput)
 {
     auto stream = make_stream();
-    stream.bits_per_raw_sample = 16;
+    stream.bits_per_raw_sample = 17;
     std::array<std::uint8_t, 8> storage{};
     const auto plane = make_input_plane(storage);
     const mffv1::FrameView input{&plane, 1};

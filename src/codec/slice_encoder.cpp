@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <span>
 #include <utility>
 
@@ -24,10 +25,11 @@ Status SliceEncoder::validate_stream() const
 {
     if (stream_.entropy_mode != EntropyMode::Range
         || stream_.colorspace_type != 0
-        || stream_.bits_per_raw_sample != 8) {
+        || stream_.bits_per_raw_sample < 8
+        || stream_.bits_per_raw_sample > 16) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "slice encoder supports only range-coded 8-bit planar Y or YCbCr streams, with an optional extra plane");
+            "slice encoder supports only range-coded 8-16 bit planar Y or YCbCr streams, with an optional extra plane");
     }
     if (!stream_.chroma_planes
         && (stream_.log2_h_chroma_subsample != 0
@@ -224,6 +226,12 @@ Status SliceEncoder::encode_samples(
         }
     }
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
+    const bool use_signed_16bit_prediction =
+        syntax::uses_signed_16bit_predictor(stream_);
+    const std::uint32_t maximum_sample =
+        stream_.bits_per_raw_sample == 16
+        ? 0xffffu
+        : (std::uint32_t{1} << stream_.bits_per_raw_sample) - 1u;
 
     for (std::size_t plane_index = 0;
          plane_index < plane_count;
@@ -240,8 +248,15 @@ Status SliceEncoder::encode_samples(
                     * plane.info.stride_bytes);
             for (std::uint32_t x = 0; x < width; ++x) {
                 const auto neighbors = line.neighbors(x);
-                const auto prediction = syntax::Predictor::median_predict(
-                    neighbors.left, neighbors.top, neighbors.top_left);
+                const auto prediction = use_signed_16bit_prediction
+                    ? syntax::Predictor::median_predict_signed_16bit(
+                        neighbors.left,
+                        neighbors.top,
+                        neighbors.top_left)
+                    : syntax::Predictor::median_predict(
+                        neighbors.left,
+                        neighbors.top,
+                        neighbors.top_left);
                 syntax::ContextDecision context;
                 Status status =
                     context_model.derive_context(neighbors, context);
@@ -249,9 +264,26 @@ Status SliceEncoder::encode_samples(
                     return status;
                 }
 
-                const auto sample = static_cast<std::int32_t>(row[x]);
+                std::uint32_t sample = 0;
+                if (stream_.bits_per_raw_sample <= 8) {
+                    sample = row[x];
+                } else {
+                    std::uint16_t wide_sample = 0;
+                    std::memcpy(
+                        &wide_sample,
+                        row + static_cast<std::size_t>(x) * sizeof(wide_sample),
+                        sizeof(wide_sample));
+                    sample = wide_sample;
+                }
+                if (sample > maximum_sample) {
+                    return make_error(
+                        ErrorCode::InvalidArgument,
+                        "input sample exceeds configured bit depth");
+                }
                 auto difference = syntax::Predictor::difference(
-                    sample, prediction, stream_.bits_per_raw_sample);
+                    static_cast<std::int32_t>(sample),
+                    prediction,
+                    stream_.bits_per_raw_sample);
                 if (context.invert_difference) {
                     difference = -difference;
                 }
@@ -260,7 +292,8 @@ Status SliceEncoder::encode_samples(
                 if (!status.ok()) {
                     return status;
                 }
-                line.mutable_current()[x] = sample;
+                line.mutable_current()[x] =
+                    static_cast<std::int32_t>(sample);
             }
             line.swap_lines();
         }

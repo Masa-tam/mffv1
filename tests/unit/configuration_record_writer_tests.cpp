@@ -195,6 +195,21 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesExtraPlane)
     EXPECT_EQ(mffv1::syntax::coded_plane_count(parsed), 2u);
 }
 
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesHighBitDepth)
+{
+    auto stream = make_initial_profile();
+    stream.bits_per_raw_sample = 16;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    ASSERT_TRUE(writer.write(stream, record).ok());
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_EQ(parsed.bits_per_raw_sample, 16u);
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordConfiguresPublicDecoder)
 {
     const auto stream = make_initial_profile();

@@ -32,9 +32,10 @@ Status normalize_initial_profile(const EncoderOptions& options,
         return make_error(ErrorCode::UnsupportedFeature,
                           "encoder supports only range coding");
     }
-    if (info.bits_per_raw_sample != 8) {
+    if (info.bits_per_raw_sample < 8
+        || info.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature,
-                          "encoder supports only 8-bit planar Y or YCbCr streams, with an optional extra plane");
+                          "encoder supports only 8-16 bit planar Y or YCbCr streams, with an optional extra plane");
     }
     if (!info.has_chroma_planes
         && (info.log2_h_chroma_subsample != 0
@@ -58,7 +59,7 @@ Status normalize_initial_profile(const EncoderOptions& options,
     stream.entropy_mode = EntropyMode::Range;
     stream.width = info.width;
     stream.height = info.height;
-    stream.bits_per_raw_sample = 8;
+    stream.bits_per_raw_sample = info.bits_per_raw_sample;
     stream.colorspace_type = 0;
     stream.chroma_planes = info.has_chroma_planes;
     stream.extra_plane = info.has_extra_plane;

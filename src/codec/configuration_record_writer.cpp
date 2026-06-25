@@ -120,7 +120,7 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(8); // bits_per_raw_sample
+    status = write_unsigned(stream.bits_per_raw_sample);
     if (!status.ok()) {
         return status;
     }
@@ -188,10 +188,11 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             "configuration writer supports only the default range coder");
     }
     if (stream.colorspace_type != 0
-        || stream.bits_per_raw_sample != 8) {
+        || stream.bits_per_raw_sample < 8
+        || stream.bits_per_raw_sample > 16) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports only 8-bit planar Y or YCbCr streams, with an optional extra plane");
+            "configuration writer supports only 8-16 bit planar Y or YCbCr streams, with an optional extra plane");
     }
     if (!stream.chroma_planes
         && (stream.log2_h_chroma_subsample != 0

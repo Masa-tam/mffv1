@@ -100,6 +100,7 @@ TEST(FrameParserTest, RejectsEmptyPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "frame payload is empty");
 }
 
 TEST(FrameParserTest, CreatesSingleSliceDescriptor)
@@ -169,6 +170,8 @@ TEST(FrameParserTest, RejectsLegacyRangeNonKeyframeForIntraOnlyStream)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "non-keyframe is invalid for an intra-only stream");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(frame.slices.empty());
@@ -261,6 +264,8 @@ TEST(FrameParserTest, RejectsLegacyGolombRiceNonKeyframeForIntraOnlyStream)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "non-keyframe is invalid for an intra-only stream");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(frame.slices.empty());
@@ -337,6 +342,8 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "slice header consumes more bytes than the frame payload contains");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 20u);
     EXPECT_TRUE(status.location.has_slice_index);
@@ -355,6 +362,8 @@ TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "non-keyframe is invalid for an intra-only stream");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_FALSE(frame.keyframe);
@@ -443,6 +452,8 @@ TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "non-keyframe is invalid for an intra-only stream");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(status.location.has_slice_index);
@@ -623,6 +634,7 @@ TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
+    EXPECT_EQ(status.message, "multi-slice frame parsing is not implemented yet");
 }
 
 TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)

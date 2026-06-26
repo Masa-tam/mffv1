@@ -12,6 +12,14 @@ TEST(ProfileConstraintsTest, AcceptsOnlyEncoderBitDepths)
     EXPECT_FALSE(mffv1::codec::is_supported_encoder_bit_depth(17));
 }
 
+TEST(ProfileConstraintsTest, AcceptsOnlyDecoderBitDepths)
+{
+    EXPECT_FALSE(mffv1::codec::is_supported_decoder_bit_depth(0));
+    EXPECT_TRUE(mffv1::codec::is_supported_decoder_bit_depth(1));
+    EXPECT_TRUE(mffv1::codec::is_supported_decoder_bit_depth(16));
+    EXPECT_FALSE(mffv1::codec::is_supported_decoder_bit_depth(17));
+}
+
 TEST(ProfileConstraintsTest, AcceptsOnlyKnownColorSpaces)
 {
     EXPECT_TRUE(mffv1::codec::is_supported_syntax_colorspace(0));

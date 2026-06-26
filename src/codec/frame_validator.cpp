@@ -16,7 +16,7 @@ Status validate_stream_shape(const syntax::StreamParameters& stream)
     if (stream.width == 0 || stream.height == 0) {
         return make_error(ErrorCode::InvalidArgument, "stream dimensions must be non-zero");
     }
-    if (stream.bits_per_raw_sample == 0 || stream.bits_per_raw_sample > 16) {
+    if (!is_supported_decoder_bit_depth(stream.bits_per_raw_sample)) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
     if (!is_supported_syntax_colorspace(stream.colorspace_type)) {

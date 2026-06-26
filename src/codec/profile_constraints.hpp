@@ -12,6 +12,12 @@ namespace mffv1::codec {
     return bits_per_raw_sample >= 8 && bits_per_raw_sample <= 16;
 }
 
+[[nodiscard]] inline bool is_supported_decoder_bit_depth(
+    std::uint8_t bits_per_raw_sample) noexcept
+{
+    return bits_per_raw_sample >= 1 && bits_per_raw_sample <= 16;
+}
+
 [[nodiscard]] inline bool is_supported_syntax_colorspace(
     int colorspace_type) noexcept
 {

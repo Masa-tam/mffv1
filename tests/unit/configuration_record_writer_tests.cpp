@@ -305,6 +305,8 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedProfileWithoutChangingOutp
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     ASSERT_EQ(record.size(), 1u);
     EXPECT_EQ(record[0], std::byte{0xaa});
 }
@@ -323,6 +325,8 @@ TEST(ConfigurationRecordWriterTest, RejectsInvalidParametersBeforeWritingSymbols
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     EXPECT_EQ(symbols.symbols, original);
 }
 
@@ -338,6 +342,8 @@ TEST(ConfigurationRecordWriterTest, RejectsVerticalOnlySubsampling)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
@@ -379,6 +385,7 @@ TEST(ConfigurationRecordWriterTest, RejectsCustomInitialStates)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "configuration writer supports only streams without custom states or EC");
 }
 
 } // namespace

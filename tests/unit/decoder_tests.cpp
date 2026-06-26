@@ -543,7 +543,7 @@ TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    std::array<std::uint8_t, 1> storage{};
+    std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     mffv1::MutableFrameView output{&plane, 1};
     const std::array<std::byte, 1> frame_payload{std::byte{0xff}};
@@ -555,6 +555,7 @@ TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_FALSE(status.location.has_slice_index);
+    EXPECT_EQ(storage[0], 0xee);
 }
 
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)

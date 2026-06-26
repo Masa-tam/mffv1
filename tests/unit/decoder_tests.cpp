@@ -329,6 +329,53 @@ TEST(DecoderTest, InspectFrameRejectsEmptyPayload)
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
+TEST(DecoderTest, InspectFrameFailurePreservesOutputInfo)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+
+    mffv1::FrameInfo info;
+    info.width = 99;
+    info.height = 77;
+    info.version = 2;
+    info.micro_version = 3;
+    info.entropy_mode = mffv1::EntropyMode::GolombRice;
+    info.bits_per_raw_sample = 16;
+    info.plane_count = 4;
+    info.planes[0].role = mffv1::PlaneRole::Alpha;
+    info.planes[0].width = 5;
+    info.color_space = mffv1::ColorSpace::Rgb;
+    info.has_chroma_planes = true;
+    info.has_extra_plane = true;
+    info.keyframe = true;
+    info.slice_count = 6;
+    const mffv1::ByteSpan frame_payload;
+
+    const auto status = result.decoder->inspect_frame(frame_payload, info);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(info.width, 99u);
+    EXPECT_EQ(info.height, 77u);
+    EXPECT_EQ(info.version, 2u);
+    EXPECT_EQ(info.micro_version, 3u);
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::GolombRice);
+    EXPECT_EQ(info.bits_per_raw_sample, 16u);
+    EXPECT_EQ(info.plane_count, 4u);
+    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Alpha);
+    EXPECT_EQ(info.planes[0].width, 5u);
+    EXPECT_EQ(info.color_space, mffv1::ColorSpace::Rgb);
+    EXPECT_TRUE(info.has_chroma_planes);
+    EXPECT_TRUE(info.has_extra_plane);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 6u);
+}
+
 TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)
 {
     const auto result = mffv1::create_decoder({});

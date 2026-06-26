@@ -90,6 +90,7 @@ TEST(GolombRiceContextTest, LeavesStateAndOutputUnchangedOnUnderflow)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream underflow while reading one bit");
     EXPECT_EQ(value, 7);
     EXPECT_EQ(state.drift, original.drift);
     EXPECT_EQ(state.error_sum, original.error_sum);
@@ -110,6 +111,7 @@ TEST(GolombRiceContextTest, RejectsInvalidStateWithoutReading)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "Golomb-Rice context state is invalid");
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 
@@ -142,6 +144,8 @@ TEST(GolombRiceContextTest, RejectsUnrepresentableKWithoutReading)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message,
+              "Golomb-Rice context requires an unrepresentable k parameter");
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 

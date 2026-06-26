@@ -299,6 +299,23 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
     out_frame.frame_info.version = static_cast<std::uint8_t>(stream_.version);
     out_frame.frame_info.bits_per_raw_sample = stream_.bits_per_raw_sample;
     out_frame.frame_info.plane_count = syntax::coded_plane_count(stream_);
+    out_frame.frame_info.planes = {};
+    const auto sample_format = stream_.bits_per_raw_sample <= 8
+        ? SampleFormat::UInt8
+        : SampleFormat::UInt16;
+    const std::ptrdiff_t bytes_per_sample =
+        sample_format == SampleFormat::UInt16 ? 2 : 1;
+    for (std::size_t plane_index = 0;
+         plane_index < out_frame.frame_info.plane_count;
+         ++plane_index) {
+        PlaneInfo& plane = out_frame.frame_info.planes[plane_index];
+        plane.role = syntax::expected_plane_role(stream_, plane_index);
+        plane.sample_format = sample_format;
+        plane.width = syntax::plane_width(stream_, plane_index);
+        plane.height = syntax::plane_height(stream_, plane_index);
+        plane.stride_bytes =
+            static_cast<std::ptrdiff_t>(plane.width) * bytes_per_sample;
+    }
     out_frame.frame_info.color_space =
         stream_.colorspace_type == 1 ? ColorSpace::Rgb : ColorSpace::YCbCr;
     out_frame.frame_info.has_chroma_planes = stream_.chroma_planes;

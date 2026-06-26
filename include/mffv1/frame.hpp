@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -63,6 +64,7 @@ struct FrameInfo {
     std::uint8_t version = 0;
     std::uint8_t bits_per_raw_sample = 0;
     std::uint8_t plane_count = 0;
+    std::array<PlaneInfo, 4> planes{};
     ColorSpace color_space = ColorSpace::YCbCr;
     bool has_chroma_planes = false;
     bool has_extra_plane = false;

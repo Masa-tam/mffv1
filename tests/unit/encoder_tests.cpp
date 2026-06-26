@@ -398,6 +398,12 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
     EXPECT_EQ(info.version, stream.version);
     EXPECT_EQ(info.bits_per_raw_sample, stream.bits_per_raw_sample);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Y);
+    EXPECT_EQ(info.planes[0].sample_format, mffv1::SampleFormat::UInt8);
+    EXPECT_EQ(info.planes[0].width, stream.width);
+    EXPECT_EQ(info.planes[0].height, stream.height);
+    EXPECT_EQ(info.planes[0].stride_bytes,
+              static_cast<std::ptrdiff_t>(stream.width));
     EXPECT_EQ(info.color_space, stream.color_space);
     EXPECT_EQ(info.has_chroma_planes, stream.has_chroma_planes);
     EXPECT_EQ(info.has_extra_plane, stream.has_extra_plane);
@@ -459,6 +465,11 @@ void expect_public_multi_slice_y_round_trip(mffv1::EntropyMode entropy_mode)
               stream.log2_h_chroma_subsample);
     EXPECT_EQ(info.log2_v_chroma_subsample,
               stream.log2_v_chroma_subsample);
+    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Y);
+    EXPECT_EQ(info.planes[0].width, stream.width);
+    EXPECT_EQ(info.planes[0].height, stream.height);
+    EXPECT_EQ(info.planes[0].stride_bytes,
+              static_cast<std::ptrdiff_t>(stream.width));
     EXPECT_EQ(info.slice_count, 4u);
 
     std::array<std::uint8_t, 128> decoded{};
@@ -811,6 +822,32 @@ void expect_public_subsampled_round_trip(
     EXPECT_EQ(info.log2_v_chroma_subsample,
               stream.log2_v_chroma_subsample);
     EXPECT_EQ(info.plane_count, has_extra_plane ? 4u : 3u);
+    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Y);
+    EXPECT_EQ(info.planes[1].role, mffv1::PlaneRole::Cb);
+    EXPECT_EQ(info.planes[2].role, mffv1::PlaneRole::Cr);
+    EXPECT_EQ(info.planes[0].sample_format, mffv1::SampleFormat::UInt8);
+    EXPECT_EQ(info.planes[1].sample_format, mffv1::SampleFormat::UInt8);
+    EXPECT_EQ(info.planes[2].sample_format, mffv1::SampleFormat::UInt8);
+    EXPECT_EQ(info.planes[0].width, stream.width);
+    EXPECT_EQ(info.planes[0].height, stream.height);
+    EXPECT_EQ(info.planes[1].width, chroma_width);
+    EXPECT_EQ(info.planes[1].height, chroma_height);
+    EXPECT_EQ(info.planes[2].width, chroma_width);
+    EXPECT_EQ(info.planes[2].height, chroma_height);
+    EXPECT_EQ(info.planes[0].stride_bytes,
+              static_cast<std::ptrdiff_t>(stream.width));
+    EXPECT_EQ(info.planes[1].stride_bytes,
+              static_cast<std::ptrdiff_t>(chroma_width));
+    EXPECT_EQ(info.planes[2].stride_bytes,
+              static_cast<std::ptrdiff_t>(chroma_width));
+    if (has_extra_plane) {
+        EXPECT_EQ(info.planes[3].role, mffv1::PlaneRole::Alpha);
+        EXPECT_EQ(info.planes[3].sample_format, mffv1::SampleFormat::UInt8);
+        EXPECT_EQ(info.planes[3].width, stream.width);
+        EXPECT_EQ(info.planes[3].height, stream.height);
+        EXPECT_EQ(info.planes[3].stride_bytes,
+                  static_cast<std::ptrdiff_t>(stream.width));
+    }
 
     std::vector<std::uint8_t> decoded_y(y.size());
     std::vector<std::uint8_t> decoded_cb(cb.size());
@@ -1091,6 +1128,28 @@ void expect_public_rgb_round_trip(std::uint8_t bits_per_raw_sample,
     EXPECT_EQ(info.log2_v_chroma_subsample,
               stream.log2_v_chroma_subsample);
     EXPECT_EQ(info.plane_count, has_extra_plane ? 4u : 3u);
+    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::R);
+    EXPECT_EQ(info.planes[1].role, mffv1::PlaneRole::G);
+    EXPECT_EQ(info.planes[2].role, mffv1::PlaneRole::B);
+    EXPECT_EQ(info.planes[0].sample_format, format);
+    EXPECT_EQ(info.planes[1].sample_format, format);
+    EXPECT_EQ(info.planes[2].sample_format, format);
+    EXPECT_EQ(info.planes[0].width, stream.width);
+    EXPECT_EQ(info.planes[1].width, stream.width);
+    EXPECT_EQ(info.planes[2].width, stream.width);
+    EXPECT_EQ(info.planes[0].height, stream.height);
+    EXPECT_EQ(info.planes[1].height, stream.height);
+    EXPECT_EQ(info.planes[2].height, stream.height);
+    EXPECT_EQ(info.planes[0].stride_bytes, stride);
+    EXPECT_EQ(info.planes[1].stride_bytes, stride);
+    EXPECT_EQ(info.planes[2].stride_bytes, stride);
+    if (has_extra_plane) {
+        EXPECT_EQ(info.planes[3].role, mffv1::PlaneRole::Alpha);
+        EXPECT_EQ(info.planes[3].sample_format, format);
+        EXPECT_EQ(info.planes[3].width, stream.width);
+        EXPECT_EQ(info.planes[3].height, stream.height);
+        EXPECT_EQ(info.planes[3].stride_bytes, stride);
+    }
 
     std::array<std::uint16_t, 15> decoded_r{};
     std::array<std::uint16_t, 15> decoded_g{};

@@ -151,6 +151,45 @@ TEST(EncoderTest, ConfigureRejectsVersionMismatchWithoutChangingOutput)
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
 
+TEST(EncoderTest, ConfigureRejectsUnsupportedVersionWithoutChangingOutput)
+{
+    mffv1::EncoderOptions options;
+    options.version = 2;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.version = 2;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "encoder supports only FFV1 version 3");
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(EncoderTest, ConfigureRejectsUnsupportedEntropyModeWithoutChangingOutput)
+{
+    mffv1::EncoderOptions options;
+    options.entropy_mode = static_cast<mffv1::EntropyMode>(99);
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "encoder entropy mode is unsupported");
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(EncoderTest, ConfigureRejectsZeroDimensionsWithoutChangingOutput)
 {
     auto result = mffv1::create_encoder({});
@@ -264,6 +303,43 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
               "encoder supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     ASSERT_EQ(record.bytes.size(), 1u);
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
+}
+
+TEST(EncoderTest, ConfigureRejectsUnsupportedBitDepthWithoutChangingOutput)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.bits_per_raw_sample = 17;
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "encoder supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(EncoderTest, ConfigureRejectsUnsupportedColorSpaceWithoutChangingOutput)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.color_space = static_cast<mffv1::ColorSpace>(99);
+    mffv1::ConfigurationRecord record;
+    record.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->configure(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "encoder color space is unsupported");
+    EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 TEST(EncoderTest, ConfigureRejectsSubsamplingWithoutChroma)

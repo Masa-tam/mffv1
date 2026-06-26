@@ -94,6 +94,7 @@ TEST(SliceInputWindowTest, RejectsPlaneGeometryMismatch)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input frame plane count does not match the stream");
 }
 
 TEST(SliceInputWindowTest, RejectsUnrepresentableRowOffset)
@@ -128,6 +129,7 @@ TEST(SliceInputWindowTest, RejectsUnrepresentableRowOffset)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "input slice plane offset is not representable");
 }
 
 TEST(SliceInputWindowTest, RejectsUnrepresentableLastSampleExtent)
@@ -161,6 +163,7 @@ TEST(SliceInputWindowTest, RejectsUnrepresentableLastSampleExtent)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "input slice plane extent is not representable");
 }
 
 } // namespace

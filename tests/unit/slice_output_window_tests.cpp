@@ -73,6 +73,7 @@ TEST(SliceOutputWindowTest, RejectsOutOfFrameSlice)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "slice rectangle is outside the frame");
 }
 
 TEST(SliceOutputWindowTest, RejectsUnrepresentableRowOffset)
@@ -102,6 +103,7 @@ TEST(SliceOutputWindowTest, RejectsUnrepresentableRowOffset)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "output plane row offset exceeds ptrdiff_t");
 }
 
 TEST(SliceOutputWindowTest, RejectsWindowWhoseLastRowIsUnrepresentable)
@@ -130,6 +132,7 @@ TEST(SliceOutputWindowTest, RejectsWindowWhoseLastRowIsUnrepresentable)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "output plane window rows exceed ptrdiff_t");
 }
 
 TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
@@ -253,6 +256,7 @@ TEST(SliceOutputWindowTest, RejectsSwappedChromaPlaneRoles)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output plane role does not match stream plane order");
 }
 
 TEST(SliceOutputWindowTest, MapsExtraPlaneAtFullResolution)

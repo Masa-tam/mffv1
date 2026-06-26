@@ -204,6 +204,21 @@ TEST(ConfigurationParserTest, AcceptsFutureStableVersion3MicroVersion)
     EXPECT_EQ(stream.micro_version, 5);
 }
 
+TEST(ConfigurationParserTest, RejectsUnrepresentableMicroVersion)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[1] = u_max();
+    ScriptedSymbolReader reader(std::move(symbols));
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "micro_version is too large");
+}
+
 TEST(ConfigurationParserTest, InterpretsReservedZeroBitDepthAsEight)
 {
     auto symbols = minimal_v3_y_only_symbols();

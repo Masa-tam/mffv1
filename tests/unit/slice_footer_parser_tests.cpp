@@ -158,6 +158,7 @@ TEST(SliceFooterParserTest, RejectsCrcMismatchFromSliceEnd)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 56u);
 }
@@ -184,6 +185,7 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatus)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer error_status is reserved");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 3u);
 }
@@ -206,6 +208,7 @@ TEST(SliceFooterParserTest, RejectsSliceSizeMismatchFromEnd)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer size does not match slice payload size");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 22u);
 }
@@ -225,6 +228,7 @@ TEST(SliceFooterParserTest, RejectsPayloadTooSmallForFooter)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice payload is too small to contain a footer");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 30u);
 }
@@ -247,6 +251,7 @@ TEST(SliceFooterParserTest, RejectsUnalignedFooter)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream is not byte aligned");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -266,6 +271,7 @@ TEST(SliceFooterParserTest, ReportsUnderflowAtFooterOffset)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream underflow while reading bits");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }

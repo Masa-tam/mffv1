@@ -75,6 +75,7 @@ TEST(SliceFooterWriterTest, RejectsReservedStatusWithoutChangingPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "slice error status uses a reserved value");
     EXPECT_EQ(payload, original);
 }
 
@@ -89,6 +90,7 @@ TEST(SliceFooterWriterTest, RejectsStatusWhenEcIsDisabled)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "slice error status requires EC to be enabled");
     EXPECT_EQ(payload, original);
 }
 

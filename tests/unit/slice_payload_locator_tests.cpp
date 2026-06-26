@@ -141,6 +141,7 @@ TEST(SlicePayloadLocatorTest, RejectsEcTrailingSliceCrcMismatch)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 7u);
 }
@@ -159,6 +160,7 @@ TEST(SlicePayloadLocatorTest, RejectsFrameTooSmallForFooter)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "frame payload is too small to contain a slice footer");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -180,6 +182,7 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeSmallerThanFooter)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer size is smaller than the footer");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
 }
@@ -201,6 +204,7 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeLargerThanFrame)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer size is larger than the frame payload");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
 }
@@ -257,6 +261,7 @@ TEST(SlicePayloadLocatorTest, RejectsZeroMaximumSliceCount)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "maximum slice count must be non-zero");
     EXPECT_EQ(descriptors.size(), 1u);
 }
 
@@ -283,6 +288,7 @@ TEST(SlicePayloadLocatorTest, RejectsMoreSlicesThanMaximum)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "frame contains more slices than raster cells");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(status.location.has_slice_index);
@@ -333,6 +339,7 @@ TEST(SlicePayloadLocatorTest, RejectsUnrepresentableMaximumBeforeAllocation)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "maximum slice count exceeds the supported index range");
     EXPECT_EQ(descriptors.size(), 1u);
 }
 

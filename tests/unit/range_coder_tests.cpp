@@ -17,6 +17,7 @@ TEST(RangeCoderTest, RejectsTooShortPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "range coder payload must contain at least two bytes");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -143,6 +144,7 @@ TEST(RangeCoderTest, RejectsOutOfRangeScalarContext)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "range coder scalar context is out of range");
 }
 
 TEST(RangeCoderTest, RejectsExcessiveScalarContextCount)
@@ -158,6 +160,7 @@ TEST(RangeCoderTest, RejectsExcessiveScalarContextCount)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "range coder scalar context count exceeds the supported limit");
 }
 
 TEST(RangeCoderTest, DecodesFromSelectedContextBank)
@@ -213,6 +216,8 @@ TEST(RangeCoderTest, RejectsMismatchedInitialStateCount)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "range coder initial state count does not match scalar context count");
 }
 
 TEST(RangeCoderTest, RejectsOutOfRangeContextBank)
@@ -230,6 +235,7 @@ TEST(RangeCoderTest, RejectsOutOfRangeContextBank)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "range coder scalar context bank is out of range");
 }
 
 TEST(RangeCoderTest, RejectsContextOutsideSelectedBank)
@@ -247,6 +253,7 @@ TEST(RangeCoderTest, RejectsContextOutsideSelectedBank)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "range coder scalar context is out of range");
 }
 
 TEST(RangeCoderTest, RejectsExcessiveContextBankCount)
@@ -264,6 +271,7 @@ TEST(RangeCoderTest, RejectsExcessiveContextBankCount)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "range coder context bank count exceeds the supported limit");
 }
 
 TEST(RangeCoderTest, ReconfiguresContextsWithoutResettingArithmeticPosition)
@@ -299,6 +307,7 @@ TEST(RangeCoderTest, RejectsContextReconfigurationBeforeReset)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range coder is not initialized");
 }
 
 TEST(RangeCoderTest, FailedContextReconfigurationPreservesExistingBanks)
@@ -318,6 +327,8 @@ TEST(RangeCoderTest, FailedContextReconfigurationPreservesExistingBanks)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "range coder initial state count does not match scalar context count");
     std::int64_t value = 99;
     EXPECT_TRUE(coder.read_signed(0, 0, value).ok());
 }
@@ -357,6 +368,7 @@ TEST(RangeCoderTest, RejectsContextCopyBeforeResetWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range coder is not initialized");
     ASSERT_EQ(context_banks.size(), 1u);
     EXPECT_EQ(context_banks[0].size(), 2u);
 }
@@ -398,6 +410,8 @@ TEST(RangeCoderTest, RejectsEmptyRestoredContextBank)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "range coder context banks must have at least one scalar context");
 }
 
 } // namespace

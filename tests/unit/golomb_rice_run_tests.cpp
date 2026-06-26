@@ -104,6 +104,7 @@ TEST(GolombRiceRunTest, LeavesStateAndOutputUnchangedOnTruncatedRemainder)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream underflow while reading bits");
     EXPECT_EQ(state.run_index, 4u);
     EXPECT_EQ(segment.count, 7u);
     EXPECT_FALSE(segment.interrupted);
@@ -119,12 +120,14 @@ TEST(GolombRiceRunTest, RejectsInvalidArgumentsWithoutReading)
     auto status = mffv1::entropy::read_golomb_rice_run_segment(reader, state, 0, 8, segment);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "Golomb-Rice run index is out of range");
     EXPECT_EQ(reader.bit_position(), 0u);
 
     state.reset();
     status = mffv1::entropy::read_golomb_rice_run_segment(reader, state, 9, 8, segment);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "Golomb-Rice run position is outside the row");
     EXPECT_EQ(reader.bit_position(), 0u);
 }
 
@@ -234,12 +237,14 @@ TEST(GolombRiceRunTest, RejectsInvalidRunWithoutWriting)
         writer, state, 9, 8, 0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "Golomb-Rice run is outside the row");
     EXPECT_EQ(writer.bit_position(), 0u);
 
     status = mffv1::entropy::write_golomb_rice_run(
         writer, state, 7, 8, 2);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "Golomb-Rice run is outside the row");
     EXPECT_EQ(writer.bit_position(), 0u);
 
     state.run_index = 40;
@@ -247,6 +252,7 @@ TEST(GolombRiceRunTest, RejectsInvalidRunWithoutWriting)
         writer, state, 0, std::uint32_t{1} << 24, std::uint32_t{1} << 24);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "Golomb-Rice run index exceeds the supported table");
     EXPECT_EQ(writer.bit_position(), 0u);
     EXPECT_EQ(state.run_index, 40u);
 }

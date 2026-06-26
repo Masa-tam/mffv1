@@ -185,6 +185,8 @@ TEST(ConfigurationParserTest, RejectsUnstableVersion3MicroVersions)
         EXPECT_FALSE(status.ok()) << "micro_version=" << micro_version;
         EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature)
             << "micro_version=" << micro_version;
+        EXPECT_EQ(status.message, "unstable FFV1 version 3 micro-version is not supported")
+            << "micro_version=" << micro_version;
         EXPECT_EQ(stream.version, 1) << "micro_version=" << micro_version;
     }
 }
@@ -245,6 +247,7 @@ TEST(ConfigurationParserTest, RejectsUnsupportedBitDepth)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "only 1-16 bit samples are supported");
 }
 
 TEST(ConfigurationParserTest, ParsesLargeChromaSubsamplingExponents)
@@ -305,6 +308,7 @@ TEST(ConfigurationParserTest, RejectsUnsupportedVersion)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "unsupported FFV1 version");
 }
 
 TEST(ConfigurationParserTest, ParsesCustomRangeCoderStateTransitions)

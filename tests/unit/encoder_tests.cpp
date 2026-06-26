@@ -1,5 +1,8 @@
 #include "mffv1/codec.hpp"
 
+#include "codec/configuration_record_parser.hpp"
+#include "codec/frame_decode_context.hpp"
+#include "codec/frame_parser.hpp"
 #include "util/crc32.hpp"
 
 #include <array>
@@ -70,6 +73,18 @@ TEST(EncoderTest, FactoryRejectsNegativeThreadCount)
     EXPECT_EQ(result.encoder, nullptr);
 }
 
+TEST(EncoderTest, FactoryRejectsZeroKeyframeInterval)
+{
+    mffv1::EncoderOptions options;
+    options.keyframe_interval = 0;
+
+    const auto result = mffv1::create_encoder(options);
+
+    EXPECT_FALSE(result.status.ok());
+    EXPECT_EQ(result.status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.encoder, nullptr);
+}
+
 TEST(EncoderTest, ConfigureWritesRecordAcceptedByPublicDecoder)
 {
     auto result = mffv1::create_encoder({});
@@ -91,6 +106,25 @@ TEST(EncoderTest, ConfigureWritesRecordAcceptedByPublicDecoder)
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
     EXPECT_TRUE(decoder.decoder->configure(record.bytes).ok());
+}
+
+TEST(EncoderTest, ConfigureWritesNonIntraRecordForInterFrameCadence)
+{
+    mffv1::EncoderOptions options;
+    options.keyframe_interval = 2;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+
+    const auto status = result.encoder->configure(stream, record);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record.bytes, parsed).ok());
+    EXPECT_FALSE(parsed.intra_only);
 }
 
 TEST(EncoderTest, ConfigureRejectsVersionMismatchWithoutChangingOutput)
@@ -1156,6 +1190,111 @@ TEST(EncoderTest, EncodesSuccessiveFramesAsIndependentKeyframes)
     decoded.fill(0);
     ASSERT_TRUE(decoder.decoder->decode_frame(second_frame.bytes, output).ok());
     EXPECT_EQ(decoded, second);
+}
+
+TEST(EncoderTest, EncodesConfiguredNonKeyframes)
+{
+    mffv1::EncoderOptions options;
+    options.keyframe_interval = 2;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> first{};
+    std::array<std::uint8_t, 128> second{};
+    for (std::size_t index = 0; index < first.size(); ++index) {
+        first[index] = static_cast<std::uint8_t>(
+            (index * 37u + index / 16u) & 0xffu);
+        second[index] = static_cast<std::uint8_t>(
+            (255u - index * 19u + index / 8u) & 0xffu);
+    }
+    const auto first_plane = make_input_plane(first);
+    const auto second_plane = make_input_plane(second);
+    const mffv1::FrameView first_input{&first_plane, 1};
+    const mffv1::FrameView second_input{&second_plane, 1};
+    mffv1::EncodedFrame first_frame;
+    mffv1::EncodedFrame second_frame;
+
+    ASSERT_TRUE(result.encoder->encode_frame(first_input, first_frame).ok());
+    ASSERT_TRUE(result.encoder->encode_frame(second_input, second_frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::codec::ConfigurationRecordParser record_parser;
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    parsed_stream.width = stream.width;
+    parsed_stream.height = stream.height;
+    const mffv1::codec::FrameParser frame_parser(parsed_stream);
+    mffv1::codec::FrameDecodeContext parsed_first;
+    mffv1::codec::FrameDecodeContext parsed_second;
+    ASSERT_TRUE(frame_parser.parse_with_range_header(
+        first_frame.bytes, parsed_first).ok());
+    ASSERT_TRUE(frame_parser.parse_with_range_header(
+        second_frame.bytes, parsed_second).ok());
+    EXPECT_TRUE(parsed_first.keyframe);
+    EXPECT_FALSE(parsed_second.keyframe);
+
+    std::array<std::uint8_t, 128> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    ASSERT_TRUE(decoder.decoder->decode_frame(first_frame.bytes, output).ok());
+    EXPECT_EQ(decoded, first);
+
+    decoded.fill(0);
+    ASSERT_TRUE(decoder.decoder->decode_frame(second_frame.bytes, output).ok());
+    EXPECT_EQ(decoded, second);
+}
+
+TEST(EncoderTest, FailedEncodeDoesNotAdvanceKeyframeCadence)
+{
+    mffv1::EncoderOptions options;
+    options.keyframe_interval = 2;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> first{};
+    std::array<std::uint8_t, 128> second{};
+    second.fill(0x55);
+    const auto first_plane = make_input_plane(first);
+    auto second_plane = make_input_plane(second);
+    const mffv1::FrameView first_input{&first_plane, 1};
+    mffv1::FrameView second_input{&second_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(result.encoder->encode_frame(first_input, frame).ok());
+
+    second_plane.info.stride_bytes = 15;
+    frame.bytes.assign({std::byte{0xaa}});
+    ASSERT_FALSE(result.encoder->encode_frame(second_input, frame).ok());
+    EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+
+    second_plane.info.stride_bytes = 16;
+    ASSERT_TRUE(result.encoder->encode_frame(second_input, frame).ok());
+
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::codec::ConfigurationRecordParser record_parser;
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    parsed_stream.width = stream.width;
+    parsed_stream.height = stream.height;
+    const mffv1::codec::FrameParser frame_parser(parsed_stream);
+    mffv1::codec::FrameDecodeContext parsed;
+    ASSERT_TRUE(frame_parser.parse_with_range_header(frame.bytes, parsed).ok());
+    EXPECT_FALSE(parsed.keyframe);
 }
 
 TEST(EncoderTest, EncodeFrameRequiresConfigurationWithoutChangingOutput)

@@ -172,7 +172,7 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    return write_unsigned(1); // intra
+    return write_unsigned(stream.intra_only ? 1 : 0); // intra
 }
 
 Status ConfigurationRecordWriter::validate_initial_profile(
@@ -242,11 +242,10 @@ Status ConfigurationRecordWriter::validate_initial_profile(
     if ((!stream.initial_states.empty()
          && (stream.initial_states.size() != 1
              || !stream.initial_states[0].contexts.empty()))
-        || stream.error_status_enabled
-        || !stream.intra_only) {
+        || stream.error_status_enabled) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports only intra-only streams without custom states or EC");
+            "configuration writer supports only streams without custom states or EC");
     }
     return ok_status();
 }

@@ -121,7 +121,7 @@ Status normalize_initial_profile(const EncoderOptions& options,
         }
     }
     stream.quant_table_sets.push_back(syntax::make_zero_quant_table_set());
-    stream.intra_only = true;
+    stream.intra_only = options.keyframe_interval == 1;
     out_stream = std::move(stream);
     return ok_status();
 }
@@ -150,6 +150,9 @@ public:
         }
 
         stream_ = std::move(normalized);
+        executor_ = std::make_unique<codec::SliceEncodeExecutor>(
+            *stream_, options_.thread_count, kernels_);
+        next_frame_index_ = 0;
         out_record.bytes = std::move(record_bytes);
         return ok_status();
     }
@@ -160,13 +163,18 @@ public:
             return make_error(ErrorCode::InvalidState, "encoder is not configured");
         }
         std::vector<std::byte> frame_bytes;
-        codec::SliceEncodeExecutor executor(
-            *stream_, options_.thread_count, kernels_);
-        Status status = executor.encode(input, frame_bytes);
+        if (!executor_) {
+            return make_error(ErrorCode::InvalidState, "encoder executor is not configured");
+        }
+        const bool keyframe =
+            options_.keyframe_interval == 1
+            || next_frame_index_ % options_.keyframe_interval == 0;
+        Status status = executor_->encode(input, keyframe, frame_bytes);
         if (!status.ok()) {
             return status;
         }
         out_frame.bytes = std::move(frame_bytes);
+        ++next_frame_index_;
         return ok_status();
     }
 
@@ -174,6 +182,8 @@ private:
     EncoderOptions options_;
     simd::CodecKernels kernels_;
     std::optional<syntax::StreamParameters> stream_;
+    std::unique_ptr<codec::SliceEncodeExecutor> executor_;
+    std::uint64_t next_frame_index_ = 0;
 };
 
 } // namespace
@@ -185,6 +195,12 @@ EncoderFactoryResult create_encoder(const EncoderOptions& options)
         result.status = make_error(
             ErrorCode::InvalidArgument,
             "encoder thread count must not be negative");
+        return result;
+    }
+    if (options.keyframe_interval == 0) {
+        result.status = make_error(
+            ErrorCode::InvalidArgument,
+            "encoder keyframe interval must be non-zero");
         return result;
     }
     result.status = ok_status();

@@ -3,9 +3,9 @@
 ## Status
 
 The mffv1 encoder has a complete scalar baseline suitable for technical-preview
-and internal integration use. It produces independently decodable FFV1 version
-3 frames and supports the principal planar YCbCr and RGB profiles described
-below.
+and internal integration use. It produces FFV1 version 3 frames with a
+configurable keyframe cadence and supports the principal planar YCbCr and RGB
+profiles described below.
 
 A stable general release still requires external interoperability testing,
 licensed conformance vectors, fuzzing, sanitizer coverage, and packaging.
@@ -83,6 +83,7 @@ On success, `status.ok()` is true and `encoder` is non-null. A negative
 | `thread_count` | `0` selects hardware concurrency, `1` forces serial slice encoding, and a positive value sets the maximum slice workers. |
 | `version` | Requested FFV1 version. The current encoder accepts only version 3. |
 | `entropy_mode` | Selects `EntropyMode::Range` or `EntropyMode::GolombRice`. |
+| `keyframe_interval` | Number of frames between generated keyframes. The default `1` makes every frame a keyframe. Values greater than `1` enable non-keyframe continuation. `0` is rejected. |
 | `cpu` | Controls runtime CPU feature selection. Dispatch is resolved once when the encoder is created. |
 
 ### CPU Feature Selection
@@ -197,23 +198,25 @@ The generated Configuration Record currently declares:
 - Range or Golomb-Rice entropy coding.
 - One zero quantization table set.
 - Default range state transitions.
-- Intra-only coding.
+- Intra-only coding when `EncoderOptions::keyframe_interval == 1`.
+- Non-intra coding when `EncoderOptions::keyframe_interval > 1`.
 - No custom initial states.
 - Error-status and slice CRC fields disabled.
 
-Every generated frame is a keyframe. Non-keyframe encoding is not yet exposed.
+With the default options, every generated frame is a keyframe. When
+`keyframe_interval` is greater than one, frame zero and every Nth frame after it
+are keyframes, and intervening frames continue each slice's prediction and
+entropy state from the previous encoded frame.
 
-Internally, `SliceEncoder` supports transactional continuation of Range and
-Golomb-Rice entropy state through an explicit `SliceState`. This foundation is
-covered by keyframe-reset, non-keyframe round-trip, missing-reference, and
-failure-rollback tests. The public encoder does not use that continuation
-state yet.
+Range and Golomb-Rice non-keyframes are stateful. A failed `encode_frame()` call
+does not advance the keyframe cadence and does not commit partial slice state.
 
 ## Slice Grid
 
-The encoder emits one independent slice per raster cell in row-major order.
-Each slice restarts prediction, entropy contexts, and Golomb-Rice run state.
-Only the first slice carries the frame keyframe flag.
+The encoder emits one slice per raster cell in row-major order. Keyframes reset
+prediction, entropy contexts, and Golomb-Rice run state per slice. Non-keyframes
+continue the previous state for the matching raster cell. Only the first slice
+carries the frame keyframe flag.
 
 Both slice counts must be non-zero. The grid must not create an empty region
 in any coded plane. In particular, subsampled chroma planes may impose a
@@ -361,6 +364,7 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 - FFV1 version 3, stable micro-version 4.
 - Range coding with the default transition table.
 - Golomb-Rice coding.
+- Configurable keyframe cadence with stateful non-keyframe continuation.
 - 8 through 16 bits per raw sample.
 - Y-only, YCbCr 4:4:4, 4:2:2, 4:2:0, and optional alpha.
 - RGB and RGBA with the reversible FFV1 color transform.
@@ -372,7 +376,6 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 ## Current Limitations
 
 - Versions 0, 1, and 2 are not encoded.
-- Every frame is a keyframe; non-keyframe/reference-state encoding is absent.
 - Custom quantization tables and custom initial states are absent.
 - Error-status fields and per-slice CRC output are disabled.
 - Sample depths below 8 or above 16 are unsupported.

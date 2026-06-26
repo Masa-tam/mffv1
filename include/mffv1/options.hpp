@@ -34,6 +34,7 @@ struct EncoderOptions {
     int thread_count = 0;
     int version = 3;
     EntropyMode entropy_mode = EntropyMode::Range;
+    std::uint32_t keyframe_interval = 1;
     CpuFeatures cpu = {};
 };
 

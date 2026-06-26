@@ -398,6 +398,7 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
     EXPECT_EQ(info.version, stream.version);
     EXPECT_EQ(info.bits_per_raw_sample, stream.bits_per_raw_sample);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_TRUE(info.keyframe);
 
     std::array<std::uint8_t, 128> decoded{};
     decoded.fill(0xee);
@@ -1230,6 +1231,12 @@ TEST(EncoderTest, EncodesConfiguredNonKeyframes)
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
     ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(first_frame.bytes, info).ok());
+    EXPECT_TRUE(info.keyframe);
+    ASSERT_TRUE(decoder.decoder->inspect_frame(second_frame.bytes, info).ok());
+    EXPECT_FALSE(info.keyframe);
 
     mffv1::syntax::StreamParameters parsed_stream;
     const mffv1::codec::ConfigurationRecordParser record_parser;

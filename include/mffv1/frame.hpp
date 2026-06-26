@@ -58,7 +58,7 @@ struct FrameInfo {
     std::uint8_t version = 0;
     std::uint8_t bits_per_raw_sample = 0;
     std::uint8_t plane_count = 0;
+    bool keyframe = false;
 };
 
 } // namespace mffv1
-

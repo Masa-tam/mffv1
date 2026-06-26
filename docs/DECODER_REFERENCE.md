@@ -166,11 +166,12 @@ On success, `FrameInfo` contains:
 | `version` | Parsed FFV1 version. |
 | `bits_per_raw_sample` | Coded sample depth. |
 | `plane_count` | Number of output planes required by the stream. |
+| `keyframe` | True when the frame declares itself as a keyframe. |
 
-The current `FrameInfo` does not expose keyframe status, slice count, color
-space, plane roles, subsampling, or error-status metadata. The caller must
-currently know the required output layout from its container integration or
-other out-of-band stream metadata.
+The current `FrameInfo` does not expose slice count, color space, plane roles,
+subsampling, or error-status metadata. The caller must currently know the
+required output layout from its container integration or other out-of-band
+stream metadata.
 
 ## Decoding A Frame
 

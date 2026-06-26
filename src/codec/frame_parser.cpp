@@ -83,6 +83,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
             return status;
         }
         out_frame.keyframe = keyframe;
+        out_frame.frame_info.keyframe = keyframe;
     } else if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
         bitstream::BitReader frame_bits(payload);
         std::uint8_t keyframe = 0;
@@ -95,6 +96,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
             return status;
         }
         out_frame.keyframe = keyframe != 0;
+        out_frame.frame_info.keyframe = keyframe != 0;
     }
 
     syntax::SliceDescriptor slice;
@@ -182,6 +184,7 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return status;
     }
     out_frame.keyframe = keyframe;
+    out_frame.frame_info.keyframe = keyframe;
     return ok_status();
 }
 
@@ -265,6 +268,7 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
         return status;
     }
     out_frame.keyframe = keyframe;
+    out_frame.frame_info.keyframe = keyframe;
     out_frame.slices = std::move(parsed_slices);
     return ok_status();
 }
@@ -289,6 +293,7 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
     out_frame.frame_info.version = static_cast<std::uint8_t>(stream_.version);
     out_frame.frame_info.bits_per_raw_sample = stream_.bits_per_raw_sample;
     out_frame.frame_info.plane_count = syntax::coded_plane_count(stream_);
+    out_frame.frame_info.keyframe = false;
 
     return ok_status();
 }

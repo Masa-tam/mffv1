@@ -504,6 +504,7 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     EXPECT_EQ(info.version, 0u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_TRUE(info.keyframe);
 }
 
 TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
@@ -531,6 +532,7 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
     EXPECT_EQ(info.height, 1u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_TRUE(info.keyframe);
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), 1, 1, 1);
@@ -539,6 +541,26 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
 
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(storage[0], 0u);
+}
+
+TEST(DecoderTest, InspectFrameReportsLegacyNonKeyframe)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+
+    const std::array keyframe_payload{std::byte{0xff}, std::byte{0x00}};
+    const std::array non_keyframe_payload{std::byte{0x70}, std::byte{0x00}};
+    mffv1::FrameInfo info;
+
+    ASSERT_TRUE(result.decoder->inspect_frame(keyframe_payload, info).ok());
+    EXPECT_TRUE(info.keyframe);
+    ASSERT_TRUE(result.decoder->inspect_frame(non_keyframe_payload, info).ok());
+    EXPECT_FALSE(info.keyframe);
 }
 
 TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)

@@ -119,4 +119,51 @@ TEST(EncoderProfileTest, RejectsSubsampledRgbProfile)
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
 }
 
+TEST(EncoderProfileTest, FailedNormalizationDoesNotChangeOutputStream)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.version = 2;
+    stream.micro_version = 99;
+    stream.width = 123;
+    stream.height = 45;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    stream.bits_per_raw_sample = 16;
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    stream.extra_plane = true;
+    stream.log2_h_chroma_subsample = 0;
+    stream.log2_v_chroma_subsample = 0;
+    stream.num_h_slices = 7;
+    stream.num_v_slices = 3;
+    stream.quant_table_sets.push_back(
+        mffv1::syntax::make_zero_quant_table_set());
+    stream.intra_only = true;
+    const auto original = stream;
+
+    auto info = make_stream_info();
+    info.width = 0;
+    const auto status =
+        mffv1::codec::normalize_encoder_profile({}, info, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(stream.version, original.version);
+    EXPECT_EQ(stream.micro_version, original.micro_version);
+    EXPECT_EQ(stream.width, original.width);
+    EXPECT_EQ(stream.height, original.height);
+    EXPECT_EQ(stream.entropy_mode, original.entropy_mode);
+    EXPECT_EQ(stream.bits_per_raw_sample, original.bits_per_raw_sample);
+    EXPECT_EQ(stream.colorspace_type, original.colorspace_type);
+    EXPECT_EQ(stream.chroma_planes, original.chroma_planes);
+    EXPECT_EQ(stream.extra_plane, original.extra_plane);
+    EXPECT_EQ(stream.log2_h_chroma_subsample,
+              original.log2_h_chroma_subsample);
+    EXPECT_EQ(stream.log2_v_chroma_subsample,
+              original.log2_v_chroma_subsample);
+    EXPECT_EQ(stream.num_h_slices, original.num_h_slices);
+    EXPECT_EQ(stream.num_v_slices, original.num_v_slices);
+    EXPECT_EQ(stream.quant_table_sets.size(), original.quant_table_sets.size());
+    EXPECT_EQ(stream.intra_only, original.intra_only);
+}
+
 } // namespace

@@ -93,6 +93,7 @@ TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output plane array is null");
 }
 
 TEST(FrameValidatorTest, RejectsMissingInputPlaneArray)
@@ -235,6 +236,7 @@ TEST(FrameValidatorTest, RejectsWrongSampleFormat)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane sample format does not match stream bit depth");
 }
 
 TEST(FrameValidatorTest, RejectsWrongPlaneRole)
@@ -249,6 +251,7 @@ TEST(FrameValidatorTest, RejectsWrongPlaneRole)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane role does not match stream plane order");
 }
 
 TEST(FrameValidatorTest, RejectsWrongInputPlaneRole)
@@ -277,6 +280,7 @@ TEST(FrameValidatorTest, RejectsShortStride)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
 }
 
 TEST(FrameValidatorTest, ComputesWideMinimumStrideWithoutWrapping)

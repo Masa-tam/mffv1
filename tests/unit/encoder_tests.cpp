@@ -53,6 +53,27 @@ mffv1::MutablePlaneView make_output_plane(
     return plane;
 }
 
+void expect_encode_input_rejection(mffv1::FrameView input,
+                                   mffv1::ErrorCode code,
+                                   const char* message)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+    mffv1::EncodedFrame frame;
+    frame.bytes.push_back(std::byte{0xaa});
+
+    const auto status = result.encoder->encode_frame(input, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, code);
+    EXPECT_EQ(status.message, message);
+    EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(EncoderTest, FactoryCreatesEncoder)
 {
     const auto result = mffv1::create_encoder({});
@@ -407,26 +428,90 @@ TEST(EncoderTest, FailedReconfigurePreservesUsablePreviousConfiguration)
 
 TEST(EncoderTest, EncodeFrameRejectsInvalidInputWithoutChangingOutput)
 {
-    auto result = mffv1::create_encoder({});
-    ASSERT_TRUE(result.status.ok());
-    ASSERT_NE(result.encoder, nullptr);
-    const auto stream = make_initial_profile();
-    mffv1::ConfigurationRecord record;
-    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
     std::array<std::uint8_t, 128> storage{};
     auto plane = make_input_plane(storage);
     plane.info.stride_bytes = 15;
     const mffv1::FrameView input{&plane, 1};
-    mffv1::EncodedFrame frame;
-    frame.bytes.push_back(std::byte{0xaa});
 
-    const auto status = result.encoder->encode_frame(input, frame);
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "plane stride is smaller than the stream requires");
+}
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
-    EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
-    ASSERT_EQ(frame.bytes.size(), 1u);
-    EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
+TEST(EncoderTest, EncodeFrameRejectsMissingInputPlaneCount)
+{
+    const mffv1::FrameView input{nullptr, 0};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "input frame plane count does not match the stream");
+}
+
+TEST(EncoderTest, EncodeFrameRejectsNullInputPlaneArray)
+{
+    const mffv1::FrameView input{nullptr, 1};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "input plane array is null");
+}
+
+TEST(EncoderTest, EncodeFrameRejectsNullInputPlaneData)
+{
+    std::array<std::uint8_t, 128> storage{};
+    auto plane = make_input_plane(storage);
+    plane.data = nullptr;
+    const mffv1::FrameView input{&plane, 1};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "input plane data pointer is null");
+}
+
+TEST(EncoderTest, EncodeFrameRejectsWrongInputSampleFormat)
+{
+    std::array<std::uint16_t, 128> storage{};
+    std::array<std::uint8_t, 128> plane_info_storage{};
+    auto plane = make_input_plane(plane_info_storage);
+    plane.data = storage.data();
+    plane.info.sample_format = mffv1::SampleFormat::UInt16;
+    plane.info.stride_bytes = 32;
+    const mffv1::FrameView input{&plane, 1};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "plane sample format does not match stream bit depth");
+}
+
+TEST(EncoderTest, EncodeFrameRejectsInputPlaneDimensionMismatch)
+{
+    std::array<std::uint8_t, 128> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.width = 15;
+    const mffv1::FrameView input{&plane, 1};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "input plane dimensions do not match the stream");
+}
+
+TEST(EncoderTest, EncodeFrameRejectsNegativeInputStride)
+{
+    std::array<std::uint8_t, 128> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.stride_bytes = -1;
+    const mffv1::FrameView input{&plane, 1};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::UnsupportedFeature,
+        "negative input plane stride is not supported");
 }
 
 TEST(EncoderTest, EncodeFrameProducesCompleteFrame)

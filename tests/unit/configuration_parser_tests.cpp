@@ -417,6 +417,28 @@ TEST(ConfigurationParserTest, RejectsOverflowingQuantTableRun)
     EXPECT_EQ(status.message, "quantization table run exceeds table boundary");
 }
 
+TEST(ConfigurationParserTest, RejectsQuantTableValueOverflow)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols.erase(symbols.begin() + 12, symbols.end());
+    for (int table = 0; table < 4; ++table) {
+        for (int run = 0; run < 128; ++run) {
+            symbols.push_back(u(0));
+        }
+    }
+    symbols.push_back(u(0));
+    symbols.push_back(u(0));
+    ScriptedSymbolReader reader(std::move(symbols));
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "quantization table value overflow");
+}
+
 TEST(ConfigurationParserTest, RejectsOutOfRangeQuantTableSetCount)
 {
     for (const std::uint64_t quant_table_set_count : {0u, 9u}) {

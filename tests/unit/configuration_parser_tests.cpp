@@ -399,6 +399,7 @@ TEST(ConfigurationParserTest, RejectsOversizedQuantTableRun)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "quantization table run exceeds table boundary");
 }
 
 TEST(ConfigurationParserTest, RejectsOverflowingQuantTableRun)
@@ -414,6 +415,25 @@ TEST(ConfigurationParserTest, RejectsOverflowingQuantTableRun)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(status.message, "quantization table run exceeds table boundary");
+}
+
+TEST(ConfigurationParserTest, RejectsOutOfRangeQuantTableSetCount)
+{
+    for (const std::uint64_t quant_table_set_count : {0u, 9u}) {
+        auto symbols = minimal_v3_y_only_symbols();
+        symbols[11] = u(quant_table_set_count);
+        ScriptedSymbolReader reader(std::move(symbols));
+        mffv1::syntax::ConfigurationParser parser;
+        mffv1::syntax::StreamParameters stream;
+
+        const auto status = parser.parse(reader, stream);
+
+        EXPECT_FALSE(status.ok()) << "quant_table_set_count=" << quant_table_set_count;
+        EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError)
+            << "quant_table_set_count=" << quant_table_set_count;
+        EXPECT_EQ(status.message, "quant_table_set_count must be in the range 1..8")
+            << "quant_table_set_count=" << quant_table_set_count;
+    }
 }
 
 TEST(ConfigurationParserTest, RejectsUnrepresentableSliceCountsBeforeIncrement)

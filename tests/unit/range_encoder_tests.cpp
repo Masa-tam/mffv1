@@ -117,6 +117,7 @@ TEST(RangeEncoderTest, RejectsZeroWidthSubrangeWithoutChangingState)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "binary value has a zero-width range in the current state");
     EXPECT_EQ(encoder.byte_count(), byte_count);
     ASSERT_TRUE(encoder.write_bool(false).ok());
     std::vector<std::byte> payload;
@@ -138,15 +139,19 @@ TEST(RangeEncoderTest, RequiresReset)
     auto status = encoder.write_bool(false);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is not initialized");
     status = encoder.write_unsigned(0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is not initialized");
     status = encoder.write_signed(0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is not initialized");
     status = encoder.finalize(payload);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is not initialized");
     ASSERT_EQ(payload.size(), 1u);
     EXPECT_EQ(payload[0], std::byte{0xaa});
 }
@@ -163,15 +168,19 @@ TEST(RangeEncoderTest, FinalizeSealsEncoderUntilReset)
     auto status = encoder.write_bool(false);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is finalized");
     status = encoder.write_unsigned(0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is finalized");
     status = encoder.write_signed(0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is finalized");
     status = encoder.finalize(payload);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range encoder is already finalized");
 
     ASSERT_TRUE(encoder.reset().ok());
     EXPECT_FALSE(encoder.finalized());
@@ -354,9 +363,11 @@ TEST(RangeEncoderTest, RejectsUnrepresentableScalarValuesWithoutChangingState)
         static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "unsigned value exceeds the range coder scalar limit");
     status = encoder.write_signed(std::numeric_limits<std::int64_t>::min());
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "signed value magnitude exceeds the range coder scalar limit");
     EXPECT_EQ(encoder.byte_count(), byte_count);
     mffv1::entropy::RangeEncoder::ContextStateBanks contexts_after;
     ASSERT_TRUE(encoder.copy_contexts(contexts_after).ok());
@@ -374,9 +385,11 @@ TEST(RangeEncoderTest, RejectsInvalidContextSelectionWithoutChangingState)
     auto status = encoder.write_unsigned(2, 0, 1);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "range encoder scalar context bank is out of range");
     status = encoder.write_signed(0, 1, -1);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "range encoder scalar context is out of range");
     EXPECT_EQ(encoder.byte_count(), byte_count);
 }
 
@@ -399,6 +412,8 @@ TEST(RangeEncoderTest, FailedScalarWriteRollsBackArithmeticAndContextState)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "scalar symbol enters a zero-width range in the current context state");
     mffv1::entropy::RangeEncoder::ContextStateBanks contexts_after;
     ASSERT_TRUE(encoder.copy_contexts(contexts_after).ok());
     EXPECT_EQ(contexts_after, contexts_before);

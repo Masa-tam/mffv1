@@ -293,6 +293,38 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordConfiguresPublicDecoder)
     EXPECT_TRUE(status.ok()) << status.message;
 }
 
+TEST(ConfigurationRecordWriterTest, RejectsUnsupportedVersionWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.micro_version = 5;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only FFV1 version 3 micro-version 4");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(ConfigurationRecordWriterTest, RejectsCustomRangeCoderWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.state_transition[1] ^= 1;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports Golomb-Rice or the default range coder");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(ConfigurationRecordWriterTest, RejectsUnsupportedProfileWithoutChangingOutput)
 {
     auto stream = make_initial_profile();
@@ -371,6 +403,22 @@ TEST(ConfigurationRecordWriterTest, AcceptsNormalizedEmptyInitialStateSet)
     const auto status = writer.write(stream, record);
 
     EXPECT_TRUE(status.ok()) << status.message;
+}
+
+TEST(ConfigurationRecordWriterTest, RejectsNonZeroQuantTableSetWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.quant_table_sets[0].tables[0][1] = 1;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only one zero quantization table set");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 TEST(ConfigurationRecordWriterTest, RejectsCustomInitialStates)

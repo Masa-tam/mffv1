@@ -399,6 +399,7 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
     EXPECT_EQ(info.bits_per_raw_sample, stream.bits_per_raw_sample);
     EXPECT_EQ(info.plane_count, 1u);
     EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 1u);
 
     std::array<std::uint8_t, 128> decoded{};
     decoded.fill(0xee);
@@ -444,6 +445,7 @@ void expect_public_multi_slice_y_round_trip(mffv1::EntropyMode entropy_mode)
 
     mffv1::FrameInfo info;
     ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.slice_count, 4u);
 
     std::array<std::uint8_t, 128> decoded{};
     decoded.fill(0xee);
@@ -1235,8 +1237,10 @@ TEST(EncoderTest, EncodesConfiguredNonKeyframes)
     mffv1::FrameInfo info;
     ASSERT_TRUE(decoder.decoder->inspect_frame(first_frame.bytes, info).ok());
     EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 4u);
     ASSERT_TRUE(decoder.decoder->inspect_frame(second_frame.bytes, info).ok());
     EXPECT_FALSE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 4u);
 
     mffv1::syntax::StreamParameters parsed_stream;
     const mffv1::codec::ConfigurationRecordParser record_parser;

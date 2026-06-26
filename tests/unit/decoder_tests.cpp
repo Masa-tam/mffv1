@@ -505,6 +505,7 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
     EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 1u);
 }
 
 TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
@@ -533,6 +534,7 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
     EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 1u);
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), 1, 1, 1);

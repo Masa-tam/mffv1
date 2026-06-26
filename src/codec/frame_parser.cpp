@@ -129,6 +129,8 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         set_slice_location_if_missing(status, slice.index);
         return status;
     }
+    out_frame.frame_info.slice_count =
+        static_cast<std::uint32_t>(out_frame.slices.size());
     return ok_status();
 }
 
@@ -185,6 +187,8 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
     }
     out_frame.keyframe = keyframe;
     out_frame.frame_info.keyframe = keyframe;
+    out_frame.frame_info.slice_count =
+        static_cast<std::uint32_t>(out_frame.slices.size());
     return ok_status();
 }
 
@@ -270,6 +274,8 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
     out_frame.keyframe = keyframe;
     out_frame.frame_info.keyframe = keyframe;
     out_frame.slices = std::move(parsed_slices);
+    out_frame.frame_info.slice_count =
+        static_cast<std::uint32_t>(out_frame.slices.size());
     return ok_status();
 }
 
@@ -294,6 +300,7 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
     out_frame.frame_info.bits_per_raw_sample = stream_.bits_per_raw_sample;
     out_frame.frame_info.plane_count = syntax::coded_plane_count(stream_);
     out_frame.frame_info.keyframe = false;
+    out_frame.frame_info.slice_count = 0;
 
     return ok_status();
 }

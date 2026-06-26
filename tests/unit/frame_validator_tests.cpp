@@ -229,6 +229,7 @@ TEST(FrameValidatorTest, RejectsUnrepresentableInputLastRowAddress)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "input plane last row address is not representable");
 }
 
 TEST(FrameValidatorTest, RejectsWrongSampleFormat)
@@ -273,6 +274,7 @@ TEST(FrameValidatorTest, RejectsWrongInputPlaneRole)
     const auto status = validator.validate_input(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane role does not match stream plane order");
 }
 
 TEST(FrameValidatorTest, RejectsShortStride)
@@ -360,6 +362,7 @@ TEST(FrameValidatorTest, RejectsSwappedChromaPlaneRoles)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane role does not match stream plane order");
 }
 
 TEST(FrameValidatorTest, AcceptsExtraPlaneRole)
@@ -412,6 +415,7 @@ TEST(FrameValidatorTest, RequiresChromaPlanesWhenStreamHasChroma)
     const auto status = validator.validate_output(stream, frame);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output frame does not have enough planes");
 }
 
 TEST(FrameValidatorTest, AcceptsFullResolutionRgbPlaneRoles)
@@ -448,6 +452,7 @@ TEST(FrameValidatorTest, RejectsSubsampledRgbStream)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "RGB streams require chroma planes without subsampling");
 }
 
 } // namespace

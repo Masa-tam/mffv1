@@ -94,4 +94,26 @@ TEST(SliceFooterWriterTest, RejectsStatusWhenEcIsDisabled)
     EXPECT_EQ(payload, original);
 }
 
+TEST(SliceFooterWriterTest, RejectsSliceSizeOverflowWithoutChangingPayload)
+{
+    mffv1::syntax::StreamParameters stream;
+    constexpr std::size_t maximum_slice_size = 0x00ffffffu;
+    constexpr std::size_t footer_size = 3;
+    std::vector<std::byte> payload(maximum_slice_size - footer_size + 1,
+                                   std::byte{0xaa});
+    const auto original_size = payload.size();
+    const auto first_byte = payload.front();
+    const auto last_byte = payload.back();
+    const mffv1::codec::SliceFooterWriter writer;
+
+    const auto status = writer.append(stream, 0, payload);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "slice payload exceeds the 24-bit slice size limit");
+    EXPECT_EQ(payload.size(), original_size);
+    EXPECT_EQ(payload.front(), first_byte);
+    EXPECT_EQ(payload.back(), last_byte);
+}
+
 } // namespace

@@ -83,6 +83,8 @@ TEST(SliceHeaderWriterTest, RejectsWrongIndexCountBeforeWriting)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "slice header quantization table index count does not match the stream");
     EXPECT_TRUE(symbols.values.empty());
 }
 
@@ -101,6 +103,8 @@ TEST(SliceHeaderWriterTest, RejectsIncompleteAspectRatioBeforeWriting)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "slice header sample aspect ratio must be fully specified or absent");
     EXPECT_TRUE(symbols.values.empty());
 }
 

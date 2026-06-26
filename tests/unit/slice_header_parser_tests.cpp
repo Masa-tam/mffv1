@@ -130,6 +130,7 @@ TEST(SliceHeaderParserTest, RejectsOutOfRasterRectangle)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header rectangle is outside the slice raster");
 }
 
 TEST(SliceHeaderParserTest, ReadsHeaderValuesFromSymbolReader)
@@ -197,6 +198,7 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfRasterRectangleWithByteLocation)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header rectangle is outside the slice raster");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 8u);
 }
@@ -212,6 +214,7 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header quantization table set index is out of range");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 12u);
 }
@@ -227,6 +230,7 @@ TEST(SliceHeaderParserTest, ReadRejectsReservedPictureStructureWithByteLocation)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header picture_structure is reserved");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 14u);
 }
@@ -276,6 +280,7 @@ TEST(SliceHeaderParserTest, RejectsOutOfFrameRectangle)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header rectangle is outside the frame");
 }
 
 TEST(SliceHeaderParserTest, RejectsMissingQuantTableIndex)
@@ -291,6 +296,7 @@ TEST(SliceHeaderParserTest, RejectsMissingQuantTableIndex)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header has no quantization table set indexes");
 }
 
 TEST(SliceHeaderParserTest, RejectsOutOfRangeQuantTableIndex)
@@ -307,6 +313,7 @@ TEST(SliceHeaderParserTest, RejectsOutOfRangeQuantTableIndex)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header quantization table set index is out of range");
 }
 
 TEST(SliceHeaderParserTest, RejectsReservedPictureStructureWhenApplyingValues)
@@ -324,6 +331,7 @@ TEST(SliceHeaderParserTest, RejectsReservedPictureStructureWhenApplyingValues)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header picture_structure is reserved");
 }
 
 } // namespace

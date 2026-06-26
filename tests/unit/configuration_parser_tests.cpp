@@ -218,6 +218,20 @@ TEST(ConfigurationParserTest, InterpretsReservedZeroBitDepthAsEight)
     EXPECT_EQ(stream.bits_per_raw_sample, 8u);
 }
 
+TEST(ConfigurationParserTest, RejectsUnsupportedBitDepth)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[4] = u(17);
+    ScriptedSymbolReader reader(std::move(symbols));
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+}
+
 TEST(ConfigurationParserTest, ParsesLargeChromaSubsamplingExponents)
 {
     auto symbols = minimal_v3_y_only_symbols();

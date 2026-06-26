@@ -1,6 +1,6 @@
 #include "codec/encoder_profile.hpp"
 
-#include "codec/profile_constraints.hpp"
+#include "mffv1/profile_constraints.hpp"
 #include "codec/version3_constraints.hpp"
 
 #include <cstddef>
@@ -30,16 +30,16 @@ Status normalize_encoder_profile(const EncoderOptions& options,
         return make_error(ErrorCode::UnsupportedFeature,
                           "encoder entropy mode is unsupported");
     }
-    if (!is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
+    if (!constraints::is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
         return make_error(ErrorCode::UnsupportedFeature,
                           "encoder supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
     }
-    if (!is_supported_public_color_space(info.color_space)) {
+    if (!constraints::is_supported_public_color_space(info.color_space)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "encoder color space is unsupported");
     }
-    if (has_invalid_rgb_geometry(
+    if (constraints::has_invalid_rgb_geometry(
             info.color_space == ColorSpace::Rgb,
             info.has_chroma_planes,
             info.log2_h_chroma_subsample,
@@ -49,12 +49,12 @@ Status normalize_encoder_profile(const EncoderOptions& options,
             "RGB streams require three full-resolution color planes");
     }
     if (options.entropy_mode == EntropyMode::GolombRice
-        && !is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
+        && !constraints::is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "Golomb-Rice encoding supports only 8-16 bit streams");
     }
-    if (has_subsampling_without_chroma(
+    if (constraints::has_subsampling_without_chroma(
             info.has_chroma_planes,
             info.log2_h_chroma_subsample,
             info.log2_v_chroma_subsample)) {
@@ -62,7 +62,7 @@ Status normalize_encoder_profile(const EncoderOptions& options,
             ErrorCode::InvalidArgument,
             "chroma subsampling requires chroma planes");
     }
-    if (!is_supported_chroma_subsampling(
+    if (!constraints::is_supported_chroma_subsampling(
             info.log2_h_chroma_subsample,
             info.log2_v_chroma_subsample)) {
         return make_error(

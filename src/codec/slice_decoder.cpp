@@ -1,6 +1,6 @@
 #include "codec/slice_decoder.hpp"
 
-#include "codec/profile_constraints.hpp"
+#include "mffv1/profile_constraints.hpp"
 #include "codec/slice_header_parser.hpp"
 #include "codec/slice_input_window.hpp"
 #include "bitstream/bit_reader.hpp"
@@ -652,7 +652,7 @@ Status SliceDecoder::validate(const syntax::SliceDescriptor& slice,
     if (output.plane_count() != syntax::coded_plane_count(stream_)) {
         return make_error(ErrorCode::InvalidArgument, "slice output plane count does not match stream");
     }
-    if (!codec::is_supported_decoder_bit_depth(stream_.bits_per_raw_sample)) {
+    if (!constraints::is_supported_decoder_bit_depth(stream_.bits_per_raw_sample)) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
     if (stream_.quant_table_sets.empty()) {

@@ -1,5 +1,7 @@
 #include "mffv1/configuration_parser.hpp"
 
+#include "mffv1/profile_constraints.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -108,7 +110,7 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         return make_error(ErrorCode::SyntaxError, "colorspace_type is too large");
     }
     stream.colorspace_type = static_cast<int>(value);
-    if (stream.colorspace_type > 1) {
+    if (!constraints::is_supported_syntax_colorspace(stream.colorspace_type)) {
         return make_error(ErrorCode::UnsupportedFeature, "unsupported colorspace_type");
     }
 
@@ -120,7 +122,12 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         if (value > 16) {
             return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
         }
-        stream.bits_per_raw_sample = value == 0 ? std::uint8_t{8} : static_cast<std::uint8_t>(value);
+        const auto decoded_bits_per_raw_sample =
+            value == 0 ? std::uint8_t{8} : static_cast<std::uint8_t>(value);
+        if (!constraints::is_supported_decoder_bit_depth(decoded_bits_per_raw_sample)) {
+            return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
+        }
+        stream.bits_per_raw_sample = decoded_bits_per_raw_sample;
     }
 
     bool flag = false;
@@ -154,10 +161,11 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
     }
     stream.extra_plane = flag;
 
-    if (stream.colorspace_type == 1
-        && (!stream.chroma_planes
-            || stream.log2_h_chroma_subsample != 0
-            || stream.log2_v_chroma_subsample != 0)) {
+    if (constraints::has_invalid_rgb_geometry(
+            stream.colorspace_type == 1,
+            stream.chroma_planes,
+            stream.log2_h_chroma_subsample,
+            stream.log2_v_chroma_subsample)) {
         return make_error(ErrorCode::SyntaxError,
                           "RGB streams require chroma planes without subsampling");
     }

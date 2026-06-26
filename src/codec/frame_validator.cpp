@@ -1,7 +1,7 @@
 #include "codec/frame_validator.hpp"
 
 #include "codec/frame_info_builder.hpp"
-#include "codec/profile_constraints.hpp"
+#include "mffv1/profile_constraints.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -16,13 +16,13 @@ Status validate_stream_shape(const syntax::StreamParameters& stream)
     if (stream.width == 0 || stream.height == 0) {
         return make_error(ErrorCode::InvalidArgument, "stream dimensions must be non-zero");
     }
-    if (!is_supported_decoder_bit_depth(stream.bits_per_raw_sample)) {
+    if (!constraints::is_supported_decoder_bit_depth(stream.bits_per_raw_sample)) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
-    if (!is_supported_syntax_colorspace(stream.colorspace_type)) {
+    if (!constraints::is_supported_syntax_colorspace(stream.colorspace_type)) {
         return make_error(ErrorCode::UnsupportedFeature, "unsupported colorspace_type");
     }
-    if (has_invalid_rgb_geometry(
+    if (constraints::has_invalid_rgb_geometry(
             stream.colorspace_type == 1,
             stream.chroma_planes,
             stream.log2_h_chroma_subsample,

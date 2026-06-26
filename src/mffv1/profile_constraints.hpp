@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace mffv1::codec {
+namespace mffv1::constraints {
 
 [[nodiscard]] inline bool is_supported_encoder_bit_depth(
     std::uint8_t bits_per_raw_sample) noexcept
@@ -61,4 +61,4 @@ namespace mffv1::codec {
         && log2_v_chroma_subsample <= log2_h_chroma_subsample;
 }
 
-} // namespace mffv1::codec
+} // namespace mffv1::constraints

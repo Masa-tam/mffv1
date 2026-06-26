@@ -86,6 +86,12 @@ namespace mffv1::codec {
 
 namespace {
 
+const simd::CodecKernels& scalar_codec_kernels() noexcept
+{
+    static const simd::CodecKernels kernels;
+    return kernels;
+}
+
 void add_byte_offset(Status& status, std::uint64_t base_offset) noexcept
 {
     if (status.location.has_byte_offset) {
@@ -237,9 +243,11 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
 }
 
 Status store_rgb_line(const syntax::StreamParameters& stream,
+                      const simd::CodecKernels& kernels,
                       SliceOutputWindow& output,
                       std::uint32_t y,
-                      SliceState& state)
+                      SliceState& state,
+                      std::array<std::vector<std::uint16_t>, 3>& rgb_scratch)
 {
     std::array<std::uint8_t*, 4> rows_u8{};
     std::array<std::uint16_t*, 4> rows_u16{};
@@ -257,25 +265,29 @@ Status store_rgb_line(const syntax::StreamParameters& stream,
     }
 
     const auto width = output.plane_width(0);
+    kernels.inverse_color_transform_row(
+        state.line_state(0).current().data(),
+        state.line_state(1).current().data(),
+        state.line_state(2).current().data(),
+        rgb_scratch[0].data(),
+        rgb_scratch[1].data(),
+        rgb_scratch[2].data(),
+        width,
+        stream.bits_per_raw_sample,
+        stream.extra_plane);
     for (std::uint32_t x = 0; x < width; ++x) {
-        const auto rgb = syntax::inverse_jpeg2000_rct(
-            state.line_state(0).current()[x],
-            state.line_state(1).current()[x],
-            state.line_state(2).current()[x],
-            stream.bits_per_raw_sample,
-            stream.extra_plane);
         if (stream.bits_per_raw_sample <= 8) {
-            rows_u8[0][x] = static_cast<std::uint8_t>(rgb.r);
-            rows_u8[1][x] = static_cast<std::uint8_t>(rgb.g);
-            rows_u8[2][x] = static_cast<std::uint8_t>(rgb.b);
+            rows_u8[0][x] = static_cast<std::uint8_t>(rgb_scratch[0][x]);
+            rows_u8[1][x] = static_cast<std::uint8_t>(rgb_scratch[1][x]);
+            rows_u8[2][x] = static_cast<std::uint8_t>(rgb_scratch[2][x]);
             if (stream.extra_plane) {
                 rows_u8[3][x] = static_cast<std::uint8_t>(
                     state.line_state(3).current()[x]);
             }
         } else {
-            rows_u16[0][x] = rgb.r;
-            rows_u16[1][x] = rgb.g;
-            rows_u16[2][x] = rgb.b;
+            rows_u16[0][x] = rgb_scratch[0][x];
+            rows_u16[1][x] = rgb_scratch[1][x];
+            rows_u16[2][x] = rgb_scratch[2][x];
             if (stream.extra_plane) {
                 rows_u16[3][x] = static_cast<std::uint16_t>(
                     state.line_state(3).current()[x]);
@@ -318,6 +330,7 @@ Status store_planar_line(const syntax::StreamParameters& stream,
 }
 
 Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
+                                const simd::CodecKernels& kernels,
                                 ByteSpan payload,
                                 std::uint64_t payload_offset,
                                 std::uint8_t content_bit_offset,
@@ -345,6 +358,10 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
     if (stream.colorspace_type == 1) {
         const auto width = output.plane_width(0);
         const auto height = output.plane_height(0);
+        std::array<std::vector<std::uint16_t>, 3> rgb_scratch;
+        for (auto& plane : rgb_scratch) {
+            plane.resize(width);
+        }
         for (std::uint32_t y = 0; y < height; ++y) {
             for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
                 const auto reconstruction_bits = plane < 3
@@ -362,7 +379,8 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                     return status;
                 }
             }
-            status = store_rgb_line(stream, output, y, state);
+            status = store_rgb_line(
+                stream, kernels, output, y, state, rgb_scratch);
             if (!status.ok()) {
                 return status;
             }
@@ -530,7 +548,14 @@ entropy::GolombRiceRunState& SliceState::golomb_rice_run_state(
 }
 
 SliceDecoder::SliceDecoder(const syntax::StreamParameters& stream) noexcept
+    : SliceDecoder(stream, scalar_codec_kernels())
+{
+}
+
+SliceDecoder::SliceDecoder(const syntax::StreamParameters& stream,
+                           const simd::CodecKernels& kernels) noexcept
     : stream_(stream)
+    , kernels_(kernels)
 {
 }
 
@@ -691,6 +716,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
 
     if (stream_.entropy_mode == EntropyMode::GolombRice) {
         return decode_golomb_rice_slice(stream_,
+                                        kernels_,
                                         content_payload,
                                         slice.content_byte_offset,
                                         slice.content_bit_offset,
@@ -790,6 +816,10 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         const auto coded_bits = static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
         const auto width = output.plane_width(0);
         const auto height = output.plane_height(0);
+        std::array<std::vector<std::uint16_t>, 3> rgb_scratch;
+        for (auto& plane : rgb_scratch) {
+            plane.resize(width);
+        }
         for (std::uint32_t y = 0; y < height; ++y) {
             for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
                 auto& line = state.line_state(plane_index);
@@ -808,7 +838,8 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                     return status;
                 }
             }
-            status = store_rgb_line(stream_, output, y, state);
+            status = store_rgb_line(
+                stream_, kernels_, output, y, state, rgb_scratch);
             if (!status.ok()) {
                 return status;
             }

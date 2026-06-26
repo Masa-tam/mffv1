@@ -5,6 +5,7 @@
 #include "mffv1/result.hpp"
 #include "mffv1/slice_descriptor.hpp"
 #include "mffv1/stream_parameters.hpp"
+#include "simd/codec_kernels.hpp"
 
 #include <array>
 #include <cstddef>
@@ -18,6 +19,9 @@ class SliceExecutor {
 public:
     explicit SliceExecutor(const syntax::StreamParameters& stream) noexcept;
     SliceExecutor(const syntax::StreamParameters& stream, int thread_count) noexcept;
+    SliceExecutor(const syntax::StreamParameters& stream,
+                  int thread_count,
+                  const CpuFeatures& cpu) noexcept;
 
     Status decode(MutableFrameView output,
                   std::span<const syntax::SliceDescriptor> slices,
@@ -42,6 +46,7 @@ private:
                         SliceState& state) const;
 
     const syntax::StreamParameters& stream_;
+    simd::CodecKernels kernels_;
     std::uint32_t thread_count_ = 1;
     std::vector<SliceState> slice_states_;
     std::vector<SliceLayout> slice_layouts_;

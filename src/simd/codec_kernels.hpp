@@ -18,6 +18,17 @@ using ForwardColorTransformRow = void (*)(
     std::uint8_t,
     bool) noexcept;
 
+using InverseColorTransformRow = void (*)(
+    const std::int32_t*,
+    const std::int32_t*,
+    const std::int32_t*,
+    std::uint16_t*,
+    std::uint16_t*,
+    std::uint16_t*,
+    std::size_t,
+    std::uint8_t,
+    bool) noexcept;
+
 void forward_color_transform_row_scalar(
     const std::uint16_t* r,
     const std::uint16_t* g,
@@ -29,9 +40,22 @@ void forward_color_transform_row_scalar(
     std::uint8_t bits_per_raw_sample,
     bool has_extra_plane) noexcept;
 
+void inverse_color_transform_row_scalar(
+    const std::int32_t* y,
+    const std::int32_t* cb,
+    const std::int32_t* cr,
+    std::uint16_t* r,
+    std::uint16_t* g,
+    std::uint16_t* b,
+    std::size_t count,
+    std::uint8_t bits_per_raw_sample,
+    bool has_extra_plane) noexcept;
+
 struct CodecKernels {
     ForwardColorTransformRow forward_color_transform_row =
         forward_color_transform_row_scalar;
+    InverseColorTransformRow inverse_color_transform_row =
+        inverse_color_transform_row_scalar;
     std::uint64_t available_features = 0;
     std::uint64_t active_features = 0;
 };

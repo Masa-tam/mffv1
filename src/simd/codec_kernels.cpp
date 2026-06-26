@@ -40,6 +40,30 @@ void forward_color_transform_row_scalar(
     }
 }
 
+void inverse_color_transform_row_scalar(
+    const std::int32_t* y,
+    const std::int32_t* cb,
+    const std::int32_t* cr,
+    std::uint16_t* r,
+    std::uint16_t* g,
+    std::uint16_t* b,
+    std::size_t count,
+    std::uint8_t bits_per_raw_sample,
+    bool has_extra_plane) noexcept
+{
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto sample = syntax::inverse_jpeg2000_rct(
+            y[index],
+            cb[index],
+            cr[index],
+            bits_per_raw_sample,
+            has_extra_plane);
+        r[index] = sample.r;
+        g[index] = sample.g;
+        b[index] = sample.b;
+    }
+}
+
 CodecKernels make_codec_kernels(const CpuFeatures& requested) noexcept
 {
     CodecKernels kernels;
@@ -48,6 +72,8 @@ CodecKernels make_codec_kernels(const CpuFeatures& requested) noexcept
     if ((kernels.available_features & sse2) != 0) {
         kernels.forward_color_transform_row =
             forward_color_transform_row_sse2;
+        kernels.inverse_color_transform_row =
+            inverse_color_transform_row_sse2;
         kernels.active_features |= sse2;
     }
 #if defined(MFFV1_HAS_AVX2_KERNEL)
@@ -55,6 +81,8 @@ CodecKernels make_codec_kernels(const CpuFeatures& requested) noexcept
     if ((kernels.available_features & avx2) != 0) {
         kernels.forward_color_transform_row =
             forward_color_transform_row_avx2;
+        kernels.inverse_color_transform_row =
+            inverse_color_transform_row_avx2;
         kernels.active_features = avx2;
     }
 #endif

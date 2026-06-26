@@ -79,12 +79,38 @@ On success, `status.ok()` is true and `decoder` is non-null. On failure,
 | `strict` | Reserved for a future relaxed parsing mode. It currently has no effect; decoding remains strict. |
 | `frame_width` | Coded frame width supplied by the container. |
 | `frame_height` | Coded frame height supplied by the container. |
-| `cpu` | Reserved for decoder scalar/SIMD dispatch. The current decoder remains scalar and does not use these flags. |
+| `cpu` | Controls runtime CPU feature selection. Dispatch is resolved once when the decoder is configured. |
 
 `frame_width` and `frame_height` must either both be zero or both be non-zero.
 They should normally be supplied because FFV1 version 3 Configuration Records
 do not contain coded dimensions. Frame inspection and decoding fail with
 `InvalidState` while dimensions remain unknown.
+
+### CPU Feature Selection
+
+`CpuFeatures` contains an allowed feature mask and an automatic-detection flag:
+
+```cpp
+mffv1::CpuFeatures cpu;
+cpu.auto_detect = false;
+cpu.allowed = 0; // Force scalar operation.
+```
+
+The current build recognizes `Sse2`, `Ssse3`, `Avx2`, and `Neon`.
+
+- With `auto_detect == true` and `allowed == 0`, all detected and compiled
+  features are available to dispatch.
+- With `auto_detect == true` and a non-zero mask, available features are the
+  intersection of the mask, detected hardware, OS support, and compiled
+  target support.
+- With `auto_detect == false`, hardware detection is not used for selection.
+  The mask is limited only to features supported by the build target. The
+  caller is responsible for supplying a truthful mask for the executing CPU.
+- With `auto_detect == false` and `allowed == 0`, scalar operation is forced.
+
+The current decoder dispatch prefers AVX2 and then SSE2 for the RGB inverse
+JPEG 2000 reversible color transform. Other decoder operations remain scalar.
+The selected table is immutable and shared by slice workers.
 
 ## Configuring A Stream
 
@@ -311,7 +337,7 @@ failing public call. Slice indexes are zero-based in payload order.
 
 ## Implemented Decoder Coverage
 
-The current scalar decoder implements:
+The current decoder implements:
 
 - FFV1 versions 0 and 1, plus stable version 3 micro-version 4 or later.
 - Range coding with default or stream-provided state transitions.
@@ -322,6 +348,8 @@ The current scalar decoder implements:
 - Multiple version 3 slices with deterministic parallel execution.
 - Keyframes and non-keyframes with per-slice entropy-state continuation.
 - Reordered non-keyframe slices matched to prior state by raster geometry.
+- Runtime CPU dispatch with scalar, SSE2, and AVX2 RGB inverse color
+  transforms.
 
 ## Current Limitations
 
@@ -331,7 +359,8 @@ The current scalar decoder implements:
 - Colorspace types other than YCbCr and RGB are unsupported.
 - Legacy version 0/1 frame-embedded `Parameters()` are not automatically
   extracted; see Configuring A Stream.
-- CPU feature selection and SIMD acceleration are not implemented yet.
+- SIMD coverage is currently limited to the RGB inverse color transform on
+  SSE2 and AVX2 targets.
 - `strict = false` does not currently enable relaxed parsing.
 - `FrameInfo` does not yet provide enough color and subsampling metadata to
   allocate an unknown stream layout without out-of-band information.
@@ -350,5 +379,4 @@ Before declaring a stable decoder release, the project should complete:
    where available.
 5. CMake install/export rules and a consumer-project build test.
 6. Changelog, release metadata, and support-policy documents.
-7. Explicit tests or API changes for currently reserved `strict` and CPU
-   options.
+7. Explicit tests or API changes for the currently reserved `strict` option.

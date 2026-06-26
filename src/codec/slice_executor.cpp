@@ -47,6 +47,15 @@ SliceExecutor::SliceExecutor(const syntax::StreamParameters& stream, int thread_
 {
 }
 
+SliceExecutor::SliceExecutor(const syntax::StreamParameters& stream,
+                             int thread_count,
+                             const CpuFeatures& cpu) noexcept
+    : stream_(stream)
+    , kernels_(simd::make_codec_kernels(cpu))
+    , thread_count_(normalize_thread_count(thread_count))
+{
+}
+
 Status SliceExecutor::decode(MutableFrameView output,
                              std::span<const syntax::SliceDescriptor> slices,
                              bool keyframe)
@@ -141,7 +150,7 @@ std::size_t SliceExecutor::worker_count_for(std::size_t slice_count) const noexc
 Status SliceExecutor::validate_slices(MutableFrameView output,
                                       std::span<const syntax::SliceDescriptor> slices) const
 {
-    const SliceDecoder decoder(stream_);
+    const SliceDecoder decoder(stream_, kernels_);
     for (const auto& slice : slices) {
         SliceOutputWindow window;
         Status status = window.validate(stream_, output, slice);
@@ -223,7 +232,7 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
         return status;
     }
 
-    const SliceDecoder decoder(stream_);
+    const SliceDecoder decoder(stream_, kernels_);
     return decoder.decode(slice, window, state);
 }
 

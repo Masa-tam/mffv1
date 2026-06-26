@@ -4,6 +4,7 @@
 #include "simd/color_transform_sse2.hpp"
 #include "simd/cpu_features.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -16,6 +17,99 @@ namespace {
 constexpr std::uint64_t feature_bit(mffv1::CpuFeature feature) noexcept
 {
     return static_cast<std::uint64_t>(feature);
+}
+
+void expect_inverse_matches_scalar(
+    mffv1::simd::InverseColorTransformRow kernel,
+    std::size_t maximum_count)
+{
+    for (const std::uint8_t bits : {
+             std::uint8_t{8},
+             std::uint8_t{9},
+             std::uint8_t{10},
+             std::uint8_t{15},
+             std::uint8_t{16},
+         }) {
+        const auto maximum = static_cast<std::uint32_t>(
+            bits == 16
+                ? 0xffffu
+                : (std::uint32_t{1} << bits) - 1u);
+        std::vector<std::uint16_t> source_r(maximum_count);
+        std::vector<std::uint16_t> source_g(maximum_count);
+        std::vector<std::uint16_t> source_b(maximum_count);
+        for (std::size_t index = 0; index < maximum_count; ++index) {
+            source_r[index] = static_cast<std::uint16_t>(
+                (index * 7919u + maximum) % (maximum + 1u));
+            source_g[index] = static_cast<std::uint16_t>(
+                (index * 3571u + maximum / 3u) % (maximum + 1u));
+            source_b[index] = static_cast<std::uint16_t>(
+                (index * 1237u + maximum / 2u) % (maximum + 1u));
+        }
+        source_r[0] = 0;
+        source_g[0] = static_cast<std::uint16_t>(maximum);
+        source_b[0] = 0;
+        source_r[1] = static_cast<std::uint16_t>(maximum);
+        source_g[1] = 0;
+        source_b[1] = static_cast<std::uint16_t>(maximum);
+
+        for (const bool has_extra_plane : {false, true}) {
+            std::vector<std::int32_t> y(maximum_count);
+            std::vector<std::int32_t> cb(maximum_count);
+            std::vector<std::int32_t> cr(maximum_count);
+            mffv1::simd::forward_color_transform_row_scalar(
+                source_r.data(),
+                source_g.data(),
+                source_b.data(),
+                y.data(),
+                cb.data(),
+                cr.data(),
+                maximum_count,
+                bits,
+                has_extra_plane);
+
+            for (std::size_t count = 1; count <= maximum_count; ++count) {
+                std::vector<std::uint16_t> scalar_r(count);
+                std::vector<std::uint16_t> scalar_g(count);
+                std::vector<std::uint16_t> scalar_b(count);
+                std::vector<std::uint16_t> actual_r(count);
+                std::vector<std::uint16_t> actual_g(count);
+                std::vector<std::uint16_t> actual_b(count);
+                mffv1::simd::inverse_color_transform_row_scalar(
+                    y.data(),
+                    cb.data(),
+                    cr.data(),
+                    scalar_r.data(),
+                    scalar_g.data(),
+                    scalar_b.data(),
+                    count,
+                    bits,
+                    has_extra_plane);
+                kernel(
+                    y.data(),
+                    cb.data(),
+                    cr.data(),
+                    actual_r.data(),
+                    actual_g.data(),
+                    actual_b.data(),
+                    count,
+                    bits,
+                    has_extra_plane);
+
+                EXPECT_EQ(actual_r, scalar_r);
+                EXPECT_EQ(actual_g, scalar_g);
+                EXPECT_EQ(actual_b, scalar_b);
+                EXPECT_TRUE(std::equal(
+                    actual_r.begin(), actual_r.end(), source_r.begin()));
+                EXPECT_TRUE(std::equal(
+                    actual_g.begin(), actual_g.end(), source_g.begin()));
+                EXPECT_TRUE(std::equal(
+                    actual_b.begin(), actual_b.end(), source_b.begin()))
+                    << "bits=" << static_cast<int>(bits)
+                    << " extra=" << has_extra_plane
+                    << " count=" << count;
+            }
+        }
+    }
 }
 
 TEST(SimdColorTransformTest, Sse2MatchesScalarAcrossProfilesAndTails)
@@ -230,6 +324,37 @@ TEST(SimdColorTransformTest, Avx2MatchesScalarAcrossProfilesAndTails)
             }
         }
     }
+}
+
+TEST(SimdColorTransformTest, Sse2InverseMatchesScalarAcrossProfilesAndTails)
+{
+    expect_inverse_matches_scalar(
+        mffv1::simd::inverse_color_transform_row_sse2, 17);
+}
+
+TEST(SimdColorTransformTest, Avx2InverseMatchesScalarAcrossProfilesAndTails)
+{
+    if ((mffv1::simd::detected_cpu_features()
+         & feature_bit(mffv1::CpuFeature::Avx2))
+        == 0) {
+        GTEST_SKIP() << "AVX2 is unavailable on this CPU or build";
+    }
+    expect_inverse_matches_scalar(
+        mffv1::simd::inverse_color_transform_row_avx2, 25);
+}
+
+TEST(SimdColorTransformTest, EmptyInverseRowIsANoOp)
+{
+    mffv1::simd::inverse_color_transform_row_sse2(
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        0,
+        8,
+        false);
 }
 
 TEST(SimdColorTransformTest, SimdProducesScalarIdenticalRgbSlices)

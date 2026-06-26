@@ -77,6 +77,7 @@ TEST(CpuFeaturesTest, KernelTableActivatesBestAvailableX86Kernel)
         mffv1::simd::detected_cpu_features());
     EXPECT_EQ(kernels.active_features, expected);
     EXPECT_NE(kernels.forward_color_transform_row, nullptr);
+    EXPECT_NE(kernels.inverse_color_transform_row, nullptr);
 }
 
 TEST(CpuFeaturesTest, ExplicitMaskSelectsOnlyRequestedKernel)
@@ -93,6 +94,9 @@ TEST(CpuFeaturesTest, ExplicitMaskSelectsOnlyRequestedKernel)
             kernels.forward_color_transform_row,
             mffv1::simd::forward_color_transform_row_sse2);
         EXPECT_EQ(
+            kernels.inverse_color_transform_row,
+            mffv1::simd::inverse_color_transform_row_sse2);
+        EXPECT_EQ(
             kernels.active_features,
             feature_bit(mffv1::CpuFeature::Sse2));
     }
@@ -105,6 +109,9 @@ TEST(CpuFeaturesTest, ExplicitMaskSelectsOnlyRequestedKernel)
         EXPECT_EQ(
             kernels.forward_color_transform_row,
             mffv1::simd::forward_color_transform_row_avx2);
+        EXPECT_EQ(
+            kernels.inverse_color_transform_row,
+            mffv1::simd::inverse_color_transform_row_avx2);
         EXPECT_EQ(
             kernels.active_features,
             feature_bit(mffv1::CpuFeature::Avx2));

@@ -38,7 +38,8 @@ public:
         }
 
         stream_ = std::move(stream);
-        slice_executor_ = std::make_unique<codec::SliceExecutor>(*stream_, options_.thread_count);
+        slice_executor_ = std::make_unique<codec::SliceExecutor>(
+            *stream_, options_.thread_count, options_.cpu);
         return ok_status();
     }
 

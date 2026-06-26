@@ -502,6 +502,8 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     EXPECT_EQ(info.width, options.frame_width);
     EXPECT_EQ(info.height, options.frame_height);
     EXPECT_EQ(info.version, 0u);
+    EXPECT_EQ(info.micro_version, 0u);
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::Range);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
     EXPECT_EQ(info.planes.size(), mffv1::kMaxFramePlanes);
@@ -515,6 +517,8 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     EXPECT_FALSE(info.has_extra_plane);
     EXPECT_EQ(info.log2_h_chroma_subsample, 0u);
     EXPECT_EQ(info.log2_v_chroma_subsample, 0u);
+    EXPECT_FALSE(info.error_status_enabled);
+    EXPECT_FALSE(info.intra_only);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 1u);
 }
@@ -540,6 +544,8 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
     auto status = result.decoder->inspect_frame(frame_payload, info);
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(info.version, 3u);
+    EXPECT_EQ(info.micro_version, 4u);
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::Range);
     EXPECT_EQ(info.width, 1u);
     EXPECT_EQ(info.height, 1u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
@@ -554,6 +560,8 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
     EXPECT_FALSE(info.has_extra_plane);
     EXPECT_EQ(info.log2_h_chroma_subsample, 0u);
     EXPECT_EQ(info.log2_v_chroma_subsample, 0u);
+    EXPECT_FALSE(info.error_status_enabled);
+    EXPECT_TRUE(info.intra_only);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 1u);
 
@@ -584,6 +592,7 @@ TEST(DecoderTest, InspectFrameReportsLegacyNonKeyframe)
     EXPECT_TRUE(info.keyframe);
     ASSERT_TRUE(result.decoder->inspect_frame(non_keyframe_payload, info).ok());
     EXPECT_FALSE(info.keyframe);
+    EXPECT_FALSE(info.intra_only);
 }
 
 TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)

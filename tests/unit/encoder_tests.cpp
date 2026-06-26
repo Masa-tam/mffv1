@@ -396,6 +396,8 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
     EXPECT_EQ(info.width, stream.width);
     EXPECT_EQ(info.height, stream.height);
     EXPECT_EQ(info.version, stream.version);
+    EXPECT_EQ(info.micro_version, 4u);
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::Range);
     EXPECT_EQ(info.bits_per_raw_sample, stream.bits_per_raw_sample);
     EXPECT_EQ(info.plane_count, 1u);
     EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Y);
@@ -411,6 +413,8 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
               stream.log2_h_chroma_subsample);
     EXPECT_EQ(info.log2_v_chroma_subsample,
               stream.log2_v_chroma_subsample);
+    EXPECT_FALSE(info.error_status_enabled);
+    EXPECT_TRUE(info.intra_only);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 1u);
 
@@ -458,6 +462,7 @@ void expect_public_multi_slice_y_round_trip(mffv1::EntropyMode entropy_mode)
 
     mffv1::FrameInfo info;
     ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.entropy_mode, entropy_mode);
     EXPECT_EQ(info.color_space, stream.color_space);
     EXPECT_EQ(info.has_chroma_planes, stream.has_chroma_planes);
     EXPECT_EQ(info.has_extra_plane, stream.has_extra_plane);
@@ -1331,6 +1336,9 @@ TEST(EncoderTest, EncodesConfiguredNonKeyframes)
 
     mffv1::FrameInfo info;
     ASSERT_TRUE(decoder.decoder->inspect_frame(first_frame.bytes, info).ok());
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::Range);
+    EXPECT_FALSE(info.error_status_enabled);
+    EXPECT_FALSE(info.intra_only);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 4u);
     ASSERT_TRUE(decoder.decoder->inspect_frame(second_frame.bytes, info).ok());

@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <span>
 
+#include "mffv1/options.hpp"
+
 namespace mffv1 {
 
 using ByteSpan = std::span<const std::byte>;
@@ -64,6 +66,8 @@ struct FrameInfo {
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::uint8_t version = 0;
+    std::uint16_t micro_version = 0;
+    EntropyMode entropy_mode = EntropyMode::Range;
     std::uint8_t bits_per_raw_sample = 0;
     std::uint8_t plane_count = 0;
     std::array<PlaneInfo, kMaxFramePlanes> planes{};
@@ -72,6 +76,8 @@ struct FrameInfo {
     bool has_extra_plane = false;
     std::uint8_t log2_h_chroma_subsample = 0;
     std::uint8_t log2_v_chroma_subsample = 0;
+    bool error_status_enabled = false;
+    bool intra_only = false;
     bool keyframe = false;
     std::uint32_t slice_count = 0;
 };

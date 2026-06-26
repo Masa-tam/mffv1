@@ -70,6 +70,8 @@ struct FrameInfo {
     std::uint32_t width;
     std::uint32_t height;
     std::uint8_t version;
+    std::uint16_t micro_version;
+    EntropyMode entropy_mode;
     std::uint8_t bits_per_raw_sample;
     std::uint8_t plane_count;
     std::array<PlaneInfo, kMaxFramePlanes> planes;

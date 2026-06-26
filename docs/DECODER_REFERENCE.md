@@ -164,6 +164,8 @@ On success, `FrameInfo` contains:
 | `width` | Configured coded width. |
 | `height` | Configured coded height. |
 | `version` | Parsed FFV1 version. |
+| `micro_version` | Parsed FFV1 micro-version. Versions without a micro-version report zero. |
+| `entropy_mode` | Parsed entropy coder, `EntropyMode::Range` or `EntropyMode::GolombRice`. |
 | `bits_per_raw_sample` | Coded sample depth. |
 | `plane_count` | Number of output planes required by the stream. |
 | `planes` | Required plane table. Entries `0 .. plane_count - 1` contain role, sample format, required width, required height, and minimum stride in bytes. |
@@ -172,6 +174,8 @@ On success, `FrameInfo` contains:
 | `has_extra_plane` | True when the stream carries an additional alpha-like plane. |
 | `log2_h_chroma_subsample` | Horizontal YCbCr chroma subsampling exponent. |
 | `log2_v_chroma_subsample` | Vertical YCbCr chroma subsampling exponent. |
+| `error_status_enabled` | True when version 3+ slices carry error-status and CRC footer fields. |
+| `intra_only` | True when the stream declares all frames as independently coded keyframes. |
 | `keyframe` | True when the frame declares itself as a keyframe. |
 | `slice_count` | Number of slices parsed from the frame payload. |
 
@@ -181,7 +185,7 @@ or equal to `plane_count` are not part of the stream layout.
 `PlaneInfo::stride_bytes` is the minimum contiguous stride required for
 allocation; callers may provide larger positive strides to `decode_frame()`.
 
-The current `FrameInfo` does not expose slice error-status metadata.
+The current `FrameInfo` does not expose per-slice error-status values.
 
 ## Decoding A Frame
 

@@ -297,6 +297,9 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
     out_frame.frame_info.width = stream_.width;
     out_frame.frame_info.height = stream_.height;
     out_frame.frame_info.version = static_cast<std::uint8_t>(stream_.version);
+    out_frame.frame_info.micro_version =
+        static_cast<std::uint16_t>(stream_.micro_version);
+    out_frame.frame_info.entropy_mode = stream_.entropy_mode;
     out_frame.frame_info.bits_per_raw_sample = stream_.bits_per_raw_sample;
     out_frame.frame_info.plane_count = syntax::coded_plane_count(stream_);
     out_frame.frame_info.planes = {};
@@ -324,6 +327,8 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
         stream_.log2_h_chroma_subsample;
     out_frame.frame_info.log2_v_chroma_subsample =
         stream_.log2_v_chroma_subsample;
+    out_frame.frame_info.error_status_enabled = stream_.error_status_enabled;
+    out_frame.frame_info.intra_only = stream_.intra_only;
     out_frame.frame_info.keyframe = false;
     out_frame.frame_info.slice_count = 0;
 

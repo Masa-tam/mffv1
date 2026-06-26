@@ -53,16 +53,19 @@ TEST(BitWriterTest, RejectsInvalidValuesWithoutAdvancing)
     auto status = writer.write_bit(2);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "bit value must be zero or one");
     EXPECT_EQ(writer.bit_position(), 3u);
 
     status = writer.write_bits(0b1000, 3);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "value does not fit in the requested bit count");
     EXPECT_EQ(writer.bit_position(), 3u);
 
     status = writer.write_bits(0, 65);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "cannot write more than 64 bits at once");
     EXPECT_EQ(writer.bit_position(), 3u);
 }
 
@@ -76,6 +79,7 @@ TEST(BitWriterTest, ZeroBitFieldRequiresZeroValue)
     const auto status = writer.write_bits(1, 0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "value does not fit in the requested bit count");
     EXPECT_EQ(writer.bit_position(), 0u);
 }
 
@@ -83,7 +87,10 @@ TEST(BitWriterTest, AlignsWithZeroPadding)
 {
     mffv1::bitstream::BitWriter writer;
     ASSERT_TRUE(writer.write_bits(0b101, 3).ok());
-    EXPECT_FALSE(writer.require_byte_aligned().ok());
+    auto status = writer.require_byte_aligned();
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "bitstream is not byte aligned");
 
     ASSERT_TRUE(writer.byte_align_zero().ok());
     EXPECT_TRUE(writer.require_byte_aligned().ok());
@@ -105,6 +112,7 @@ TEST(BitWriterTest, UnalignedFinalizePreservesOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "bitstream is not byte aligned");
     EXPECT_FALSE(writer.finalized());
     ASSERT_EQ(bytes.size(), 1u);
     EXPECT_EQ(bytes[0], std::byte{0xaa});
@@ -121,12 +129,15 @@ TEST(BitWriterTest, FinalizeSealsWriterUntilReset)
     auto status = writer.write_bit(0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "cannot write to a finalized bitstream");
     status = writer.byte_align_zero();
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "cannot align a finalized bitstream");
     status = writer.finalize(bytes);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "bitstream is already finalized");
 
     writer.reset();
     EXPECT_FALSE(writer.finalized());

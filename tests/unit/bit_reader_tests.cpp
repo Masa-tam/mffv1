@@ -38,6 +38,8 @@ TEST(BitReaderTest, ReportsUnderflow)
     const auto status = reader.read_bits(1, value);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream underflow while reading bits");
+    EXPECT_EQ(reader.bit_position(), 8u);
 }
 
 TEST(BitReaderTest, SkipsBitsAndRequiresByteAlignment)
@@ -49,7 +51,10 @@ TEST(BitReaderTest, SkipsBitsAndRequiresByteAlignment)
     mffv1::bitstream::BitReader reader(data);
 
     EXPECT_TRUE(reader.skip_bits(3).ok());
-    EXPECT_FALSE(reader.require_byte_aligned().ok());
+    auto status = reader.require_byte_aligned();
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream is not byte aligned");
 
     EXPECT_TRUE(reader.byte_align().ok());
     EXPECT_TRUE(reader.require_byte_aligned().ok());

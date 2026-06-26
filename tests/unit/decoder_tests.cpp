@@ -239,6 +239,33 @@ TEST(DecoderTest, ConfigureChecksVersionThreeCrcBeforeParameterSyntax)
     }
 }
 
+TEST(DecoderTest, FailedReconfigurePreservesPreviousConfiguration)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+    auto damaged_record = minimal_v3_y_only_configuration_record();
+    damaged_record.back() ^= std::byte{0x01};
+
+    const auto configure_status = result.decoder->configure(damaged_record);
+
+    EXPECT_FALSE(configure_status.ok());
+    EXPECT_EQ(configure_status.code, mffv1::ErrorCode::CrcMismatch);
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
+    mffv1::MutableFrameView output{&plane, 1};
+    const auto frame_payload = zero_scalar_payload();
+    const auto decode_status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_TRUE(decode_status.ok()) << decode_status.message;
+    EXPECT_EQ(storage[0], 0u);
+}
+
 TEST(DecoderTest, DecodeRequiresConfiguration)
 {
     const auto result = mffv1::create_decoder({});

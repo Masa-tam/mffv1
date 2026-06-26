@@ -144,10 +144,15 @@ Status SliceEncoder::encode_content(
     if (!status.ok()) {
         return status;
     }
+    SliceState state;
+    status = state.reset(window);
+    if (!status.ok()) {
+        return status;
+    }
 
     if (stream_.entropy_mode == EntropyMode::GolombRice) {
         bitstream::BitWriter bits;
-        status = encode_golomb_rice_samples(window, bits);
+        status = encode_golomb_rice_samples(window, bits, state);
         if (!status.ok()) {
             return status;
         }
@@ -186,7 +191,7 @@ Status SliceEncoder::encode_content(
         return status;
     }
 
-    status = encode_samples(window, writer);
+    status = encode_samples(window, writer, state);
     if (!status.ok()) {
         return status;
     }
@@ -218,6 +223,19 @@ Status SliceEncoder::encode_slice(
     const SliceHeaderValues& header,
     bool write_keyframe,
     bool keyframe,
+    std::vector<std::byte>& out_payload) const
+{
+    SliceState state;
+    return encode_slice(
+        input, header, write_keyframe, keyframe, state, out_payload);
+}
+
+Status SliceEncoder::encode_slice(
+    FrameView input,
+    const SliceHeaderValues& header,
+    bool write_keyframe,
+    bool keyframe,
+    SliceState& state,
     std::vector<std::byte>& out_payload) const
 {
     Status status = validate_stream();
@@ -252,6 +270,20 @@ Status SliceEncoder::encode_slice(
     if (!status.ok()) {
         return status;
     }
+    SliceState working_state = state;
+    if (keyframe) {
+        working_state.clear_entropy_state();
+    } else if (stream_.entropy_mode == EntropyMode::Range
+               ? !working_state.has_range_contexts()
+               : !working_state.has_golomb_rice_state()) {
+        return make_error(
+            ErrorCode::InvalidState,
+            "non-keyframe encoding requires reference slice state");
+    }
+    status = working_state.reset(window);
+    if (!status.ok()) {
+        return status;
+    }
 
     entropy::RangeEncoder writer;
     status = writer.reset(stream_.state_transition);
@@ -278,7 +310,8 @@ Status SliceEncoder::encode_slice(
             return status;
         }
         bitstream::BitWriter content_writer;
-        status = encode_golomb_rice_samples(window, content_writer);
+        status = encode_golomb_rice_samples(
+            window, content_writer, working_state);
         if (!status.ok()) {
             return status;
         }
@@ -302,6 +335,7 @@ Status SliceEncoder::encode_slice(
         if (!status.ok()) {
             return status;
         }
+        state = std::move(working_state);
         out_payload = std::move(payload);
         return ok_status();
     }
@@ -318,12 +352,36 @@ Status SliceEncoder::encode_slice(
             bank = stream_.initial_states[0].contexts;
         }
     }
+    if (working_state.has_range_contexts()) {
+        const auto& saved_contexts = working_state.range_contexts();
+        if (saved_contexts.size() != context_counts.size()) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "saved range context bank count does not match slice plane count");
+        }
+        initial_state_banks.clear();
+        for (std::size_t plane_index = 0;
+             plane_index < saved_contexts.size();
+             ++plane_index) {
+            if (saved_contexts[plane_index].size()
+                != context_counts[plane_index]) {
+                return make_error(
+                    ErrorCode::InvalidState,
+                    "saved range context count does not match quantization contexts");
+            }
+            initial_state_banks.emplace_back(saved_contexts[plane_index]);
+        }
+    }
     status = writer.reconfigure_contexts(
         context_counts, initial_state_banks);
     if (!status.ok()) {
         return status;
     }
-    status = encode_samples(window, writer);
+    status = encode_samples(window, writer, working_state);
+    if (!status.ok()) {
+        return status;
+    }
+    status = working_state.capture_range_contexts(writer);
     if (!status.ok()) {
         return status;
     }
@@ -338,26 +396,18 @@ Status SliceEncoder::encode_slice(
     if (!status.ok()) {
         return status;
     }
+    state = std::move(working_state);
     out_payload = std::move(payload);
     return ok_status();
 }
 
 Status SliceEncoder::encode_samples(
     const SliceInputWindow& input,
-    entropy::RangeEncoder& writer) const
+    entropy::RangeEncoder& writer,
+    SliceState& state) const
 {
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream_));
-    std::vector<syntax::LineState> lines(plane_count);
-    for (std::size_t plane_index = 0;
-         plane_index < plane_count;
-         ++plane_index) {
-        Status status = lines[plane_index].reset(
-            input.plane_width(plane_index));
-        if (!status.ok()) {
-            return status;
-        }
-    }
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
     const bool use_signed_16bit_prediction =
         syntax::uses_signed_16bit_predictor(stream_);
@@ -474,7 +524,7 @@ Status SliceEncoder::encode_samples(
             for (std::size_t plane_index = 0;
                  plane_index < plane_count;
                  ++plane_index) {
-                auto& line = lines[plane_index];
+                auto& line = state.line_state(plane_index);
                 for (std::uint32_t x = 0; x < width; ++x) {
                     std::int32_t sample = 0;
                     std::uint8_t reconstruction_bits = coded_bits;
@@ -503,8 +553,10 @@ Status SliceEncoder::encode_samples(
                     }
                 }
             }
-            for (auto& line : lines) {
-                line.swap_lines();
+            for (std::size_t plane_index = 0;
+                 plane_index < plane_count;
+                 ++plane_index) {
+                state.line_state(plane_index).swap_lines();
             }
         }
         return ok_status();
@@ -513,7 +565,7 @@ Status SliceEncoder::encode_samples(
     for (std::size_t plane_index = 0;
          plane_index < plane_count;
          ++plane_index) {
-        auto& line = lines[plane_index];
+        auto& line = state.line_state(plane_index);
         const auto width = input.plane_width(plane_index);
         const auto height = input.plane_height(plane_index);
 
@@ -544,24 +596,17 @@ Status SliceEncoder::encode_samples(
 
 Status SliceEncoder::encode_golomb_rice_samples(
     const SliceInputWindow& input,
-    bitstream::BitWriter& bit_writer) const
+    bitstream::BitWriter& bit_writer,
+    SliceState& state) const
 {
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream_));
-    std::vector<syntax::LineState> lines(plane_count);
-    std::vector<std::vector<entropy::GolombRiceContextState>> contexts(
-        plane_count);
-    std::vector<entropy::GolombRiceRunState> run_states(plane_count);
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
-    for (std::size_t plane_index = 0;
-         plane_index < plane_count;
-         ++plane_index) {
-        Status status = lines[plane_index].reset(
-            input.plane_width(plane_index));
-        if (!status.ok()) {
-            return status;
-        }
-        contexts[plane_index].resize(context_model.context_count());
+    std::vector<std::size_t> context_counts(
+        plane_count, context_model.context_count());
+    Status prepare_status = state.prepare_golomb_rice(context_counts);
+    if (!prepare_status.ok()) {
+        return prepare_status;
     }
     entropy::GolombRiceWriter writer(bit_writer);
     const std::uint32_t maximum_sample =
@@ -595,9 +640,8 @@ Status SliceEncoder::encode_golomb_rice_samples(
 
     const auto encode_line = [&](std::span<const std::int32_t> samples,
                                  std::uint8_t reconstruction_bits,
+                                 std::size_t plane_index,
                                  syntax::LineState& line,
-                                 std::vector<entropy::GolombRiceContextState>&
-                                     plane_contexts,
                                  entropy::GolombRiceRunState& run_state)
         -> Status {
         const auto width = static_cast<std::uint32_t>(samples.size());
@@ -653,7 +697,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
                     reconstruction_bits);
                 status = entropy::write_golomb_rice_run_interruption(
                     writer,
-                    plane_contexts[0],
+                    state.golomb_rice_context(plane_index, 0),
                     reconstruction_bits,
                     difference);
                 if (!status.ok()) {
@@ -671,7 +715,8 @@ Status SliceEncoder::encode_golomb_rice_samples(
             }
             status = entropy::write_golomb_rice_symbol(
                 writer,
-                plane_contexts[context.context],
+                state.golomb_rice_context(
+                    plane_index, context.context),
                 reconstruction_bits,
                 difference);
             if (!status.ok()) {
@@ -746,9 +791,9 @@ Status SliceEncoder::encode_golomb_rice_samples(
                 Status status = encode_line(
                     rows[plane_index],
                     reconstruction_bits,
-                    lines[plane_index],
-                    contexts[plane_index],
-                    run_states[plane_index]);
+                    plane_index,
+                    state.line_state(plane_index),
+                    state.golomb_rice_run_state(plane_index));
                 if (!status.ok()) {
                     return status;
                 }
@@ -760,9 +805,9 @@ Status SliceEncoder::encode_golomb_rice_samples(
     for (std::size_t plane_index = 0;
          plane_index < plane_count;
          ++plane_index) {
-        auto& line = lines[plane_index];
-        auto& plane_contexts = contexts[plane_index];
-        auto& run_state = run_states[plane_index];
+        auto& line = state.line_state(plane_index);
+        auto& run_state =
+            state.golomb_rice_run_state(plane_index);
         const auto width = input.plane_width(plane_index);
         const auto height = input.plane_height(plane_index);
         std::vector<std::int32_t> samples(width);
@@ -780,8 +825,8 @@ Status SliceEncoder::encode_golomb_rice_samples(
             Status status = encode_line(
                 samples,
                 stream_.bits_per_raw_sample,
+                plane_index,
                 line,
-                plane_contexts,
                 run_state);
             if (!status.ok()) {
                 return status;

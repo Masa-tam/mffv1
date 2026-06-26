@@ -423,6 +423,223 @@ TEST(SliceEncoderTest, RejectsNonKeyframeForIntraStream)
     EXPECT_EQ(payload, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(SliceEncoderTest, StatefulEncodingRoundTripsNonKeyframe)
+{
+    for (const auto entropy_mode : {
+             mffv1::EntropyMode::Range,
+             mffv1::EntropyMode::GolombRice,
+         }) {
+        auto stream = make_stream();
+        stream.entropy_mode = entropy_mode;
+        stream.intra_only = false;
+        const std::array<std::uint8_t, 8> first{
+            0, 1, 2, 3, 4, 5, 6, 7};
+        const std::array<std::uint8_t, 8> second{
+            7, 6, 5, 4, 3, 2, 1, 0};
+        const auto first_plane = make_input_plane(first);
+        const auto second_plane = make_input_plane(second);
+        const mffv1::FrameView first_input{&first_plane, 1};
+        const mffv1::FrameView second_input{&second_plane, 1};
+        mffv1::codec::SliceHeaderValues header;
+        header.width = 1;
+        header.height = 1;
+        header.quant_table_set_indexes = {0, 0};
+
+        const mffv1::codec::SliceEncoder encoder(stream);
+        mffv1::codec::SliceState encode_state;
+        std::vector<std::byte> first_payload;
+        std::vector<std::byte> second_payload;
+        ASSERT_TRUE(encoder.encode_slice(
+            first_input,
+            header,
+            true,
+            true,
+            encode_state,
+            first_payload).ok());
+        ASSERT_TRUE(encoder.encode_slice(
+            second_input,
+            header,
+            true,
+            false,
+            encode_state,
+            second_payload).ok());
+
+        mffv1::codec::FrameDecodeContext first_frame;
+        mffv1::codec::FrameDecodeContext second_frame;
+        const mffv1::codec::FrameParser parser(stream);
+        ASSERT_TRUE(parser.parse_with_range_header(
+            first_payload, first_frame).ok());
+        ASSERT_TRUE(parser.parse_with_range_header(
+            second_payload, second_frame).ok());
+        ASSERT_TRUE(first_frame.keyframe);
+        ASSERT_FALSE(second_frame.keyframe);
+        ASSERT_EQ(first_frame.slices.size(), 1u);
+        ASSERT_EQ(second_frame.slices.size(), 1u);
+
+        std::array<std::uint8_t, 8> decoded{};
+        auto output_plane = make_output_plane(decoded);
+        mffv1::MutableFrameView output{&output_plane, 1};
+        mffv1::codec::SliceState decode_state;
+        const mffv1::codec::SliceDecoder decoder(stream);
+
+        mffv1::codec::SliceOutputWindow first_window;
+        ASSERT_TRUE(first_window.validate(
+            stream, output, first_frame.slices[0]).ok());
+        ASSERT_TRUE(decode_state.reset(first_window).ok());
+        ASSERT_TRUE(decoder.decode(
+            first_frame.slices[0], first_window, decode_state).ok());
+        EXPECT_EQ(decoded, first);
+
+        decoded.fill(0);
+        mffv1::codec::SliceOutputWindow second_window;
+        ASSERT_TRUE(second_window.validate(
+            stream, output, second_frame.slices[0]).ok());
+        ASSERT_TRUE(decode_state.reset(second_window).ok());
+        ASSERT_TRUE(decoder.decode(
+            second_frame.slices[0], second_window, decode_state).ok());
+        EXPECT_EQ(decoded, second);
+    }
+}
+
+TEST(SliceEncoderTest, StatefulNonKeyframeRequiresReferenceState)
+{
+    auto stream = make_stream();
+    stream.intra_only = false;
+    std::array<std::uint8_t, 8> storage{};
+    const auto plane = make_input_plane(storage);
+    const mffv1::FrameView input{&plane, 1};
+    mffv1::codec::SliceHeaderValues header;
+    header.width = 1;
+    header.height = 1;
+    header.quant_table_set_indexes = {0, 0};
+    mffv1::codec::SliceState state;
+    std::vector<std::byte> payload{std::byte{0xaa}};
+    const mffv1::codec::SliceEncoder encoder(stream);
+
+    const auto status = encoder.encode_slice(
+        input, header, true, false, state, payload);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(payload, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(SliceEncoderTest, StatefulKeyframeResetsReferenceState)
+{
+    for (const auto entropy_mode : {
+             mffv1::EntropyMode::Range,
+             mffv1::EntropyMode::GolombRice,
+         }) {
+        auto stream = make_stream();
+        stream.entropy_mode = entropy_mode;
+        stream.intra_only = false;
+        const std::array<std::uint8_t, 8> first{
+            0, 1, 2, 3, 4, 5, 6, 7};
+        const std::array<std::uint8_t, 8> second{
+            7, 6, 5, 4, 3, 2, 1, 0};
+        const auto first_plane = make_input_plane(first);
+        const auto second_plane = make_input_plane(second);
+        const mffv1::FrameView first_input{&first_plane, 1};
+        const mffv1::FrameView second_input{&second_plane, 1};
+        mffv1::codec::SliceHeaderValues header;
+        header.width = 1;
+        header.height = 1;
+        header.quant_table_set_indexes = {0, 0};
+        const mffv1::codec::SliceEncoder encoder(stream);
+        mffv1::codec::SliceState continued_state;
+        mffv1::codec::SliceState fresh_state;
+        std::vector<std::byte> first_payload;
+        std::vector<std::byte> continued_payload;
+        std::vector<std::byte> fresh_payload;
+
+        ASSERT_TRUE(encoder.encode_slice(
+            first_input,
+            header,
+            true,
+            true,
+            continued_state,
+            first_payload).ok());
+        ASSERT_TRUE(encoder.encode_slice(
+            second_input,
+            header,
+            true,
+            true,
+            continued_state,
+            continued_payload).ok());
+        ASSERT_TRUE(encoder.encode_slice(
+            second_input,
+            header,
+            true,
+            true,
+            fresh_state,
+            fresh_payload).ok());
+
+        EXPECT_EQ(continued_payload, fresh_payload);
+    }
+}
+
+TEST(SliceEncoderTest, FailedStatefulEncodePreservesReferenceState)
+{
+    auto stream = make_stream();
+    stream.intra_only = false;
+    const std::array<std::uint8_t, 8> first{
+        0, 1, 2, 3, 4, 5, 6, 7};
+    const std::array<std::uint8_t, 8> second{
+        7, 6, 5, 4, 3, 2, 1, 0};
+    const auto first_plane = make_input_plane(first);
+    const auto second_plane = make_input_plane(second);
+    const mffv1::FrameView first_input{&first_plane, 1};
+    const mffv1::FrameView second_input{&second_plane, 1};
+    mffv1::codec::SliceHeaderValues header;
+    header.width = 1;
+    header.height = 1;
+    header.quant_table_set_indexes = {0, 0};
+    const mffv1::codec::SliceEncoder encoder(stream);
+    mffv1::codec::SliceState state;
+    std::vector<std::byte> first_payload;
+    ASSERT_TRUE(encoder.encode_slice(
+        first_input,
+        header,
+        true,
+        true,
+        state,
+        first_payload).ok());
+    const auto reference_state = state;
+
+    auto invalid_plane = second_plane;
+    invalid_plane.data = nullptr;
+    const mffv1::FrameView invalid_input{&invalid_plane, 1};
+    std::vector<std::byte> failed_payload{std::byte{0xaa}};
+    const auto failed = encoder.encode_slice(
+        invalid_input,
+        header,
+        true,
+        false,
+        state,
+        failed_payload);
+    EXPECT_FALSE(failed.ok());
+    EXPECT_EQ(failed_payload, (std::vector<std::byte>{std::byte{0xaa}}));
+
+    std::vector<std::byte> actual_payload;
+    std::vector<std::byte> expected_payload;
+    auto expected_state = reference_state;
+    ASSERT_TRUE(encoder.encode_slice(
+        second_input,
+        header,
+        true,
+        false,
+        state,
+        actual_payload).ok());
+    ASSERT_TRUE(encoder.encode_slice(
+        second_input,
+        header,
+        true,
+        false,
+        expected_state,
+        expected_payload).ok());
+    EXPECT_EQ(actual_payload, expected_payload);
+}
+
 TEST(SliceEncoderTest, ReadsPaddedInputStride)
 {
     auto stream = make_stream();

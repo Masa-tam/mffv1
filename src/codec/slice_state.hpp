@@ -14,14 +14,28 @@
 namespace mffv1::codec {
 
 class SliceOutputWindow;
+class SliceInputWindow;
+
+} // namespace mffv1::codec
+
+namespace mffv1::entropy {
+
+class RangeEncoder;
+
+} // namespace mffv1::entropy
+
+namespace mffv1::codec {
 
 class SliceState {
 public:
     Status reset(const syntax::StreamParameters& stream);
+    Status reset(const SliceInputWindow& input);
     Status reset(const SliceOutputWindow& output);
     Status prepare_golomb_rice(std::span<const std::size_t> context_counts);
     Status capture_range_contexts(const entropy::RangeCoder& reader);
+    Status capture_range_contexts(const entropy::RangeEncoder& writer);
     void clear_range_contexts() noexcept;
+    void clear_entropy_state() noexcept;
 
     [[nodiscard]] std::size_t plane_count() const noexcept;
     [[nodiscard]] bool has_range_contexts() const noexcept;

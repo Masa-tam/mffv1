@@ -5,6 +5,7 @@
 #include "bitstream/bit_writer.hpp"
 #include "codec/slice_header_parser.hpp"
 #include "codec/slice_input_window.hpp"
+#include "codec/slice_state.hpp"
 #include "entropy/range_encoder.hpp"
 #include "mffv1/frame.hpp"
 #include "mffv1/result.hpp"
@@ -29,14 +30,22 @@ public:
                         bool write_keyframe,
                         bool keyframe,
                         std::vector<std::byte>& out_payload) const;
+    Status encode_slice(FrameView input,
+                        const SliceHeaderValues& header,
+                        bool write_keyframe,
+                        bool keyframe,
+                        SliceState& state,
+                        std::vector<std::byte>& out_payload) const;
 
 private:
     Status validate_stream() const;
     Status encode_samples(const SliceInputWindow& input,
-                          entropy::RangeEncoder& writer) const;
+                          entropy::RangeEncoder& writer,
+                          SliceState& state) const;
     Status encode_golomb_rice_samples(
         const SliceInputWindow& input,
-        bitstream::BitWriter& writer) const;
+        bitstream::BitWriter& writer,
+        SliceState& state) const;
 
     const syntax::StreamParameters& stream_;
     const simd::CodecKernels& kernels_;

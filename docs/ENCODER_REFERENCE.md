@@ -203,6 +203,12 @@ The generated Configuration Record currently declares:
 
 Every generated frame is a keyframe. Non-keyframe encoding is not yet exposed.
 
+Internally, `SliceEncoder` supports transactional continuation of Range and
+Golomb-Rice entropy state through an explicit `SliceState`. This foundation is
+covered by keyframe-reset, non-keyframe round-trip, missing-reference, and
+failure-rollback tests. The public encoder does not use that continuation
+state yet.
+
 ## Slice Grid
 
 The encoder emits one independent slice per raster cell in row-major order.

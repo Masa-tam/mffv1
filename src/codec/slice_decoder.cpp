@@ -1,11 +1,13 @@
 #include "codec/slice_decoder.hpp"
 
 #include "codec/slice_header_parser.hpp"
+#include "codec/slice_input_window.hpp"
 #include "bitstream/bit_reader.hpp"
 #include "entropy/golomb_rice_context.hpp"
 #include "entropy/golomb_rice_reader.hpp"
 #include "entropy/golomb_rice_run.hpp"
 #include "entropy/range_coder.hpp"
+#include "entropy/range_encoder.hpp"
 #include "mffv1/color_transform.hpp"
 #include "mffv1/context_model.hpp"
 #include "mffv1/predictor.hpp"
@@ -447,6 +449,18 @@ Status SliceState::reset(const syntax::StreamParameters& stream)
     return ok_status();
 }
 
+Status SliceState::reset(const SliceInputWindow& input)
+{
+    line_states_.resize(input.plane_count());
+    for (std::size_t i = 0; i < line_states_.size(); ++i) {
+        Status status = line_states_[i].reset(input.plane_width(i));
+        if (!status.ok()) {
+            return status;
+        }
+    }
+    return ok_status();
+}
+
 Status SliceState::reset(const SliceOutputWindow& output)
 {
     line_states_.resize(output.plane_count());
@@ -469,9 +483,21 @@ Status SliceState::capture_range_contexts(const entropy::RangeCoder& reader)
     return reader.copy_contexts(range_contexts_);
 }
 
+Status SliceState::capture_range_contexts(const entropy::RangeEncoder& writer)
+{
+    return writer.copy_contexts(range_contexts_);
+}
+
 void SliceState::clear_range_contexts() noexcept
 {
     range_contexts_.clear();
+}
+
+void SliceState::clear_entropy_state() noexcept
+{
+    range_contexts_.clear();
+    golomb_rice_contexts_.clear();
+    golomb_rice_run_states_.clear();
 }
 
 bool SliceState::has_range_contexts() const noexcept

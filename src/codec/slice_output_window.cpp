@@ -1,10 +1,9 @@
 #include "codec/slice_output_window.hpp"
 
-#include "mffv1/sample_format.hpp"
+#include "codec/plane_window_math.hpp"
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 namespace mffv1::codec {
 
@@ -80,48 +79,6 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
     return slice.height;
 }
 
-Status checked_plane_window_offset(const PlaneInfo& info,
-                                   std::uint32_t x,
-                                   std::uint32_t y,
-                                   std::uint32_t width,
-                                   std::uint32_t height,
-                                   std::ptrdiff_t& out_offset)
-{
-    const auto max_offset = static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
-    const auto sample_bytes = static_cast<std::uint64_t>(
-        samples::bytes_per_sample(info.sample_format));
-    const auto minimum_stride = static_cast<std::uint64_t>(info.width) * sample_bytes;
-    if (minimum_stride > max_offset) {
-        return make_error(ErrorCode::ResourceExhausted, "output plane row size exceeds ptrdiff_t");
-    }
-
-    const auto stride = static_cast<std::uint64_t>(info.stride_bytes);
-    if (y != 0 && stride > max_offset / y) {
-        return make_error(ErrorCode::ResourceExhausted, "output plane row offset exceeds ptrdiff_t");
-    }
-    const auto row_offset = stride * y;
-    const auto column_offset = static_cast<std::uint64_t>(x) * sample_bytes;
-    if (column_offset > max_offset - row_offset) {
-        return make_error(ErrorCode::ResourceExhausted, "output plane sample offset exceeds ptrdiff_t");
-    }
-
-    if (width != 0 && height != 0) {
-        const auto last_y = static_cast<std::uint64_t>(y) + height - 1;
-        if (last_y != 0 && stride > max_offset / last_y) {
-            return make_error(ErrorCode::ResourceExhausted, "output plane window rows exceed ptrdiff_t");
-        }
-        const auto last_row_offset = stride * last_y;
-        const auto last_x = static_cast<std::uint64_t>(x) + width - 1;
-        const auto last_column_offset = last_x * sample_bytes;
-        if (last_column_offset > max_offset - last_row_offset) {
-            return make_error(ErrorCode::ResourceExhausted, "output plane window exceeds ptrdiff_t");
-        }
-    }
-
-    out_offset = static_cast<std::ptrdiff_t>(row_offset + column_offset);
-    return ok_status();
-}
-
 } // namespace
 
 Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
@@ -173,18 +130,30 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
             return make_error(ErrorCode::InvalidArgument, "slice plane rectangle is outside output plane");
         }
 
-        const auto sample_bytes = static_cast<std::uint64_t>(
-            samples::bytes_per_sample(plane.info.sample_format));
-        const auto minimum_stride = static_cast<std::uint64_t>(plane.info.width) * sample_bytes;
-        if (minimum_stride > static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
-            return make_error(ErrorCode::ResourceExhausted, "output plane row size exceeds ptrdiff_t");
+        std::uint64_t minimum_stride = 0;
+        Status status = checked_plane_row_bytes(
+            plane.info,
+            minimum_stride,
+            "output plane row size exceeds ptrdiff_t");
+        if (!status.ok()) {
+            return status;
         }
         if (plane.info.stride_bytes < static_cast<std::ptrdiff_t>(minimum_stride)) {
             return make_error(ErrorCode::InvalidArgument, "output plane stride is too small");
         }
 
         std::ptrdiff_t plane_offset = 0;
-        Status status = checked_plane_window_offset(plane.info, px, py, pw, ph, plane_offset);
+        status = checked_plane_window_offset(
+            plane.info,
+            px,
+            py,
+            pw,
+            ph,
+            plane_offset,
+            "output plane row offset exceeds ptrdiff_t",
+            "output plane sample offset exceeds ptrdiff_t",
+            "output plane window rows exceed ptrdiff_t",
+            "output plane window exceeds ptrdiff_t");
         if (!status.ok()) {
             return status;
         }

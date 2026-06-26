@@ -1,10 +1,10 @@
 #include "codec/slice_input_window.hpp"
 
+#include "codec/plane_window_math.hpp"
 #include "mffv1/sample_format.hpp"
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <utility>
 
 namespace mffv1::codec {
@@ -105,9 +105,6 @@ Status SliceInputWindow::validate(const syntax::StreamParameters& stream,
     windows.reserve(required_planes);
     const auto expected_format =
         samples::sample_format_for_bit_depth(stream.bits_per_raw_sample);
-    const auto maximum_offset =
-        static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
-
     for (std::size_t index = 0; index < required_planes; ++index) {
         const auto& plane = frame.planes[index];
         if (plane.data == nullptr
@@ -140,46 +137,39 @@ Status SliceInputWindow::validate(const syntax::StreamParameters& stream,
                 "input slice plane rectangle is outside the frame");
         }
 
-        const auto sample_bytes =
-            static_cast<std::uint64_t>(samples::bytes_per_sample(expected_format));
-        const auto row_bytes =
-            static_cast<std::uint64_t>(frame_width) * sample_bytes;
+        std::uint64_t row_bytes = 0;
+        Status status = checked_plane_row_bytes(
+            plane.info,
+            row_bytes,
+            "input slice plane row size is not representable");
+        if (!status.ok()) {
+            return status;
+        }
         const auto stride =
             static_cast<std::uint64_t>(plane.info.stride_bytes);
-        if (row_bytes > maximum_offset || stride < row_bytes
-            || (y != 0 && stride > maximum_offset / y)) {
+        if (stride < row_bytes) {
             return make_error(
                 ErrorCode::ResourceExhausted,
                 "input slice plane offset is not representable");
         }
-        const auto row_offset = stride * y;
-        const auto column_offset =
-            static_cast<std::uint64_t>(x) * sample_bytes;
-        if (column_offset > maximum_offset - row_offset) {
-            return make_error(
-                ErrorCode::ResourceExhausted,
-                "input slice plane offset is not representable");
-        }
-        const auto last_y =
-            static_cast<std::uint64_t>(y) + height - 1;
-        if (last_y != 0 && stride > maximum_offset / last_y) {
-            return make_error(
-                ErrorCode::ResourceExhausted,
-                "input slice plane rows are not representable");
-        }
-        const auto last_row_offset = stride * last_y;
-        const auto last_x =
-            static_cast<std::uint64_t>(x) + width - 1;
-        const auto last_column_offset = last_x * sample_bytes;
-        if (last_column_offset > maximum_offset - last_row_offset) {
-            return make_error(
-                ErrorCode::ResourceExhausted,
-                "input slice plane extent is not representable");
+        std::ptrdiff_t plane_offset = 0;
+        status = checked_plane_window_offset(
+            plane.info,
+            x,
+            y,
+            width,
+            height,
+            plane_offset,
+            "input slice plane offset is not representable",
+            "input slice plane offset is not representable",
+            "input slice plane rows are not representable",
+            "input slice plane extent is not representable");
+        if (!status.ok()) {
+            return status;
         }
 
         windows.push_back({
-            static_cast<const std::byte*>(plane.data)
-                + static_cast<std::ptrdiff_t>(row_offset + column_offset),
+            static_cast<const std::byte*>(plane.data) + plane_offset,
             plane.info.stride_bytes,
             width,
             height,

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 
 #include <gtest/gtest.h>
 
@@ -93,6 +94,73 @@ TEST(SliceInputWindowTest, RejectsPlaneGeometryMismatch)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(SliceInputWindowTest, RejectsUnrepresentableRowOffset)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.width = 1;
+    stream.height = 3;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = false;
+
+    std::uint8_t storage = 0;
+    const mffv1::PlaneView plane{
+        &storage,
+        {
+            mffv1::PlaneRole::Y,
+            mffv1::SampleFormat::UInt8,
+            1,
+            3,
+            std::numeric_limits<std::ptrdiff_t>::max() / 2 + 1,
+        },
+    };
+    const mffv1::FrameView frame{&plane, 1};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.y = 2;
+    slice.width = 1;
+    slice.height = 1;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    mffv1::codec::SliceInputWindow window;
+
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+}
+
+TEST(SliceInputWindowTest, RejectsUnrepresentableLastSampleExtent)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.width = 1;
+    stream.height = 2;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = false;
+
+    std::uint8_t storage = 0;
+    const mffv1::PlaneView plane{
+        &storage,
+        {
+            mffv1::PlaneRole::Y,
+            mffv1::SampleFormat::UInt8,
+            1,
+            2,
+            std::numeric_limits<std::ptrdiff_t>::max(),
+        },
+    };
+    const mffv1::FrameView frame{&plane, 1};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 2;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    mffv1::codec::SliceInputWindow window;
+
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
 }
 
 } // namespace

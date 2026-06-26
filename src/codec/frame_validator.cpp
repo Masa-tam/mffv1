@@ -1,11 +1,11 @@
 #include "codec/frame_validator.hpp"
 
 #include "codec/frame_info_builder.hpp"
+#include "codec/plane_window_math.hpp"
 #include "mffv1/profile_constraints.hpp"
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
 namespace mffv1::codec {
 
@@ -75,16 +75,20 @@ Status validate_input_plane_info(const PlaneInfo& expected,
         return make_error(ErrorCode::InvalidArgument, "plane stride is smaller than the stream requires");
     }
 
-    const auto last_row = static_cast<std::uint64_t>(expected.height - 1);
-    const auto stride = static_cast<std::uint64_t>(info.stride_bytes);
-    const auto row_bytes = static_cast<std::uint64_t>(expected.stride_bytes);
-    const auto maximum_offset =
-        static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
-    if (row_bytes > maximum_offset
-        || (last_row != 0 && stride > (maximum_offset - row_bytes) / last_row)) {
-        return make_error(
-            ErrorCode::ResourceExhausted,
-            "input plane last row address is not representable");
+    std::ptrdiff_t unused_offset = 0;
+    Status status = checked_plane_window_offset(
+        info,
+        0,
+        0,
+        expected.width,
+        expected.height,
+        unused_offset,
+        "input plane last row address is not representable",
+        "input plane last row address is not representable",
+        "input plane last row address is not representable",
+        "input plane last row address is not representable");
+    if (!status.ok()) {
+        return status;
     }
     return ok_status();
 }

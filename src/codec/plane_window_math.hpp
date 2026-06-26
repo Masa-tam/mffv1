@@ -58,9 +58,9 @@ namespace mffv1::codec {
             return make_error(ErrorCode::ResourceExhausted, std::move(rows_message));
         }
         const auto last_row_offset = stride * last_y;
-        const auto last_x = static_cast<std::uint64_t>(x) + width - 1;
-        const auto last_column_offset = last_x * sample_bytes;
-        if (last_column_offset > maximum_offset - last_row_offset) {
+        const auto last_sample_extent =
+            (static_cast<std::uint64_t>(x) + width) * sample_bytes;
+        if (last_sample_extent > maximum_offset - last_row_offset) {
             return make_error(ErrorCode::ResourceExhausted, std::move(extent_message));
         }
     }

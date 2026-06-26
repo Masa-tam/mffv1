@@ -81,4 +81,32 @@ TEST(PlaneWindowMathTest, ComputesWindowOffset)
     EXPECT_EQ(offset, 20);
 }
 
+TEST(PlaneWindowMathTest, RejectsUnrepresentableLastSampleExtent)
+{
+    const mffv1::PlaneInfo info{
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt8,
+        1,
+        2,
+        std::numeric_limits<std::ptrdiff_t>::max(),
+    };
+    std::ptrdiff_t offset = 0;
+
+    const auto status = mffv1::codec::checked_plane_window_offset(
+        info,
+        0,
+        0,
+        1,
+        2,
+        offset,
+        "row offset",
+        "sample offset",
+        "rows",
+        "extent");
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "extent");
+}
+
 } // namespace

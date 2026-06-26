@@ -1,5 +1,6 @@
 #include "codec/encoder_profile.hpp"
 
+#include "codec/profile_constraints.hpp"
 #include "codec/version3_constraints.hpp"
 
 #include <cstddef>
@@ -29,43 +30,41 @@ Status normalize_encoder_profile(const EncoderOptions& options,
         return make_error(ErrorCode::UnsupportedFeature,
                           "encoder entropy mode is unsupported");
     }
-    if (info.bits_per_raw_sample < 8
-        || info.bits_per_raw_sample > 16) {
+    if (!is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
         return make_error(ErrorCode::UnsupportedFeature,
                           "encoder supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
     }
-    if (info.color_space != ColorSpace::YCbCr
-        && info.color_space != ColorSpace::Rgb) {
+    if (!is_supported_public_color_space(info.color_space)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "encoder color space is unsupported");
     }
-    if (info.color_space == ColorSpace::Rgb
-        && (!info.has_chroma_planes
-            || info.log2_h_chroma_subsample != 0
-            || info.log2_v_chroma_subsample != 0)) {
+    if (has_invalid_rgb_geometry(
+            info.color_space == ColorSpace::Rgb,
+            info.has_chroma_planes,
+            info.log2_h_chroma_subsample,
+            info.log2_v_chroma_subsample)) {
         return make_error(
             ErrorCode::InvalidArgument,
             "RGB streams require three full-resolution color planes");
     }
     if (options.entropy_mode == EntropyMode::GolombRice
-        && (info.bits_per_raw_sample < 8
-            || info.bits_per_raw_sample > 16)) {
+        && !is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "Golomb-Rice encoding supports only 8-16 bit streams");
     }
-    if (!info.has_chroma_planes
-        && (info.log2_h_chroma_subsample != 0
-            || info.log2_v_chroma_subsample != 0)) {
+    if (has_subsampling_without_chroma(
+            info.has_chroma_planes,
+            info.log2_h_chroma_subsample,
+            info.log2_v_chroma_subsample)) {
         return make_error(
             ErrorCode::InvalidArgument,
             "chroma subsampling requires chroma planes");
     }
-    if (info.log2_h_chroma_subsample > 1
-        || info.log2_v_chroma_subsample > 1
-        || info.log2_v_chroma_subsample
-            > info.log2_h_chroma_subsample) {
+    if (!is_supported_chroma_subsampling(
+            info.log2_h_chroma_subsample,
+            info.log2_v_chroma_subsample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "encoder supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");

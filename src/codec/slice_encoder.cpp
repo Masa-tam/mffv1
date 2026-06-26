@@ -1,6 +1,7 @@
 #include "codec/slice_encoder.hpp"
 
 #include "codec/frame_validator.hpp"
+#include "codec/profile_constraints.hpp"
 #include "codec/slice_footer_writer.hpp"
 #include "codec/slice_header_writer.hpp"
 #include "entropy/golomb_rice_context.hpp"
@@ -48,40 +49,38 @@ Status SliceEncoder::validate_stream() const
 {
     if ((stream_.entropy_mode != EntropyMode::Range
          && stream_.entropy_mode != EntropyMode::GolombRice)
-        || (stream_.colorspace_type != 0
-            && stream_.colorspace_type != 1)
-        || stream_.bits_per_raw_sample < 8
-        || stream_.bits_per_raw_sample > 16) {
+        || !is_supported_syntax_colorspace(stream_.colorspace_type)
+        || !is_supported_encoder_bit_depth(stream_.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "slice encoder supports only range or Golomb-Rice coding");
     }
     if (stream_.entropy_mode == EntropyMode::GolombRice
-        && (stream_.bits_per_raw_sample < 8
-            || stream_.bits_per_raw_sample > 16)) {
+        && !is_supported_encoder_bit_depth(stream_.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "Golomb-Rice slice encoding supports only 8-16 bit streams");
     }
-    if (stream_.colorspace_type == 1
-        && (!stream_.chroma_planes
-            || stream_.log2_h_chroma_subsample != 0
-            || stream_.log2_v_chroma_subsample != 0)) {
+    if (has_invalid_rgb_geometry(
+            stream_.colorspace_type == 1,
+            stream_.chroma_planes,
+            stream_.log2_h_chroma_subsample,
+            stream_.log2_v_chroma_subsample)) {
         return make_error(
             ErrorCode::InvalidArgument,
             "RGB streams require three full-resolution color planes");
     }
-    if (!stream_.chroma_planes
-        && (stream_.log2_h_chroma_subsample != 0
-            || stream_.log2_v_chroma_subsample != 0)) {
+    if (has_subsampling_without_chroma(
+            stream_.chroma_planes,
+            stream_.log2_h_chroma_subsample,
+            stream_.log2_v_chroma_subsample)) {
         return make_error(
             ErrorCode::InvalidArgument,
             "chroma subsampling requires chroma planes");
     }
-    if (stream_.log2_h_chroma_subsample > 1
-        || stream_.log2_v_chroma_subsample > 1
-        || stream_.log2_v_chroma_subsample
-            > stream_.log2_h_chroma_subsample) {
+    if (!is_supported_chroma_subsampling(
+            stream_.log2_h_chroma_subsample,
+            stream_.log2_v_chroma_subsample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
             "slice encoder supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");

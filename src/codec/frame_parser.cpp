@@ -1,5 +1,6 @@
 #include "codec/frame_parser.hpp"
 
+#include "codec/frame_info_builder.hpp"
 #include "codec/slice_header_parser.hpp"
 #include "codec/slice_payload_locator.hpp"
 #include "codec/slice_raster_validator.hpp"
@@ -294,41 +295,7 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
     out_frame.stream = &stream_;
     out_frame.slices.clear();
     out_frame.keyframe = false;
-    out_frame.frame_info.width = stream_.width;
-    out_frame.frame_info.height = stream_.height;
-    out_frame.frame_info.version = static_cast<std::uint8_t>(stream_.version);
-    out_frame.frame_info.micro_version =
-        static_cast<std::uint16_t>(stream_.micro_version);
-    out_frame.frame_info.entropy_mode = stream_.entropy_mode;
-    out_frame.frame_info.bits_per_raw_sample = stream_.bits_per_raw_sample;
-    out_frame.frame_info.plane_count = syntax::coded_plane_count(stream_);
-    out_frame.frame_info.planes = {};
-    const auto sample_format = stream_.bits_per_raw_sample <= 8
-        ? SampleFormat::UInt8
-        : SampleFormat::UInt16;
-    const std::ptrdiff_t bytes_per_sample =
-        sample_format == SampleFormat::UInt16 ? 2 : 1;
-    for (std::size_t plane_index = 0;
-         plane_index < out_frame.frame_info.plane_count;
-         ++plane_index) {
-        PlaneInfo& plane = out_frame.frame_info.planes[plane_index];
-        plane.role = syntax::expected_plane_role(stream_, plane_index);
-        plane.sample_format = sample_format;
-        plane.width = syntax::plane_width(stream_, plane_index);
-        plane.height = syntax::plane_height(stream_, plane_index);
-        plane.stride_bytes =
-            static_cast<std::ptrdiff_t>(plane.width) * bytes_per_sample;
-    }
-    out_frame.frame_info.color_space =
-        stream_.colorspace_type == 1 ? ColorSpace::Rgb : ColorSpace::YCbCr;
-    out_frame.frame_info.has_chroma_planes = stream_.chroma_planes;
-    out_frame.frame_info.has_extra_plane = stream_.extra_plane;
-    out_frame.frame_info.log2_h_chroma_subsample =
-        stream_.log2_h_chroma_subsample;
-    out_frame.frame_info.log2_v_chroma_subsample =
-        stream_.log2_v_chroma_subsample;
-    out_frame.frame_info.error_status_enabled = stream_.error_status_enabled;
-    out_frame.frame_info.intra_only = stream_.intra_only;
+    out_frame.frame_info = make_frame_info(stream_);
     out_frame.frame_info.keyframe = false;
     out_frame.frame_info.slice_count = 0;
 

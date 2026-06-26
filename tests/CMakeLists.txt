@@ -41,6 +41,7 @@ add_executable(mffv1_unit_tests
     unit/range_coder_tests.cpp
     unit/range_encoder_tests.cpp
     unit/rfc_math_tests.cpp
+    unit/sample_format_tests.cpp
     unit/simd_color_transform_tests.cpp
     unit/multi_slice_decode_tests.cpp
     unit/slice_decoder_tests.cpp

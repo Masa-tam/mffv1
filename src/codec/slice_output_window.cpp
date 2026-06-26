@@ -1,5 +1,7 @@
 #include "codec/slice_output_window.hpp"
 
+#include "mffv1/sample_format.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -78,11 +80,6 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
     return slice.height;
 }
 
-std::uint32_t bytes_per_sample(SampleFormat format) noexcept
-{
-    return format == SampleFormat::UInt16 ? 2u : 1u;
-}
-
 Status checked_plane_window_offset(const PlaneInfo& info,
                                    std::uint32_t x,
                                    std::uint32_t y,
@@ -91,7 +88,8 @@ Status checked_plane_window_offset(const PlaneInfo& info,
                                    std::ptrdiff_t& out_offset)
 {
     const auto max_offset = static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
-    const auto sample_bytes = static_cast<std::uint64_t>(bytes_per_sample(info.sample_format));
+    const auto sample_bytes = static_cast<std::uint64_t>(
+        samples::bytes_per_sample(info.sample_format));
     const auto minimum_stride = static_cast<std::uint64_t>(info.width) * sample_bytes;
     if (minimum_stride > max_offset) {
         return make_error(ErrorCode::ResourceExhausted, "output plane row size exceeds ptrdiff_t");
@@ -175,7 +173,8 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
             return make_error(ErrorCode::InvalidArgument, "slice plane rectangle is outside output plane");
         }
 
-        const auto sample_bytes = static_cast<std::uint64_t>(bytes_per_sample(plane.info.sample_format));
+        const auto sample_bytes = static_cast<std::uint64_t>(
+            samples::bytes_per_sample(plane.info.sample_format));
         const auto minimum_stride = static_cast<std::uint64_t>(plane.info.width) * sample_bytes;
         if (minimum_stride > static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
             return make_error(ErrorCode::ResourceExhausted, "output plane row size exceeds ptrdiff_t");

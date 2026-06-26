@@ -1,5 +1,7 @@
 #include "codec/frame_info_builder.hpp"
 
+#include "mffv1/sample_format.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -16,11 +18,10 @@ FrameInfo make_frame_info(const syntax::StreamParameters& stream) noexcept
     info.bits_per_raw_sample = stream.bits_per_raw_sample;
     info.plane_count = syntax::coded_plane_count(stream);
 
-    const auto sample_format = stream.bits_per_raw_sample <= 8
-        ? SampleFormat::UInt8
-        : SampleFormat::UInt16;
+    const auto sample_format =
+        samples::sample_format_for_bit_depth(stream.bits_per_raw_sample);
     const std::ptrdiff_t bytes_per_sample =
-        sample_format == SampleFormat::UInt16 ? 2 : 1;
+        static_cast<std::ptrdiff_t>(samples::bytes_per_sample(sample_format));
 
     for (std::size_t plane_index = 0; plane_index < info.plane_count;
          ++plane_index) {

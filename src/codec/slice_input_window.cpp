@@ -1,5 +1,7 @@
 #include "codec/slice_input_window.hpp"
 
+#include "mffv1/sample_format.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -77,11 +79,6 @@ std::uint32_t slice_plane_height(const syntax::StreamParameters& stream,
     return slice.height;
 }
 
-std::uint32_t bytes_per_sample(SampleFormat format) noexcept
-{
-    return format == SampleFormat::UInt16 ? 2u : 1u;
-}
-
 } // namespace
 
 Status SliceInputWindow::validate(const syntax::StreamParameters& stream,
@@ -106,9 +103,8 @@ Status SliceInputWindow::validate(const syntax::StreamParameters& stream,
 
     std::vector<PlaneWindow> windows;
     windows.reserve(required_planes);
-    const auto expected_format = stream.bits_per_raw_sample <= 8
-        ? SampleFormat::UInt8
-        : SampleFormat::UInt16;
+    const auto expected_format =
+        samples::sample_format_for_bit_depth(stream.bits_per_raw_sample);
     const auto maximum_offset =
         static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
 
@@ -145,7 +141,7 @@ Status SliceInputWindow::validate(const syntax::StreamParameters& stream,
         }
 
         const auto sample_bytes =
-            static_cast<std::uint64_t>(bytes_per_sample(expected_format));
+            static_cast<std::uint64_t>(samples::bytes_per_sample(expected_format));
         const auto row_bytes =
             static_cast<std::uint64_t>(frame_width) * sample_bytes;
         const auto stride =

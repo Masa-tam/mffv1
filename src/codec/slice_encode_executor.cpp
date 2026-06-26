@@ -78,7 +78,15 @@ SliceEncodeExecutor::SliceEncodeExecutor(
 
 Status SliceEncodeExecutor::encode(
     FrameView input,
-    std::vector<std::byte>& out_frame) const
+    std::vector<std::byte>& out_frame)
+{
+    return encode(input, true, out_frame);
+}
+
+Status SliceEncodeExecutor::encode(
+    FrameView input,
+    bool keyframe,
+    std::vector<std::byte>& out_frame)
 {
     const FrameValidator validator;
     Status status = validator.validate_input(stream_, input);
@@ -101,11 +109,49 @@ Status SliceEncodeExecutor::encode(
     }
     std::vector<std::vector<std::byte>> slices(slice_count);
     std::vector<Status> statuses(slice_count);
+    std::vector<SliceLayout> working_layouts;
+    working_layouts.reserve(slice_count);
+    for (std::size_t index = 0; index < slice_count; ++index) {
+        working_layouts.push_back(slice_layout(index));
+    }
+
+    std::vector<SliceState> working_states;
+    if (keyframe) {
+        working_states.resize(slice_count);
+    } else {
+        if (stream_.intra_only) {
+            return make_error(
+                ErrorCode::InvalidArgument,
+                "non-keyframe encode requires a non-intra stream");
+        }
+        if (slice_states_.empty()) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "non-keyframe encode requires reference slice states");
+        }
+        if (slice_states_.size() != slice_count
+            || slice_layouts_.size() != slice_states_.size()) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "encoder reference slice state does not match the stream");
+        }
+        if (slice_layouts_ != working_layouts) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "encoder reference slice layout does not match the stream");
+        }
+        working_states = slice_states_;
+    }
 
     const auto worker_count = worker_count_for(slice_count);
     if (worker_count <= 1) {
         for (std::size_t index = 0; index < slice_count; ++index) {
-            statuses[index] = encode_slice(input, index, slices[index]);
+            statuses[index] = encode_slice(
+                input,
+                index,
+                keyframe,
+                working_states[index],
+                slices[index]);
         }
     } else {
         std::vector<std::future<Status>> futures;
@@ -120,10 +166,17 @@ Status SliceEncodeExecutor::encode(
                 const auto slice_index = offset + index;
                 futures.push_back(std::async(
                     std::launch::async,
-                    [this, input, slice_index, &slices]() {
+                    [this,
+                     input,
+                     slice_index,
+                     keyframe,
+                     &working_states,
+                     &slices]() {
                         return encode_slice(
                             input,
                             slice_index,
+                            keyframe,
+                            working_states[slice_index],
                             slices[slice_index]);
                     }));
             }
@@ -141,7 +194,18 @@ Status SliceEncodeExecutor::encode(
             return statuses[index];
         }
     }
-    return append_slices(slices, out_frame);
+    status = append_slices(slices, out_frame);
+    if (!status.ok()) {
+        return status;
+    }
+    slice_states_ = std::move(working_states);
+    slice_layouts_ = std::move(working_layouts);
+    return ok_status();
+}
+
+bool SliceEncodeExecutor::has_reference_state() const noexcept
+{
+    return !slice_states_.empty();
 }
 
 std::uint32_t SliceEncodeExecutor::thread_count() const noexcept
@@ -161,6 +225,8 @@ std::size_t SliceEncodeExecutor::worker_count_for(
 Status SliceEncodeExecutor::encode_slice(
     FrameView input,
     std::size_t slice_index,
+    bool keyframe,
+    SliceState& state,
     std::vector<std::byte>& out_slice) const
 {
     SliceHeaderValues header;
@@ -178,7 +244,8 @@ Status SliceEncodeExecutor::encode_slice(
         input,
         header,
         slice_index == 0,
-        true,
+        keyframe,
+        state,
         out_slice);
 }
 
@@ -209,6 +276,17 @@ Status SliceEncodeExecutor::append_slices(
     }
     out_frame = std::move(frame);
     return ok_status();
+}
+
+SliceEncodeExecutor::SliceLayout SliceEncodeExecutor::slice_layout(
+    std::size_t slice_index) const noexcept
+{
+    return {
+        static_cast<std::uint32_t>(slice_index % stream_.num_h_slices),
+        static_cast<std::uint32_t>(slice_index / stream_.num_h_slices),
+        1,
+        1,
+    };
 }
 
 } // namespace mffv1::codec

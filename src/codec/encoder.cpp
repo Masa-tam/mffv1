@@ -160,7 +160,7 @@ public:
             return make_error(ErrorCode::InvalidState, "encoder is not configured");
         }
         std::vector<std::byte> frame_bytes;
-        const codec::SliceEncodeExecutor executor(
+        codec::SliceEncodeExecutor executor(
             *stream_, options_.thread_count, kernels_);
         Status status = executor.encode(input, frame_bytes);
         if (!status.ok()) {

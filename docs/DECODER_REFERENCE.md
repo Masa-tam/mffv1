@@ -175,11 +175,11 @@ On success, `FrameInfo` contains:
 | `keyframe` | True when the frame declares itself as a keyframe. |
 | `slice_count` | Number of slices parsed from the frame payload. |
 
-`planes` is a fixed-size table with room for the maximum FFV1 plane count used
-by this API. Entries at indexes greater than or equal to `plane_count` are not
-part of the stream layout. `PlaneInfo::stride_bytes` is the minimum contiguous
-stride required for allocation; callers may provide larger positive strides to
-`decode_frame()`.
+`planes` is a fixed-size `std::array<PlaneInfo, kMaxFramePlanes>` with room for
+the maximum FFV1 plane count used by this API. Entries at indexes greater than
+or equal to `plane_count` are not part of the stream layout.
+`PlaneInfo::stride_bytes` is the minimum contiguous stride required for
+allocation; callers may provide larger positive strides to `decode_frame()`.
 
 The current `FrameInfo` does not expose slice error-status metadata.
 

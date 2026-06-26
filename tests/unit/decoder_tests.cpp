@@ -504,6 +504,7 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     EXPECT_EQ(info.version, 0u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.planes.size(), mffv1::kMaxFramePlanes);
     EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Y);
     EXPECT_EQ(info.planes[0].sample_format, mffv1::SampleFormat::UInt8);
     EXPECT_EQ(info.planes[0].width, options.frame_width);

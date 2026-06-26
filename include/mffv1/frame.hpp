@@ -10,6 +10,8 @@ namespace mffv1 {
 using ByteSpan = std::span<const std::byte>;
 using MutableByteSpan = std::span<std::byte>;
 
+inline constexpr std::size_t kMaxFramePlanes = 4;
+
 enum class PlaneRole : std::uint8_t {
     Y,
     Cb,
@@ -64,7 +66,7 @@ struct FrameInfo {
     std::uint8_t version = 0;
     std::uint8_t bits_per_raw_sample = 0;
     std::uint8_t plane_count = 0;
-    std::array<PlaneInfo, 4> planes{};
+    std::array<PlaneInfo, kMaxFramePlanes> planes{};
     ColorSpace color_space = ColorSpace::YCbCr;
     bool has_chroma_planes = false;
     bool has_extra_plane = false;

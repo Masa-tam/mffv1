@@ -63,10 +63,27 @@ struct MutableFrameView {
     MutablePlaneView* planes;
     std::size_t plane_count;
 };
+
+inline constexpr std::size_t kMaxFramePlanes = 4;
+
+struct FrameInfo {
+    std::uint32_t width;
+    std::uint32_t height;
+    std::uint8_t version;
+    std::uint8_t bits_per_raw_sample;
+    std::uint8_t plane_count;
+    std::array<PlaneInfo, kMaxFramePlanes> planes;
+    // Other stream and frame metadata omitted here.
+};
 ```
 
 An empty or null plane array is invalid when the configured stream requires
 planes. Every required plane needs a non-null data pointer.
+
+`FrameInfo::planes` is returned by `IDecoder::inspect_frame()` and describes
+the required decoder output layout. Entries `0 .. plane_count - 1` contain the
+expected role, sample format, minimum dimensions, and minimum contiguous
+stride in bytes. Entries beyond `plane_count` are not part of the stream.
 
 ## Plane Roles And Order
 
@@ -285,6 +302,43 @@ mffv1::MutableFrameView output{&plane, 1};
 Decoded values occupy the low 10 bits and are returned as ordinary
 `std::uint16_t` values from 0 through 1023.
 
+## Decoder Example: Using `FrameInfo::planes`
+
+```cpp
+mffv1::FrameInfo info;
+auto status = decoder->inspect_frame(frame_payload, info);
+if (!status.ok()) {
+    return status;
+}
+
+std::array<std::vector<std::uint8_t>, mffv1::kMaxFramePlanes> storage_u8;
+std::array<std::vector<std::uint16_t>, mffv1::kMaxFramePlanes> storage_u16;
+std::array<mffv1::MutablePlaneView, mffv1::kMaxFramePlanes> planes{};
+
+for (std::size_t i = 0; i < info.plane_count; ++i) {
+    const auto& required = info.planes[i];
+    if (required.sample_format == mffv1::SampleFormat::UInt8) {
+        const auto bytes = static_cast<std::size_t>(required.stride_bytes)
+            * static_cast<std::size_t>(required.height);
+        storage_u8[i].resize(bytes);
+        planes[i] = {storage_u8[i].data(), required};
+    } else {
+        const auto row_samples =
+            static_cast<std::size_t>(required.stride_bytes) / sizeof(std::uint16_t);
+        const auto samples =
+            row_samples * static_cast<std::size_t>(required.height);
+        storage_u16[i].resize(samples);
+        planes[i] = {storage_u16[i].data(), required};
+    }
+}
+
+mffv1::MutableFrameView output{planes.data(), info.plane_count};
+status = decoder->decode_frame(frame_payload, output);
+```
+
+Applications that need row padding can copy `info.planes[i]`, increase
+`stride_bytes`, and allocate using the larger stride.
+
 ## Padded Row Example
 
 ```cpp
@@ -355,4 +409,3 @@ must not modify or access those buffers concurrently until the codec call
 returns.
 
 Calls on separate codec instances may use separate frames concurrently.
-

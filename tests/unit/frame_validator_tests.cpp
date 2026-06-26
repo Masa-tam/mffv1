@@ -106,6 +106,7 @@ TEST(FrameValidatorTest, RejectsMissingInputPlaneArray)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input plane array is null");
 }
 
 TEST(FrameValidatorTest, RejectsNullInputPlaneData)
@@ -121,6 +122,7 @@ TEST(FrameValidatorTest, RejectsNullInputPlaneData)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input plane data pointer is null");
 }
 
 TEST(FrameValidatorTest, RejectsExtraInputPlane)
@@ -138,6 +140,7 @@ TEST(FrameValidatorTest, RejectsExtraInputPlane)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input frame plane count does not match the stream");
 }
 
 TEST(FrameValidatorTest, RejectsWrongInputSampleFormat)
@@ -153,6 +156,7 @@ TEST(FrameValidatorTest, RejectsWrongInputSampleFormat)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane sample format does not match stream bit depth");
 }
 
 TEST(FrameValidatorTest, RejectsInputPlaneDimensionMismatch)
@@ -168,6 +172,7 @@ TEST(FrameValidatorTest, RejectsInputPlaneDimensionMismatch)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input plane dimensions do not match the stream");
 }
 
 TEST(FrameValidatorTest, RejectsShortInputStride)
@@ -183,6 +188,7 @@ TEST(FrameValidatorTest, RejectsShortInputStride)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
 }
 
 TEST(FrameValidatorTest, RejectsNegativeInputStrideAsUnsupported)
@@ -198,6 +204,7 @@ TEST(FrameValidatorTest, RejectsNegativeInputStrideAsUnsupported)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "negative input plane stride is not supported");
 }
 
 TEST(FrameValidatorTest, RejectsUnrepresentableInputLastRowAddress)

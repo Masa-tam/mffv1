@@ -174,6 +174,7 @@ TEST(DecoderTest, ConfigureRejectsEmptyConfigurationRecord)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "configuration record is empty");
 }
 
 TEST(DecoderTest, ConfigureRejectsTooShortRangeCoderPayload)
@@ -187,6 +188,23 @@ TEST(DecoderTest, ConfigureRejectsTooShortRangeCoderPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+}
+
+TEST(DecoderTest, ConfigureRejectsVersionThreeRecordTooSmallForCrc)
+{
+    const auto result = mffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    auto configuration_record = minimal_v3_y_only_configuration_record();
+    const mffv1::ByteSpan truncated_record{configuration_record.data(), 3};
+
+    const auto status = result.decoder->configure(truncated_record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "configuration record is too small for CRC parity");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -214,6 +232,7 @@ TEST(DecoderTest, ConfigureRejectsVersionThreeRecordWithCrcMismatch)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.message, "configuration record CRC remainder is non-zero");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 14u);
 }
@@ -237,6 +256,7 @@ TEST(DecoderTest, ConfigureChecksVersionThreeCrcBeforeParameterSyntax)
 
         EXPECT_FALSE(status.ok()) << "offset=" << offset;
         EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch) << "offset=" << offset;
+        EXPECT_EQ(status.message, "configuration record CRC remainder is non-zero") << "offset=" << offset;
         EXPECT_TRUE(status.location.has_byte_offset) << "offset=" << offset;
         EXPECT_EQ(status.location.byte_offset, original.size() - crc_size) << "offset=" << offset;
     }

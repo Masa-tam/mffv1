@@ -68,6 +68,8 @@ TEST(GolombRiceReaderTest, RejectsNonCanonicalEscape)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "Golomb-Rice escape encodes a value representable without escape");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -84,6 +86,7 @@ TEST(GolombRiceReaderTest, ReportsTruncatedCodeAtCodeStart)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream underflow while reading one bit");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
@@ -98,11 +101,14 @@ TEST(GolombRiceReaderTest, RejectsUnsupportedParametersWithoutConsumingBits)
     auto status = reader.read_signed(32, 8, value);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "Golomb-Rice parameter k must be less than 32");
     EXPECT_EQ(bits.bit_position(), 0u);
 
     status = reader.read_signed(0, 0, value);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "Golomb-Rice raw sample width must be in the range 1..31");
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 

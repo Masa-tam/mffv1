@@ -480,7 +480,7 @@ TEST(DecoderTest, DecodeFrameRejectsShortOutputStride)
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    std::array<std::uint8_t, 2> storage{};
+    std::array<std::uint8_t, 2> storage{0xee, 0xdd};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     mffv1::MutableFrameView output{&plane, 1};
     const auto frame_payload = zero_scalar_payload();
@@ -490,6 +490,8 @@ TEST(DecoderTest, DecodeFrameRejectsShortOutputStride)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0xdd);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
@@ -503,7 +505,7 @@ TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    std::array<std::uint16_t, 1> storage{};
+    std::array<std::uint16_t, 1> storage{0xeedd};
     mffv1::MutablePlaneView plane;
     plane.data = storage.data();
     plane.info.role = mffv1::PlaneRole::Y;
@@ -519,6 +521,7 @@ TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(status.message, "plane sample format does not match stream bit depth");
+    EXPECT_EQ(storage[0], 0xeeddu);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
@@ -555,7 +558,7 @@ TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
 
     ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
 
-    std::array<std::uint8_t, 1> storage{};
+    std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
     mffv1::MutableFrameView output{&plane, 1};
     const mffv1::ByteSpan frame_payload;
@@ -565,6 +568,7 @@ TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(status.message, "frame payload is empty");
+    EXPECT_EQ(storage[0], 0xee);
 }
 
 TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)

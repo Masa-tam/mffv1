@@ -353,6 +353,7 @@ TEST(DecoderTest, InspectFrameRejectsEmptyPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "frame payload is empty");
 }
 
 TEST(DecoderTest, InspectFrameFailurePreservesOutputInfo)
@@ -386,6 +387,7 @@ TEST(DecoderTest, InspectFrameFailurePreservesOutputInfo)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "frame payload is empty");
     EXPECT_EQ(info.width, 99u);
     EXPECT_EQ(info.height, 77u);
     EXPECT_EQ(info.version, 2u);
@@ -442,6 +444,7 @@ TEST(DecoderTest, DecodeFrameRejectsMissingOutputPlanes)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output plane array is null");
 }
 
 TEST(DecoderTest, DecodeFrameRejectsNullOutputPlaneData)
@@ -463,6 +466,7 @@ TEST(DecoderTest, DecodeFrameRejectsNullOutputPlaneData)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output plane data pointer is null");
 }
 
 TEST(DecoderTest, DecodeFrameRejectsShortOutputStride)
@@ -485,6 +489,7 @@ TEST(DecoderTest, DecodeFrameRejectsShortOutputStride)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
 }
 
 TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
@@ -513,6 +518,7 @@ TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane sample format does not match stream bit depth");
 }
 
 TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
@@ -535,6 +541,7 @@ TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output frame does not have enough planes");
 }
 
 TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
@@ -557,6 +564,7 @@ TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "frame payload is empty");
 }
 
 TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)

@@ -373,6 +373,37 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedColorspaceWithDiagnostic)
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(ConfigurationRecordWriterTest, RejectsInvalidRgbGeometryWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.colorspace_type = 1;
+    stream.chroma_planes = false;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "RGB streams require three full-resolution color planes");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(ConfigurationRecordWriterTest, RejectsSubsamplingWithoutChromaWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.log2_h_chroma_subsample = 1;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "chroma subsampling requires chroma planes");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(ConfigurationRecordWriterTest, RejectsUnsupportedProfileWithoutChangingOutput)
 {
     auto stream = make_initial_profile();
@@ -438,6 +469,7 @@ TEST(ConfigurationRecordWriterTest, RejectsZeroSliceGridWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "configuration slice grid dimensions must be non-zero");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

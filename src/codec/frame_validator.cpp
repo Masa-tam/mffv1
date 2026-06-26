@@ -1,5 +1,7 @@
 #include "codec/frame_validator.hpp"
 
+#include "codec/frame_info_builder.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -32,82 +34,48 @@ Status validate_stream_shape(const syntax::StreamParameters& stream)
     return ok_status();
 }
 
-SampleFormat expected_sample_format(const syntax::StreamParameters& stream) noexcept
+Status validate_plane_info(const PlaneInfo& expected,
+                           const PlaneInfo& info)
 {
-    return stream.bits_per_raw_sample <= 8 ? SampleFormat::UInt8 : SampleFormat::UInt16;
-}
-
-Status minimum_stride_bytes(const syntax::StreamParameters& stream,
-                            std::size_t plane_index,
-                            std::ptrdiff_t& out_stride)
-{
-    const std::uint64_t bytes_per_sample = stream.bits_per_raw_sample <= 8 ? 1u : 2u;
-    const auto required = static_cast<std::uint64_t>(syntax::plane_width(stream, plane_index))
-        * bytes_per_sample;
-    if (required > static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
-        return make_error(ErrorCode::ResourceExhausted, "plane row size exceeds ptrdiff_t");
-    }
-    out_stride = static_cast<std::ptrdiff_t>(required);
-    return ok_status();
-}
-
-Status validate_plane_info(const syntax::StreamParameters& stream,
-                           const PlaneInfo& info,
-                           std::size_t plane_index)
-{
-    if (info.role != syntax::expected_plane_role(stream, plane_index)) {
+    if (info.role != expected.role) {
         return make_error(ErrorCode::InvalidArgument, "plane role does not match stream plane order");
     }
-    if (info.sample_format != expected_sample_format(stream)) {
+    if (info.sample_format != expected.sample_format) {
         return make_error(ErrorCode::InvalidArgument, "plane sample format does not match stream bit depth");
     }
-    if (info.width < syntax::plane_width(stream, plane_index)
-        || info.height < syntax::plane_height(stream, plane_index)) {
+    if (info.width < expected.width || info.height < expected.height) {
         return make_error(ErrorCode::InvalidArgument, "plane dimensions are smaller than the stream requires");
     }
-    std::ptrdiff_t minimum_stride = 0;
-    Status status = minimum_stride_bytes(stream, plane_index, minimum_stride);
-    if (!status.ok()) {
-        return status;
-    }
-    if (info.stride_bytes < minimum_stride) {
+    if (info.stride_bytes < expected.stride_bytes) {
         return make_error(ErrorCode::InvalidArgument, "plane stride is smaller than the stream requires");
     }
     return ok_status();
 }
 
-Status validate_input_plane_info(const syntax::StreamParameters& stream,
-                                 const PlaneInfo& info,
-                                 std::size_t plane_index)
+Status validate_input_plane_info(const PlaneInfo& expected,
+                                 const PlaneInfo& info)
 {
-    if (info.role != syntax::expected_plane_role(stream, plane_index)) {
+    if (info.role != expected.role) {
         return make_error(ErrorCode::InvalidArgument, "plane role does not match stream plane order");
     }
-    if (info.sample_format != expected_sample_format(stream)) {
+    if (info.sample_format != expected.sample_format) {
         return make_error(ErrorCode::InvalidArgument, "plane sample format does not match stream bit depth");
     }
 
-    const auto required_width = syntax::plane_width(stream, plane_index);
-    const auto required_height = syntax::plane_height(stream, plane_index);
-    if (info.width != required_width || info.height != required_height) {
+    if (info.width != expected.width || info.height != expected.height) {
         return make_error(ErrorCode::InvalidArgument, "input plane dimensions do not match the stream");
     }
     if (info.stride_bytes < 0) {
         return make_error(ErrorCode::UnsupportedFeature, "negative input plane stride is not supported");
     }
 
-    std::ptrdiff_t minimum_stride = 0;
-    Status status = minimum_stride_bytes(stream, plane_index, minimum_stride);
-    if (!status.ok()) {
-        return status;
-    }
-    if (info.stride_bytes < minimum_stride) {
+    if (info.stride_bytes < expected.stride_bytes) {
         return make_error(ErrorCode::InvalidArgument, "plane stride is smaller than the stream requires");
     }
 
-    const auto last_row = static_cast<std::uint64_t>(required_height - 1);
+    const auto last_row = static_cast<std::uint64_t>(expected.height - 1);
     const auto stride = static_cast<std::uint64_t>(info.stride_bytes);
-    const auto row_bytes = static_cast<std::uint64_t>(minimum_stride);
+    const auto row_bytes = static_cast<std::uint64_t>(expected.stride_bytes);
     const auto maximum_offset =
         static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
     if (row_bytes > maximum_offset
@@ -129,7 +97,8 @@ Status FrameValidator::validate_output(const syntax::StreamParameters& stream,
         return status;
     }
 
-    const std::size_t required_planes = syntax::coded_plane_count(stream);
+    const FrameInfo expected = make_frame_info(stream);
+    const std::size_t required_planes = expected.plane_count;
     if (output.plane_count < required_planes) {
         return make_error(ErrorCode::InvalidArgument, "output frame does not have enough planes");
     }
@@ -141,7 +110,7 @@ Status FrameValidator::validate_output(const syntax::StreamParameters& stream,
         if (output.planes[i].data == nullptr) {
             return make_error(ErrorCode::InvalidArgument, "output plane data pointer is null");
         }
-        status = validate_plane_info(stream, output.planes[i].info, i);
+        status = validate_plane_info(expected.planes[i], output.planes[i].info);
         if (!status.ok()) {
             return status;
         }
@@ -158,7 +127,8 @@ Status FrameValidator::validate_input(const syntax::StreamParameters& stream,
         return status;
     }
 
-    const std::size_t required_planes = syntax::coded_plane_count(stream);
+    const FrameInfo expected = make_frame_info(stream);
+    const std::size_t required_planes = expected.plane_count;
     if (input.plane_count != required_planes) {
         return make_error(ErrorCode::InvalidArgument, "input frame plane count does not match the stream");
     }
@@ -170,7 +140,7 @@ Status FrameValidator::validate_input(const syntax::StreamParameters& stream,
         if (input.planes[i].data == nullptr) {
             return make_error(ErrorCode::InvalidArgument, "input plane data pointer is null");
         }
-        status = validate_input_plane_info(stream, input.planes[i].info, i);
+        status = validate_input_plane_info(expected.planes[i], input.planes[i].info);
         if (!status.ok()) {
             return status;
         }

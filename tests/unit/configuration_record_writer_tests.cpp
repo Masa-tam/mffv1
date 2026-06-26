@@ -325,6 +325,54 @@ TEST(ConfigurationRecordWriterTest, RejectsCustomRangeCoderWithDiagnostic)
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(ConfigurationRecordWriterTest, RejectsUnsupportedRangeBitDepthWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.bits_per_raw_sample = 7;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(ConfigurationRecordWriterTest, RejectsUnsupportedGolombRiceBitDepthWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    stream.bits_per_raw_sample = 7;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "Golomb-Rice configuration supports only 8-16 bit streams");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(ConfigurationRecordWriterTest, RejectsUnsupportedColorspaceWithDiagnostic)
+{
+    auto stream = make_initial_profile();
+    stream.colorspace_type = 2;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(ConfigurationRecordWriterTest, RejectsUnsupportedProfileWithoutChangingOutput)
 {
     auto stream = make_initial_profile();

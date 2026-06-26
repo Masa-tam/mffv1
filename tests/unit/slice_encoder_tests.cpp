@@ -698,6 +698,23 @@ TEST(SliceEncoderTest, RejectsUnsupportedStreamWithoutChangingOutput)
     EXPECT_EQ(payload, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(SliceEncoderTest, RejectsUnsupportedStreamForSliceWithoutChangingOutput)
+{
+    auto stream = make_stream();
+    stream.bits_per_raw_sample = 17;
+    std::array<std::uint8_t, 8> storage{};
+    const auto plane = make_input_plane(storage);
+    const mffv1::FrameView input{&plane, 1};
+    std::vector<std::byte> payload{std::byte{0xaa}};
+    const mffv1::codec::SliceEncoder encoder(stream);
+
+    const auto status = encoder.encode_slice(input, true, payload);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(payload, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(SliceEncoderTest, RejectsInvalidInputWithoutChangingOutput)
 {
     const auto stream = make_stream();
@@ -709,6 +726,23 @@ TEST(SliceEncoderTest, RejectsInvalidInputWithoutChangingOutput)
     const mffv1::codec::SliceEncoder encoder(stream);
 
     const auto status = encoder.encode_content(input, payload);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(payload, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(SliceEncoderTest, RejectsInvalidInputForSliceWithoutChangingOutput)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.stride_bytes = 3;
+    const mffv1::FrameView input{&plane, 1};
+    std::vector<std::byte> payload{std::byte{0xaa}};
+    const mffv1::codec::SliceEncoder encoder(stream);
+
+    const auto status = encoder.encode_slice(input, true, payload);
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);

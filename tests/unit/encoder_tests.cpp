@@ -334,6 +334,7 @@ TEST(EncoderTest, EncodeFrameRejectsInvalidInputWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
     ASSERT_EQ(frame.bytes.size(), 1u);
     EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
 }

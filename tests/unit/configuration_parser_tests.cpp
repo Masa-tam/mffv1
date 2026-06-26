@@ -418,18 +418,26 @@ TEST(ConfigurationParserTest, RejectsOverflowingQuantTableRun)
 
 TEST(ConfigurationParserTest, RejectsUnrepresentableSliceCountsBeforeIncrement)
 {
-    for (const std::size_t symbol_index : {std::size_t{9}, std::size_t{10}}) {
+    struct Case {
+        std::size_t symbol_index;
+        const char* message;
+    };
+
+    for (const Case& test_case :
+         {Case{9, "num_h_slices is too large"}, Case{10, "num_v_slices is too large"}}) {
         auto symbols = minimal_v3_y_only_symbols();
-        symbols[symbol_index] = u_max();
+        symbols[test_case.symbol_index] = u_max();
         ScriptedSymbolReader reader(std::move(symbols));
         mffv1::syntax::ConfigurationParser parser;
         mffv1::syntax::StreamParameters stream;
 
         const auto status = parser.parse(reader, stream);
 
-        EXPECT_FALSE(status.ok()) << "symbol_index=" << symbol_index;
+        EXPECT_FALSE(status.ok()) << "symbol_index=" << test_case.symbol_index;
         EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError)
-            << "symbol_index=" << symbol_index;
+            << "symbol_index=" << test_case.symbol_index;
+        EXPECT_EQ(status.message, test_case.message)
+            << "symbol_index=" << test_case.symbol_index;
     }
 }
 

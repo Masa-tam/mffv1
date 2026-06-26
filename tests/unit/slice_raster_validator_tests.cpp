@@ -96,6 +96,19 @@ TEST(SliceRasterValidatorTest, AcceptsLargeFrameSlicesAtParallelAreaLimit)
     EXPECT_TRUE(status.ok()) << status.message;
 }
 
+TEST(SliceRasterValidatorTest, RejectsZeroSliceGrid)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 0;
+    const std::array slices{make_slice(0, 0, 0, 1, 1)};
+
+    const auto status = mffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "slice grid dimensions must be non-zero");
+}
+
 TEST(SliceRasterValidatorTest, RejectsLargeFrameSliceAboveParallelAreaLimit)
 {
     auto stream = make_stream();
@@ -113,6 +126,7 @@ TEST(SliceRasterValidatorTest, RejectsLargeFrameSliceAboveParallelAreaLimit)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster area exceeds the version 3 parallel decoding limit");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 7u);
 }
@@ -155,6 +169,7 @@ TEST(SliceRasterValidatorTest, RejectsMissingRasterCell)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster coverage has missing cells");
 }
 
 TEST(SliceRasterValidatorTest, RejectsOverlappingRasterCells)
@@ -170,6 +185,7 @@ TEST(SliceRasterValidatorTest, RejectsOverlappingRasterCells)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster rectangles overlap");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 1u);
 }
@@ -183,6 +199,7 @@ TEST(SliceRasterValidatorTest, RejectsOutOfRasterRectangle)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster rectangle is outside the frame raster");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 7u);
 }
@@ -196,6 +213,7 @@ TEST(SliceRasterValidatorTest, RejectsZeroSizedSlice)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster dimensions must be non-zero");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 3u);
 }

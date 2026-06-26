@@ -260,6 +260,8 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedProfileWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "encoder supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     ASSERT_EQ(record.bytes.size(), 1u);
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
@@ -278,6 +280,7 @@ TEST(EncoderTest, ConfigureRejectsSubsamplingWithoutChroma)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "chroma subsampling requires chroma planes");
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
@@ -296,6 +299,8 @@ TEST(EncoderTest, ConfigureRejectsInvalidRgbPlaneGeometry)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "RGB streams require three full-resolution color planes");
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
@@ -1725,6 +1730,8 @@ TEST(EncoderTest, ConfigureRejectsInvalidGolombRiceRgbGeometry)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "RGB streams require three full-resolution color planes");
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

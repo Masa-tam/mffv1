@@ -40,6 +40,7 @@ add_library(mffv1
     src/mffv1/configuration_parser.cpp
     src/mffv1/predictor.cpp
     src/simd/codec_kernels.cpp
+    src/simd/color_transform_avx2.cpp
     src/simd/color_transform_sse2.cpp
     src/simd/cpu_features.cpp
     src/util/crc32.cpp
@@ -60,6 +61,21 @@ target_include_directories(mffv1
 )
 
 mffv1_apply_common_options(mffv1)
+
+if(MSVC AND CMAKE_GENERATOR_PLATFORM MATCHES "^(Win32|x64)$")
+    set_source_files_properties(
+        src/simd/color_transform_avx2.cpp
+        PROPERTIES COMPILE_OPTIONS "/arch:AVX2"
+    )
+    target_compile_definitions(mffv1 PRIVATE MFFV1_HAS_AVX2_KERNEL=1)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang"
+       AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|i.86)$")
+    set_source_files_properties(
+        src/simd/color_transform_avx2.cpp
+        PROPERTIES COMPILE_OPTIONS "-mavx2"
+    )
+    target_compile_definitions(mffv1 PRIVATE MFFV1_HAS_AVX2_KERNEL=1)
+endif()
 
 include(CTest)
 if(BUILD_TESTING AND MFFV1_BUILD_TESTS)

@@ -23,7 +23,9 @@ std::uint64_t compiled_cpu_features() noexcept
 #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
     features |= feature_bit(CpuFeature::Sse2);
     features |= feature_bit(CpuFeature::Ssse3);
+#if defined(MFFV1_HAS_AVX2_KERNEL)
     features |= feature_bit(CpuFeature::Avx2);
+#endif
 #endif
 #if defined(_M_ARM64) || defined(__aarch64__)
     features |= feature_bit(CpuFeature::Neon);

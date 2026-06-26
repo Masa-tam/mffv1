@@ -1,6 +1,7 @@
 #include "simd/codec_kernels.hpp"
 
 #include "mffv1/color_transform.hpp"
+#include "simd/color_transform_avx2.hpp"
 #include "simd/color_transform_sse2.hpp"
 #include "simd/cpu_features.hpp"
 
@@ -49,6 +50,14 @@ CodecKernels make_codec_kernels(const CpuFeatures& requested) noexcept
             forward_color_transform_row_sse2;
         kernels.active_features |= sse2;
     }
+#if defined(MFFV1_HAS_AVX2_KERNEL)
+    const auto avx2 = feature_bit(CpuFeature::Avx2);
+    if ((kernels.available_features & avx2) != 0) {
+        kernels.forward_color_transform_row =
+            forward_color_transform_row_avx2;
+        kernels.active_features = avx2;
+    }
+#endif
     return kernels;
 }
 

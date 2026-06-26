@@ -1,4 +1,6 @@
 #include "simd/codec_kernels.hpp"
+#include "simd/color_transform_avx2.hpp"
+#include "simd/color_transform_sse2.hpp"
 #include "simd/cpu_features.hpp"
 
 #include <cstdint>
@@ -60,17 +62,53 @@ TEST(CpuFeaturesTest, ExplicitMaskIsLimitedToCompiledBackends)
         mffv1::simd::compiled_cpu_features());
 }
 
-TEST(CpuFeaturesTest, KernelTableActivatesAvailableSse2)
+TEST(CpuFeaturesTest, KernelTableActivatesBestAvailableX86Kernel)
 {
     const mffv1::CpuFeatures requested;
     const auto kernels = mffv1::simd::make_codec_kernels(requested);
     const auto sse2 = feature_bit(mffv1::CpuFeature::Sse2);
+    const auto avx2 = feature_bit(mffv1::CpuFeature::Avx2);
+    const auto expected = (kernels.available_features & avx2) != 0
+        ? avx2
+        : kernels.available_features & sse2;
 
     EXPECT_EQ(
         kernels.available_features,
         mffv1::simd::detected_cpu_features());
-    EXPECT_EQ(kernels.active_features, kernels.available_features & sse2);
+    EXPECT_EQ(kernels.active_features, expected);
     EXPECT_NE(kernels.forward_color_transform_row, nullptr);
+}
+
+TEST(CpuFeaturesTest, ExplicitMaskSelectsOnlyRequestedKernel)
+{
+    mffv1::CpuFeatures requested;
+    requested.auto_detect = false;
+    requested.allowed = feature_bit(mffv1::CpuFeature::Sse2);
+
+    auto kernels = mffv1::simd::make_codec_kernels(requested);
+    if ((mffv1::simd::compiled_cpu_features()
+         & feature_bit(mffv1::CpuFeature::Sse2))
+        != 0) {
+        EXPECT_EQ(
+            kernels.forward_color_transform_row,
+            mffv1::simd::forward_color_transform_row_sse2);
+        EXPECT_EQ(
+            kernels.active_features,
+            feature_bit(mffv1::CpuFeature::Sse2));
+    }
+
+    requested.allowed = feature_bit(mffv1::CpuFeature::Avx2);
+    kernels = mffv1::simd::make_codec_kernels(requested);
+    if ((mffv1::simd::compiled_cpu_features()
+         & feature_bit(mffv1::CpuFeature::Avx2))
+        != 0) {
+        EXPECT_EQ(
+            kernels.forward_color_transform_row,
+            mffv1::simd::forward_color_transform_row_avx2);
+        EXPECT_EQ(
+            kernels.active_features,
+            feature_bit(mffv1::CpuFeature::Avx2));
+    }
 }
 
 } // namespace

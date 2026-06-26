@@ -371,10 +371,11 @@ bytes to scalar encoding, not merely equivalent decoded pixels.
 
 The dispatch foundation resolves compiled, detected, and caller-allowed
 features into an immutable `CodecKernels` table shared by slice workers. The
-first active SIMD path is an SSE2 RGB forward color-transform row kernel. It
-uses 32-bit lanes for exact signed differences and coded wrapping, then falls
-back to the scalar reference for the row tail. Range and Golomb-Rice encoding
-must remain byte-identical to forced scalar dispatch.
+active SIMD paths are AVX2 and SSE2 RGB forward color-transform row kernels.
+They use 32-bit lanes for exact signed differences and coded wrapping, then
+fall back to the scalar reference for the row tail. AVX2 is preferred when
+allowed and available. Range and Golomb-Rice encoding must remain
+byte-identical to forced scalar dispatch.
 
 ## Diagnostics And Resource Limits
 

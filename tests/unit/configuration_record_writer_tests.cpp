@@ -309,6 +309,23 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedProfileWithoutChangingOutp
     EXPECT_EQ(record[0], std::byte{0xaa});
 }
 
+TEST(ConfigurationRecordWriterTest, RejectsInvalidParametersBeforeWritingSymbols)
+{
+    auto stream = make_initial_profile();
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 2;
+    RecordingSymbolWriter symbols;
+    symbols.symbols.push_back({SymbolKind::Unsigned, 99});
+    const auto original = symbols.symbols;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write_parameters(stream, symbols);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(symbols.symbols, original);
+}
+
 TEST(ConfigurationRecordWriterTest, RejectsVerticalOnlySubsampling)
 {
     auto stream = make_initial_profile();

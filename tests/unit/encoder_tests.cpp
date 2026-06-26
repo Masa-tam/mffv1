@@ -70,6 +70,7 @@ TEST(EncoderTest, FactoryRejectsNegativeThreadCount)
 
     EXPECT_FALSE(result.status.ok());
     EXPECT_EQ(result.status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.status.message, "encoder thread count must not be negative");
     EXPECT_EQ(result.encoder, nullptr);
 }
 
@@ -82,6 +83,7 @@ TEST(EncoderTest, FactoryRejectsZeroKeyframeInterval)
 
     EXPECT_FALSE(result.status.ok());
     EXPECT_EQ(result.status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.status.message, "encoder keyframe interval must be non-zero");
     EXPECT_EQ(result.encoder, nullptr);
 }
 
@@ -1658,6 +1660,7 @@ TEST(EncoderTest, EncodeFrameRequiresConfigurationWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "encoder is not configured");
     ASSERT_EQ(frame.bytes.size(), 1u);
     EXPECT_EQ(frame.bytes[0], std::byte{0xaa});
 }

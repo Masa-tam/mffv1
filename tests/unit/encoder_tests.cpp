@@ -145,6 +145,8 @@ TEST(EncoderTest, ConfigureRejectsVersionMismatchWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "encoder option version does not match stream version");
     ASSERT_EQ(record.bytes.size(), 1u);
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
@@ -163,6 +165,7 @@ TEST(EncoderTest, ConfigureRejectsZeroDimensionsWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "stream dimensions must be non-zero");
     ASSERT_EQ(record.bytes.size(), 1u);
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
@@ -181,6 +184,7 @@ TEST(EncoderTest, ConfigureRejectsZeroSliceGridWithoutChangingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "encoder slice grid dimensions must be non-zero");
     ASSERT_EQ(record.bytes.size(), 1u);
     EXPECT_EQ(record.bytes[0], std::byte{0xaa});
 }
@@ -217,6 +221,7 @@ TEST(EncoderTest, ConfigureRejectsSliceGridWithEmptyChromaRegion)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "encoder slice grid would create an empty plane region");
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
@@ -235,6 +240,8 @@ TEST(EncoderTest, ConfigureRejectsLargeFrameWithTooFewSlices)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "version 3 frames larger than CIF require at least four slices");
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

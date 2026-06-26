@@ -1,6 +1,7 @@
 #include "codec/frame_validator.hpp"
 
 #include "codec/frame_info_builder.hpp"
+#include "codec/profile_constraints.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -18,13 +19,14 @@ Status validate_stream_shape(const syntax::StreamParameters& stream)
     if (stream.bits_per_raw_sample == 0 || stream.bits_per_raw_sample > 16) {
         return make_error(ErrorCode::UnsupportedFeature, "only 1-16 bit samples are supported");
     }
-    if (stream.colorspace_type < 0 || stream.colorspace_type > 1) {
+    if (!is_supported_syntax_colorspace(stream.colorspace_type)) {
         return make_error(ErrorCode::UnsupportedFeature, "unsupported colorspace_type");
     }
-    if (stream.colorspace_type == 1
-        && (!stream.chroma_planes
-            || stream.log2_h_chroma_subsample != 0
-            || stream.log2_v_chroma_subsample != 0)) {
+    if (has_invalid_rgb_geometry(
+            stream.colorspace_type == 1,
+            stream.chroma_planes,
+            stream.log2_h_chroma_subsample,
+            stream.log2_v_chroma_subsample)) {
         return make_error(ErrorCode::InvalidArgument,
                           "RGB streams require chroma planes without subsampling");
     }

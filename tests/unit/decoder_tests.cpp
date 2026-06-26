@@ -145,6 +145,8 @@ TEST(DecoderTest, FactoryRejectsIncompleteExternalFrameDimensions)
 
     EXPECT_FALSE(result.status.ok());
     EXPECT_EQ(result.status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.status.message,
+              "decoder frame dimensions must be both set or both zero");
     EXPECT_EQ(result.decoder, nullptr);
 }
 
@@ -157,6 +159,7 @@ TEST(DecoderTest, FactoryRejectsNegativeThreadCount)
 
     EXPECT_FALSE(result.status.ok());
     EXPECT_EQ(result.status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(result.status.message, "decoder thread count must not be negative");
     EXPECT_EQ(result.decoder, nullptr);
 }
 
@@ -278,6 +281,7 @@ TEST(DecoderTest, DecodeRequiresConfiguration)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "decoder is not configured");
 }
 
 TEST(DecoderTest, InspectFrameRequiresConfiguration)
@@ -292,6 +296,7 @@ TEST(DecoderTest, InspectFrameRequiresConfiguration)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "decoder is not configured");
 }
 
 TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
@@ -308,6 +313,7 @@ TEST(DecoderTest, InspectFrameRequiresExternalDimensions)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "decoder frame dimensions are not configured");
 }
 
 TEST(DecoderTest, InspectFrameRejectsEmptyPayload)
@@ -393,6 +399,7 @@ TEST(DecoderTest, DecodeFrameRequiresExternalDimensions)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "decoder frame dimensions are not configured");
 }
 
 TEST(DecoderTest, DecodeFrameRejectsMissingOutputPlanes)

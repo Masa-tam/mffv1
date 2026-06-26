@@ -340,6 +340,7 @@ TEST(ConfigurationParserTest, RejectsOutOfRangeCustomStateTransition)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "custom range coder state transition is outside 0..255");
 }
 
 TEST(ConfigurationParserTest, RejectsCustomStateTransitionAboveByteRange)
@@ -355,6 +356,7 @@ TEST(ConfigurationParserTest, RejectsCustomStateTransitionAboveByteRange)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "custom range coder state transition is outside 0..255");
 }
 
 TEST(ConfigurationParserTest, RejectsReservedCoderType)

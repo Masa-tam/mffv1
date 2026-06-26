@@ -58,7 +58,8 @@ FrameParser::FrameParser(const syntax::StreamParameters& stream, bool verify_crc
 
 Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
 {
-    Status status = initialize_frame(payload, out_frame);
+    FrameDecodeContext next_frame;
+    Status status = initialize_frame(payload, next_frame);
     if (!status.ok()) {
         return status;
     }
@@ -83,8 +84,8 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         if (!status.ok()) {
             return status;
         }
-        out_frame.keyframe = keyframe;
-        out_frame.frame_info.keyframe = keyframe;
+        next_frame.keyframe = keyframe;
+        next_frame.frame_info.keyframe = keyframe;
     } else if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
         bitstream::BitReader frame_bits(payload);
         std::uint8_t keyframe = 0;
@@ -96,8 +97,8 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         if (!status.ok()) {
             return status;
         }
-        out_frame.keyframe = keyframe != 0;
-        out_frame.frame_info.keyframe = keyframe != 0;
+        next_frame.keyframe = keyframe != 0;
+        next_frame.frame_info.keyframe = keyframe != 0;
     }
 
     syntax::SliceDescriptor slice;
@@ -123,28 +124,36 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         : 0;
     slice.payload_byte_offset = 0;
     slice.continues_frame_range_state = parse_legacy_range_header;
-    out_frame.slices.push_back(slice);
+    next_frame.slices.push_back(slice);
 
-    status = validate_slice_raster_coverage(stream_, out_frame.slices);
+    status = validate_slice_raster_coverage(stream_, next_frame.slices);
     if (!status.ok()) {
         set_slice_location_if_missing(status, slice.index);
         return status;
     }
-    out_frame.frame_info.slice_count =
-        static_cast<std::uint32_t>(out_frame.slices.size());
+    next_frame.frame_info.slice_count =
+        static_cast<std::uint32_t>(next_frame.slices.size());
+    out_frame = std::move(next_frame);
     return ok_status();
 }
 
 Status FrameParser::parse_with_range_header(ByteSpan payload, FrameDecodeContext& out_frame) const
 {
-    return parse_located_range_slices(payload, out_frame);
+    FrameDecodeContext next_frame;
+    Status status = parse_located_range_slices(payload, next_frame);
+    if (!status.ok()) {
+        return status;
+    }
+    out_frame = std::move(next_frame);
+    return ok_status();
 }
 
 Status FrameParser::parse_with_header_reader(ByteSpan payload,
                                              entropy::SymbolReader& header_reader,
                                              FrameDecodeContext& out_frame) const
 {
-    Status status = initialize_frame(payload, out_frame);
+    FrameDecodeContext next_frame;
+    Status status = initialize_frame(payload, next_frame);
     if (!status.ok()) {
         return status;
     }
@@ -180,16 +189,17 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return status;
     }
     slice.payload = payload;
-    out_frame.slices.push_back(slice);
-    status = validate_slice_raster_coverage(stream_, out_frame.slices);
+    next_frame.slices.push_back(slice);
+    status = validate_slice_raster_coverage(stream_, next_frame.slices);
     if (!status.ok()) {
         set_slice_location_if_missing(status, slice.index);
         return status;
     }
-    out_frame.keyframe = keyframe;
-    out_frame.frame_info.keyframe = keyframe;
-    out_frame.frame_info.slice_count =
-        static_cast<std::uint32_t>(out_frame.slices.size());
+    next_frame.keyframe = keyframe;
+    next_frame.frame_info.keyframe = keyframe;
+    next_frame.frame_info.slice_count =
+        static_cast<std::uint32_t>(next_frame.slices.size());
+    out_frame = std::move(next_frame);
     return ok_status();
 }
 

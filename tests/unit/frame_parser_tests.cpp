@@ -78,6 +78,37 @@ mffv1::syntax::StreamParameters make_stream()
     return stream;
 }
 
+mffv1::codec::FrameDecodeContext make_existing_frame()
+{
+    mffv1::codec::FrameDecodeContext frame;
+    frame.keyframe = true;
+    frame.frame_info.width = 99;
+    frame.frame_info.height = 88;
+    frame.frame_info.slice_count = 1;
+    mffv1::syntax::SliceDescriptor slice;
+    slice.index = 7;
+    slice.payload_byte_offset = 123;
+    slice.footer_byte_offset = 456;
+    slice.slice_size = 789;
+    slice.has_crc = true;
+    frame.slices.push_back(slice);
+    return frame;
+}
+
+void expect_existing_frame_preserved(const mffv1::codec::FrameDecodeContext& frame)
+{
+    EXPECT_TRUE(frame.keyframe);
+    EXPECT_EQ(frame.frame_info.width, 99u);
+    EXPECT_EQ(frame.frame_info.height, 88u);
+    EXPECT_EQ(frame.frame_info.slice_count, 1u);
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].index, 7u);
+    EXPECT_EQ(frame.slices[0].payload_byte_offset, 123u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 456u);
+    EXPECT_EQ(frame.slices[0].slice_size, 789u);
+    EXPECT_TRUE(frame.slices[0].has_crc);
+}
+
 template <std::size_t Size>
 void write_crc_parity(std::array<std::byte, Size>& payload)
 {
@@ -93,7 +124,7 @@ TEST(FrameParserTest, RejectsEmptyPayload)
 {
     const auto stream = make_stream();
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
 
     const mffv1::ByteSpan empty;
     const auto status = parser.parse(empty, frame);
@@ -101,6 +132,7 @@ TEST(FrameParserTest, RejectsEmptyPayload)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(status.message, "frame payload is empty");
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, CreatesSingleSliceDescriptor)
@@ -331,7 +363,7 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
 {
     const auto stream = make_stream();
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 0, 0, 0}, 2);
     const std::array<std::byte, 8> payload{
         std::byte{0}, std::byte{1}, std::byte{2}, std::byte{3},
@@ -348,6 +380,7 @@ TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
     EXPECT_EQ(status.location.byte_offset, 20u);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, RejectsNonKeyframeForIntraOnlyStream)
@@ -601,7 +634,7 @@ TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
     auto stream = make_stream();
     stream.error_status_enabled = true;
     mffv1::codec::FrameParser parser(stream, true);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     std::array<std::byte, 12> payload{
         std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x0c}, std::byte{0x00},
@@ -619,7 +652,7 @@ TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 8u);
-    EXPECT_TRUE(frame.slices.empty());
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)

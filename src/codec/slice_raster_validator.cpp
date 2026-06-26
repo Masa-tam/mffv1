@@ -1,5 +1,6 @@
 #include "codec/slice_raster_validator.hpp"
 
+#include "codec/version3_constraints.hpp"
 #include "util/status.hpp"
 
 #include <algorithm>
@@ -12,8 +13,6 @@
 namespace mffv1::codec {
 
 namespace {
-
-constexpr std::uint64_t kCifPixelCount = 352u * 288u;
 
 Status make_slice_error(ErrorCode code, const char* message, std::uint32_t slice_index)
 {
@@ -43,9 +42,9 @@ Status validate_slice_raster_coverage(const syntax::StreamParameters& stream,
 
     const std::uint64_t cell_count64 =
         static_cast<std::uint64_t>(stream.num_h_slices) * static_cast<std::uint64_t>(stream.num_v_slices);
-    const std::uint64_t frame_pixel_count =
-        static_cast<std::uint64_t>(stream.width) * static_cast<std::uint64_t>(stream.height);
-    const bool enforce_parallel_slice_area = stream.version >= 3 && frame_pixel_count > kCifPixelCount;
+    const bool enforce_parallel_slice_area =
+        requires_version3_parallel_slice_limit(
+            stream.version, stream.width, stream.height);
     const std::uint64_t maximum_slice_area = cell_count64 / 4;
     std::uint64_t covered_area = 0;
     bool covered_area_exceeds_raster = false;

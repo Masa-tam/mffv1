@@ -1,16 +1,12 @@
 #include "codec/encoder_profile.hpp"
 
+#include "codec/version3_constraints.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <utility>
 
 namespace mffv1::codec {
-
-namespace {
-
-constexpr std::uint64_t kCifPixelCount = 352u * 288u;
-
-} // namespace
 
 Status normalize_encoder_profile(const EncoderOptions& options,
                                  const StreamInfo& info,
@@ -96,10 +92,9 @@ Status normalize_encoder_profile(const EncoderOptions& options,
     const auto slice_count =
         static_cast<std::uint64_t>(stream.num_h_slices)
         * static_cast<std::uint64_t>(stream.num_v_slices);
-    const auto frame_pixel_count =
-        static_cast<std::uint64_t>(stream.width)
-        * static_cast<std::uint64_t>(stream.height);
-    if (frame_pixel_count > kCifPixelCount && slice_count < 4) {
+    if (requires_version3_parallel_slice_limit(
+            stream.version, stream.width, stream.height)
+        && slice_count < 4) {
         return make_error(
             ErrorCode::InvalidArgument,
             "version 3 frames larger than CIF require at least four slices");

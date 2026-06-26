@@ -55,6 +55,7 @@ add_executable(mffv1_unit_tests
     unit/slice_payload_locator_tests.cpp
     unit/slice_raster_validator_tests.cpp
     unit/stream_parameters_tests.cpp
+    unit/version3_constraints_tests.cpp
 )
 
 target_link_libraries(mffv1_unit_tests

@@ -26,6 +26,64 @@ TEST(PlaneWindowMathTest, ComputesRepresentableRowBytes)
     EXPECT_EQ(row_bytes, 10u);
 }
 
+TEST(PlaneWindowMathTest, RejectsUnrepresentableRowOffset)
+{
+    const mffv1::PlaneInfo info{
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt8,
+        1,
+        3,
+        std::numeric_limits<std::ptrdiff_t>::max() / 2 + 1,
+    };
+    std::ptrdiff_t offset = 123;
+
+    const auto status = mffv1::codec::checked_plane_window_offset(
+        info,
+        0,
+        2,
+        1,
+        1,
+        offset,
+        "row offset",
+        "sample offset",
+        "rows",
+        "extent");
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "row offset");
+    EXPECT_EQ(offset, 123);
+}
+
+TEST(PlaneWindowMathTest, RejectsUnrepresentableSampleOffset)
+{
+    const mffv1::PlaneInfo info{
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt16,
+        2,
+        2,
+        std::numeric_limits<std::ptrdiff_t>::max() - 1,
+    };
+    std::ptrdiff_t offset = 123;
+
+    const auto status = mffv1::codec::checked_plane_window_offset(
+        info,
+        1,
+        1,
+        1,
+        1,
+        offset,
+        "row offset",
+        "sample offset",
+        "rows",
+        "extent");
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "sample offset");
+    EXPECT_EQ(offset, 123);
+}
+
 TEST(PlaneWindowMathTest, RejectsUnrepresentableWindowRows)
 {
     const mffv1::PlaneInfo info{
@@ -35,7 +93,7 @@ TEST(PlaneWindowMathTest, RejectsUnrepresentableWindowRows)
         3,
         std::numeric_limits<std::ptrdiff_t>::max() / 2 + 1,
     };
-    std::ptrdiff_t offset = 0;
+    std::ptrdiff_t offset = 123;
 
     const auto status = mffv1::codec::checked_plane_window_offset(
         info,
@@ -52,6 +110,7 @@ TEST(PlaneWindowMathTest, RejectsUnrepresentableWindowRows)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
     EXPECT_EQ(status.message, "rows");
+    EXPECT_EQ(offset, 123);
 }
 
 TEST(PlaneWindowMathTest, ComputesWindowOffset)
@@ -63,7 +122,7 @@ TEST(PlaneWindowMathTest, ComputesWindowOffset)
         4,
         16,
     };
-    std::ptrdiff_t offset = 0;
+    std::ptrdiff_t offset = 123;
 
     const auto status = mffv1::codec::checked_plane_window_offset(
         info,
@@ -90,7 +149,7 @@ TEST(PlaneWindowMathTest, RejectsUnrepresentableLastSampleExtent)
         2,
         std::numeric_limits<std::ptrdiff_t>::max(),
     };
-    std::ptrdiff_t offset = 0;
+    std::ptrdiff_t offset = 123;
 
     const auto status = mffv1::codec::checked_plane_window_offset(
         info,
@@ -107,6 +166,7 @@ TEST(PlaneWindowMathTest, RejectsUnrepresentableLastSampleExtent)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
     EXPECT_EQ(status.message, "extent");
+    EXPECT_EQ(offset, 123);
 }
 
 } // namespace

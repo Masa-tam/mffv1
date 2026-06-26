@@ -369,10 +369,12 @@ Dispatch is selected once when the encoder instance is created from
 `std::unique_ptr<IEncoder>` factory result. SIMD kernels MUST produce identical
 bytes to scalar encoding, not merely equivalent decoded pixels.
 
-The initial dispatch foundation resolves compiled, detected, and caller-allowed
-features into an immutable `CodecKernels` table shared by slice workers. Until
-a SIMD kernel is installed, `active_features` remains zero and every function
-pointer targets the scalar reference implementation.
+The dispatch foundation resolves compiled, detected, and caller-allowed
+features into an immutable `CodecKernels` table shared by slice workers. The
+first active SIMD path is an SSE2 RGB forward color-transform row kernel. It
+uses 32-bit lanes for exact signed differences and coded wrapping, then falls
+back to the scalar reference for the row tail. Range and Golomb-Rice encoding
+must remain byte-identical to forced scalar dispatch.
 
 ## Diagnostics And Resource Limits
 

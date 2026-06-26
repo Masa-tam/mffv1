@@ -9,8 +9,9 @@ below.
 
 A stable general release still requires external interoperability testing,
 licensed conformance vectors, fuzzing, sanitizer coverage, and packaging.
-Runtime CPU dispatch is implemented, but no SIMD kernel is active yet; current
-encoded output is produced by the scalar reference implementation.
+Runtime CPU dispatch is implemented. The RGB forward color transform uses an
+SSE2 row kernel on supported x86/x64 systems and otherwise uses the scalar
+reference implementation.
 
 This document describes implemented public behavior. Internal design and
 future work are documented separately in the
@@ -106,8 +107,10 @@ The current build recognizes `Sse2`, `Ssse3`, `Avx2`, and `Neon`.
   caller is responsible for supplying a truthful mask for the executing CPU.
 - With `auto_detect == false` and `allowed == 0`, scalar operation is forced.
 
-The dispatch table currently selects scalar kernels even when SIMD features are
-available. Therefore CPU settings do not yet change performance or output.
+The current dispatch table activates SSE2 for the RGB forward color-transform
+row kernel when permitted. SSSE3, AVX2, and NEON are detected but do not yet
+select specialized kernels. All dispatch choices produce byte-identical FFV1
+output.
 
 ## Configuring A Stream
 
@@ -358,6 +361,7 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 - Independent version 3 slices and deterministic parallel encoding.
 - Complete Configuration Records with CRC parity.
 - Runtime CPU feature resolution and immutable kernel dispatch.
+- SSE2 RGB forward color-transform rows with scalar tails.
 
 ## Current Limitations
 
@@ -368,7 +372,9 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 - Sample depths below 8 or above 16 are unsupported.
 - Colorspaces other than planar YCbCr and planar RGB are unsupported.
 - Input format conversion, packed pixels, and negative strides are unsupported.
-- SIMD dispatch exists, but active SIMD kernels have not yet been installed.
+- SIMD coverage is currently limited to the SSE2 RGB forward color transform;
+  YCbCr paths, prediction, entropy coding, and other architectures remain
+  scalar.
 - The library does not mux containers or generate container metadata.
 - Output buffer reuse or caller-provided compressed output storage is not
   currently exposed.

@@ -430,7 +430,11 @@ Status SliceEncoder::encode_samples(
         const auto height = input.plane_height(0);
         const auto coded_bits =
             static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
+        std::array<std::vector<std::uint16_t>, 3> source_rows;
         std::array<std::vector<std::int32_t>, 3> transformed;
+        for (auto& row : source_rows) {
+            row.resize(width);
+        }
         for (auto& component : transformed) {
             component.resize(width);
         }
@@ -452,16 +456,20 @@ Status SliceEncoder::encode_samples(
                 if (!status.ok()) {
                     return status;
                 }
-                const auto code = kernels_.forward_color_transform(
-                    static_cast<std::uint16_t>(r),
-                    static_cast<std::uint16_t>(g),
-                    static_cast<std::uint16_t>(b),
-                    stream_.bits_per_raw_sample,
-                    stream_.extra_plane);
-                transformed[0][x] = code.y;
-                transformed[1][x] = code.cb;
-                transformed[2][x] = code.cr;
+                source_rows[0][x] = static_cast<std::uint16_t>(r);
+                source_rows[1][x] = static_cast<std::uint16_t>(g);
+                source_rows[2][x] = static_cast<std::uint16_t>(b);
             }
+            kernels_.forward_color_transform_row(
+                source_rows[0].data(),
+                source_rows[1].data(),
+                source_rows[2].data(),
+                transformed[0].data(),
+                transformed[1].data(),
+                transformed[2].data(),
+                width,
+                stream_.bits_per_raw_sample,
+                stream_.extra_plane);
 
             for (std::size_t plane_index = 0;
                  plane_index < plane_count;
@@ -680,7 +688,11 @@ Status SliceEncoder::encode_golomb_rice_samples(
         const auto width = input.plane_width(0);
         const auto coded_bits =
             static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
+        std::array<std::vector<std::uint16_t>, 3> source_rows;
         std::array<std::vector<std::int32_t>, 4> rows;
+        for (auto& row : source_rows) {
+            row.resize(width);
+        }
         for (auto& row : rows) {
             row.resize(width);
         }
@@ -702,15 +714,9 @@ Status SliceEncoder::encode_golomb_rice_samples(
                 if (!status.ok()) {
                     return status;
                 }
-                const auto code = kernels_.forward_color_transform(
-                    static_cast<std::uint16_t>(r),
-                    static_cast<std::uint16_t>(g),
-                    static_cast<std::uint16_t>(b),
-                    stream_.bits_per_raw_sample,
-                    stream_.extra_plane);
-                rows[0][x] = code.y;
-                rows[1][x] = code.cb;
-                rows[2][x] = code.cr;
+                source_rows[0][x] = static_cast<std::uint16_t>(r);
+                source_rows[1][x] = static_cast<std::uint16_t>(g);
+                source_rows[2][x] = static_cast<std::uint16_t>(b);
                 if (stream_.extra_plane) {
                     std::uint32_t alpha = 0;
                     status = load_input_sample(3, x, y, alpha);
@@ -720,6 +726,16 @@ Status SliceEncoder::encode_golomb_rice_samples(
                     rows[3][x] = static_cast<std::int32_t>(alpha);
                 }
             }
+            kernels_.forward_color_transform_row(
+                source_rows[0].data(),
+                source_rows[1].data(),
+                source_rows[2].data(),
+                rows[0].data(),
+                rows[1].data(),
+                rows[2].data(),
+                width,
+                stream_.bits_per_raw_sample,
+                stream_.extra_plane);
 
             for (std::size_t plane_index = 0;
                  plane_index < plane_count;

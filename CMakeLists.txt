@@ -40,6 +40,7 @@ add_library(mffv1
     src/mffv1/configuration_parser.cpp
     src/mffv1/predictor.cpp
     src/simd/codec_kernels.cpp
+    src/simd/color_transform_sse2.cpp
     src/simd/cpu_features.cpp
     src/util/crc32.cpp
     src/util/rfc_math.cpp

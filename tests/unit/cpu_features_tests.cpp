@@ -60,16 +60,17 @@ TEST(CpuFeaturesTest, ExplicitMaskIsLimitedToCompiledBackends)
         mffv1::simd::compiled_cpu_features());
 }
 
-TEST(CpuFeaturesTest, ScalarKernelTableActivatesNoSimdFeatures)
+TEST(CpuFeaturesTest, KernelTableActivatesAvailableSse2)
 {
     const mffv1::CpuFeatures requested;
     const auto kernels = mffv1::simd::make_codec_kernels(requested);
+    const auto sse2 = feature_bit(mffv1::CpuFeature::Sse2);
 
     EXPECT_EQ(
         kernels.available_features,
         mffv1::simd::detected_cpu_features());
-    EXPECT_EQ(kernels.active_features, 0u);
-    EXPECT_NE(kernels.forward_color_transform, nullptr);
+    EXPECT_EQ(kernels.active_features, kernels.available_features & sse2);
+    EXPECT_NE(kernels.forward_color_transform_row, nullptr);
 }
 
 } // namespace

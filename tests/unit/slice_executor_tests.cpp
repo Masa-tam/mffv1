@@ -128,6 +128,7 @@ TEST(SliceExecutorTest, RejectsNonKeyframeWithoutReferenceState)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "non-keyframe requires reference slice states");
     EXPECT_FALSE(executor.has_reference_state());
     EXPECT_EQ(storage[0], 0xee);
 }
@@ -212,6 +213,8 @@ TEST(SliceExecutorTest, RejectsChangedNonKeyframeSliceLayout)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "non-keyframe slice layout differs from the reference frame");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 4u);
     EXPECT_EQ(storage[0], 0xee);
@@ -271,6 +274,7 @@ TEST(SliceExecutorTest, AddsSliceIndexToDecodeFailure)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "range coder payload must contain at least two bytes");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 7u);
 }
@@ -300,6 +304,7 @@ TEST(SliceExecutorTest, ParallelDecodeReportsFirstFailingSliceInInputOrder)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "range coder payload must contain at least two bytes");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 3u);
 }
@@ -359,6 +364,7 @@ TEST(SliceExecutorTest, ValidatesAllSlicesBeforeWritingOutput)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice quantization table set index is out of range");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 1u);
     EXPECT_EQ(storage[0], 0xee);

@@ -158,6 +158,7 @@ TEST(SliceEncodeExecutorTest, ParallelFailureReportsFirstSliceInInputOrder)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input sample exceeds configured bit depth");
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
@@ -177,6 +178,8 @@ TEST(SliceEncodeExecutorTest, RejectsNonKeyframeWithoutReferenceState)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message,
+              "non-keyframe encode requires reference slice states");
     EXPECT_FALSE(executor.has_reference_state());
     EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
 }
@@ -194,6 +197,7 @@ TEST(SliceEncodeExecutorTest, RejectsNonKeyframeForIntraOnlyStream)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "non-keyframe encode requires a non-intra stream");
     EXPECT_FALSE(executor.has_reference_state());
     EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
 }
@@ -242,6 +246,7 @@ TEST(SliceEncodeExecutorTest, FailedStatefulFramePreservesReferenceState)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input sample exceeds configured bit depth");
     EXPECT_TRUE(executor.has_reference_state());
     EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
 

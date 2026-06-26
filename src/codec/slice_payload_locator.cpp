@@ -25,11 +25,12 @@ Status SlicePayloadLocator::locate_trailing_slice(ByteSpan frame_payload,
                                0);
     }
 
+    syntax::SliceDescriptor next = descriptor;
     const auto footer_offset = frame_payload.size() - footer_size;
-    descriptor.footer_byte_offset = footer_offset;
+    next.footer_byte_offset = footer_offset;
 
     bitstream::BitReader footer_reader(frame_payload.subspan(footer_offset, footer_size));
-    Status status = footer_parser.read(footer_reader, stream, descriptor);
+    Status status = footer_parser.read(footer_reader, stream, next);
     if (!status.ok()) {
         if (status.location.has_byte_offset) {
             status.location.byte_offset += footer_offset;
@@ -39,26 +40,27 @@ Status SlicePayloadLocator::locate_trailing_slice(ByteSpan frame_payload,
         return status;
     }
 
-    if (descriptor.slice_size < footer_size) {
+    if (next.slice_size < footer_size) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice footer size is smaller than the footer",
                                footer_offset);
     }
-    if (descriptor.slice_size > frame_payload.size()) {
+    if (next.slice_size > frame_payload.size()) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice footer size is larger than the frame payload",
                                footer_offset);
     }
 
-    descriptor.payload_byte_offset = frame_payload.size() - descriptor.slice_size;
-    descriptor.payload = frame_payload.subspan(static_cast<std::size_t>(descriptor.payload_byte_offset),
-                                               descriptor.slice_size);
-    descriptor.footer_byte_offset = descriptor.payload_byte_offset + descriptor.slice_size - footer_size;
-    if (verify_crc && descriptor.has_crc && util::crc32_ieee_msb(descriptor.payload) != 0) {
+    next.payload_byte_offset = frame_payload.size() - next.slice_size;
+    next.payload = frame_payload.subspan(static_cast<std::size_t>(next.payload_byte_offset),
+                                         next.slice_size);
+    next.footer_byte_offset = next.payload_byte_offset + next.slice_size - footer_size;
+    if (verify_crc && next.has_crc && util::crc32_ieee_msb(next.payload) != 0) {
         return make_byte_error(ErrorCode::CrcMismatch,
                                "slice CRC remainder is non-zero",
-                               descriptor.footer_byte_offset + 4);
+                               next.footer_byte_offset + 4);
     }
+    descriptor = next;
     return ok_status();
 }
 

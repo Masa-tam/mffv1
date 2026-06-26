@@ -146,6 +146,48 @@ TEST(SlicePayloadLocatorTest, RejectsEcTrailingSliceCrcMismatch)
     EXPECT_EQ(status.location.byte_offset, 7u);
 }
 
+TEST(SlicePayloadLocatorTest, FailedTrailingSlicePreservesDescriptor)
+{
+    const std::array payload{
+        std::byte{0x99},
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+        std::byte{0x00},
+        std::byte{0x1f},
+        std::byte{0xfe},
+        std::byte{0xb9},
+        std::byte{0xe8},
+    };
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    mffv1::syntax::SliceDescriptor descriptor;
+    descriptor.index = 17;
+    descriptor.payload_byte_offset = 123;
+    descriptor.footer_byte_offset = 456;
+    descriptor.slice_size = 789;
+    descriptor.error_status = 2;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    const auto original = descriptor;
+
+    const mffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_trailing_slice(payload, stream, descriptor, true);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
+    EXPECT_EQ(descriptor.index, original.index);
+    EXPECT_EQ(descriptor.payload_byte_offset, original.payload_byte_offset);
+    EXPECT_EQ(descriptor.footer_byte_offset, original.footer_byte_offset);
+    EXPECT_EQ(descriptor.slice_size, original.slice_size);
+    EXPECT_EQ(descriptor.error_status, original.error_status);
+    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
+    EXPECT_EQ(descriptor.has_crc, original.has_crc);
+}
+
 TEST(SlicePayloadLocatorTest, RejectsFrameTooSmallForFooter)
 {
     const std::array payload{

@@ -7,11 +7,6 @@
 
 namespace mffv1 {
 
-enum class ColorSpace : std::uint8_t {
-    YCbCr = 0,
-    Rgb = 1,
-};
-
 struct StreamInfo {
     std::uint32_t width = 0;
     std::uint32_t height = 0;

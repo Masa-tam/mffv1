@@ -398,6 +398,13 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
     EXPECT_EQ(info.version, stream.version);
     EXPECT_EQ(info.bits_per_raw_sample, stream.bits_per_raw_sample);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.color_space, stream.color_space);
+    EXPECT_EQ(info.has_chroma_planes, stream.has_chroma_planes);
+    EXPECT_EQ(info.has_extra_plane, stream.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample,
+              stream.log2_h_chroma_subsample);
+    EXPECT_EQ(info.log2_v_chroma_subsample,
+              stream.log2_v_chroma_subsample);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 1u);
 
@@ -445,6 +452,13 @@ void expect_public_multi_slice_y_round_trip(mffv1::EntropyMode entropy_mode)
 
     mffv1::FrameInfo info;
     ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.color_space, stream.color_space);
+    EXPECT_EQ(info.has_chroma_planes, stream.has_chroma_planes);
+    EXPECT_EQ(info.has_extra_plane, stream.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample,
+              stream.log2_h_chroma_subsample);
+    EXPECT_EQ(info.log2_v_chroma_subsample,
+              stream.log2_v_chroma_subsample);
     EXPECT_EQ(info.slice_count, 4u);
 
     std::array<std::uint8_t, 128> decoded{};
@@ -787,6 +801,17 @@ void expect_public_subsampled_round_trip(
     ASSERT_NE(decoder.decoder, nullptr);
     ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
 
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.color_space, stream.color_space);
+    EXPECT_EQ(info.has_chroma_planes, stream.has_chroma_planes);
+    EXPECT_EQ(info.has_extra_plane, stream.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample,
+              stream.log2_h_chroma_subsample);
+    EXPECT_EQ(info.log2_v_chroma_subsample,
+              stream.log2_v_chroma_subsample);
+    EXPECT_EQ(info.plane_count, has_extra_plane ? 4u : 3u);
+
     std::vector<std::uint8_t> decoded_y(y.size());
     std::vector<std::uint8_t> decoded_cb(cb.size());
     std::vector<std::uint8_t> decoded_cr(cr.size());
@@ -1055,6 +1080,17 @@ void expect_public_rgb_round_trip(std::uint8_t bits_per_raw_sample,
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
     ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.color_space, stream.color_space);
+    EXPECT_EQ(info.has_chroma_planes, stream.has_chroma_planes);
+    EXPECT_EQ(info.has_extra_plane, stream.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample,
+              stream.log2_h_chroma_subsample);
+    EXPECT_EQ(info.log2_v_chroma_subsample,
+              stream.log2_v_chroma_subsample);
+    EXPECT_EQ(info.plane_count, has_extra_plane ? 4u : 3u);
 
     std::array<std::uint16_t, 15> decoded_r{};
     std::array<std::uint16_t, 15> decoded_g{};

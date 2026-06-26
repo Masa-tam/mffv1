@@ -504,6 +504,11 @@ TEST(DecoderTest, InspectFrameUsesExternalDimensions)
     EXPECT_EQ(info.version, 0u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.color_space, mffv1::ColorSpace::YCbCr);
+    EXPECT_FALSE(info.has_chroma_planes);
+    EXPECT_FALSE(info.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample, 0u);
+    EXPECT_EQ(info.log2_v_chroma_subsample, 0u);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 1u);
 }
@@ -533,6 +538,11 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
     EXPECT_EQ(info.height, 1u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.color_space, mffv1::ColorSpace::YCbCr);
+    EXPECT_FALSE(info.has_chroma_planes);
+    EXPECT_FALSE(info.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample, 0u);
+    EXPECT_EQ(info.log2_v_chroma_subsample, 0u);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 1u);
 
@@ -608,6 +618,11 @@ TEST(DecoderTest, DecodeFrameWritesRgbFrameThroughPublicApi)
     EXPECT_EQ(info.version, 0u);
     EXPECT_EQ(info.bits_per_raw_sample, 8u);
     EXPECT_EQ(info.plane_count, 3u);
+    EXPECT_EQ(info.color_space, mffv1::ColorSpace::Rgb);
+    EXPECT_TRUE(info.has_chroma_planes);
+    EXPECT_FALSE(info.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample, 0u);
+    EXPECT_EQ(info.log2_v_chroma_subsample, 0u);
 
     std::array<std::uint8_t, 1> r{0xee};
     std::array<std::uint8_t, 1> g{0xee};

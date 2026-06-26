@@ -166,12 +166,17 @@ On success, `FrameInfo` contains:
 | `version` | Parsed FFV1 version. |
 | `bits_per_raw_sample` | Coded sample depth. |
 | `plane_count` | Number of output planes required by the stream. |
+| `color_space` | `ColorSpace::YCbCr` or `ColorSpace::Rgb`. |
+| `has_chroma_planes` | True when the stream carries Cb/Cr planes for YCbCr or G/B planes for RGB. |
+| `has_extra_plane` | True when the stream carries an additional alpha-like plane. |
+| `log2_h_chroma_subsample` | Horizontal YCbCr chroma subsampling exponent. |
+| `log2_v_chroma_subsample` | Vertical YCbCr chroma subsampling exponent. |
 | `keyframe` | True when the frame declares itself as a keyframe. |
 | `slice_count` | Number of slices parsed from the frame payload. |
 
-The current `FrameInfo` does not expose color space, plane roles, subsampling,
-or error-status metadata. The caller must currently know the required output
-layout from its container integration or other out-of-band stream metadata.
+The current `FrameInfo` does not expose per-plane dimensions, per-plane roles,
+or error-status metadata. Plane dimensions and roles can be derived from the
+fields above using the rules in Output Planes.
 
 ## Decoding A Frame
 
@@ -363,8 +368,8 @@ The current decoder implements:
 - SIMD coverage is currently limited to the RGB inverse color transform on
   SSE2 and AVX2 targets.
 - `strict = false` does not currently enable relaxed parsing.
-- `FrameInfo` does not yet provide enough color and subsampling metadata to
-  allocate an unknown stream layout without out-of-band information.
+- `FrameInfo` exposes stream-level layout metadata, but not a ready-made
+  per-plane allocation table.
 - The library does not demultiplex containers or parse codec container
   metadata beyond the FFV1 payloads passed by the caller.
 - The public API does not allocate output frames.

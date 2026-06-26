@@ -24,6 +24,11 @@ enum class SampleFormat : std::uint8_t {
     UInt16,
 };
 
+enum class ColorSpace : std::uint8_t {
+    YCbCr = 0,
+    Rgb = 1,
+};
+
 struct PlaneInfo {
     PlaneRole role = PlaneRole::Y;
     SampleFormat sample_format = SampleFormat::UInt8;
@@ -58,6 +63,11 @@ struct FrameInfo {
     std::uint8_t version = 0;
     std::uint8_t bits_per_raw_sample = 0;
     std::uint8_t plane_count = 0;
+    ColorSpace color_space = ColorSpace::YCbCr;
+    bool has_chroma_planes = false;
+    bool has_extra_plane = false;
+    std::uint8_t log2_h_chroma_subsample = 0;
+    std::uint8_t log2_v_chroma_subsample = 0;
     bool keyframe = false;
     std::uint32_t slice_count = 0;
 };

@@ -299,6 +299,14 @@ Status FrameParser::initialize_frame(ByteSpan payload, FrameDecodeContext& out_f
     out_frame.frame_info.version = static_cast<std::uint8_t>(stream_.version);
     out_frame.frame_info.bits_per_raw_sample = stream_.bits_per_raw_sample;
     out_frame.frame_info.plane_count = syntax::coded_plane_count(stream_);
+    out_frame.frame_info.color_space =
+        stream_.colorspace_type == 1 ? ColorSpace::Rgb : ColorSpace::YCbCr;
+    out_frame.frame_info.has_chroma_planes = stream_.chroma_planes;
+    out_frame.frame_info.has_extra_plane = stream_.extra_plane;
+    out_frame.frame_info.log2_h_chroma_subsample =
+        stream_.log2_h_chroma_subsample;
+    out_frame.frame_info.log2_v_chroma_subsample =
+        stream_.log2_v_chroma_subsample;
     out_frame.frame_info.keyframe = false;
     out_frame.frame_info.slice_count = 0;
 

@@ -136,11 +136,14 @@ TEST(GolombRiceWriterTest, RejectsInvalidInputsWithoutWriting)
     auto status = writer.write_signed(32, 8, 0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "Golomb-Rice parameter k must be less than 32");
     EXPECT_EQ(bits.bit_position(), 0u);
 
     status = writer.write_signed(0, 0, 0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "Golomb-Rice raw sample width must be in the range 1..31");
     EXPECT_EQ(bits.bit_position(), 0u);
 
     mffv1::entropy::GolombRiceContextState state;
@@ -148,6 +151,8 @@ TEST(GolombRiceWriterTest, RejectsInvalidInputsWithoutWriting)
         writer, state, 8, 0);
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message,
+              "Golomb-Rice run interruption difference must be nonzero");
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 
@@ -164,6 +169,7 @@ TEST(GolombRiceWriterTest, InvalidContextLeavesStateUnchanged)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "Golomb-Rice context state is invalid");
     EXPECT_EQ(bits.bit_position(), 0u);
     EXPECT_EQ(state.drift, original.drift);
     EXPECT_EQ(state.error_sum, original.error_sum);

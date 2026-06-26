@@ -416,6 +416,21 @@ TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
 }
 
+TEST(ConfigurationParserTest, RejectsUnrepresentableColorspace)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[3] = u_max();
+    ScriptedSymbolReader reader(std::move(symbols));
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "colorspace_type is too large");
+}
+
 TEST(ConfigurationParserTest, ParsesRgbParameters)
 {
     auto symbols = minimal_v3_y_only_symbols();

@@ -371,6 +371,7 @@ TEST(ConfigurationParserTest, RejectsReservedCoderType)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "unsupported range coder type");
 }
 
 TEST(ConfigurationParserTest, RejectsTruncatedCustomStateTransitions)
@@ -497,6 +498,7 @@ TEST(ConfigurationParserTest, RejectsUnsupportedColorspace)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "unsupported colorspace_type");
 }
 
 TEST(ConfigurationParserTest, RejectsUnrepresentableColorspace)

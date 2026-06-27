@@ -507,13 +507,14 @@ TEST(ConfigurationRecordWriterTest, RejectsCustomInitialStates)
     stream.initial_states.resize(1);
     stream.initial_states[0].contexts.resize(1);
     const mffv1::codec::ConfigurationRecordWriter writer;
-    std::vector<std::byte> record;
+    std::vector<std::byte> record{std::byte{0xaa}};
 
     const auto status = writer.write(stream, record);
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(status.message, "configuration writer supports only streams without custom states or EC");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
 } // namespace

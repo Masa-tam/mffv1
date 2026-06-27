@@ -222,6 +222,44 @@ TEST(SliceExecutorTest, RejectsChangedNonKeyframeSliceLayout)
     EXPECT_TRUE(executor.has_reference_state());
 }
 
+TEST(SliceExecutorTest, RejectsChangedNonKeyframeSliceCountBeforeWritingOutput)
+{
+    const auto stream = make_stream(2, 1);
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    mffv1::syntax::SliceDescriptor first;
+    first.index = 0;
+    first.width = 1;
+    first.height = 1;
+    first.raster_width = 1;
+    first.raster_height = 1;
+    first.payload = payload;
+    first.quant_table_set_indexes.push_back(0);
+    std::array keyframe_slices{first};
+    mffv1::codec::SliceExecutor executor(stream);
+    ASSERT_TRUE(executor.decode(output, keyframe_slices, true).ok());
+    ASSERT_TRUE(executor.has_reference_state());
+
+    auto second = first;
+    second.index = 1;
+    second.x = 1;
+    second.raster_x = 1;
+    const std::array non_keyframe_slices{first, second};
+    storage.fill(0xee);
+    const auto status = executor.decode(output, non_keyframe_slices, false);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "non-keyframe slice count differs from the reference frame");
+    EXPECT_FALSE(status.location.has_slice_index);
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0xee);
+    EXPECT_TRUE(executor.has_reference_state());
+}
+
 TEST(SliceExecutorTest, MatchesNonKeyframeStatesBySliceLayout)
 {
     auto stream = make_stream(2, 1);

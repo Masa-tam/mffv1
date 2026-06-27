@@ -129,6 +129,13 @@ TEST(ConfigurationRecordParserTest, FailedParsePreservesOutputStream)
     stream.entropy_mode = mffv1::EntropyMode::GolombRice;
     stream.bits_per_raw_sample = 16;
     stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    stream.extra_plane = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+    stream.num_h_slices = 4;
+    stream.num_v_slices = 3;
+    stream.intra_only = false;
 
     const auto status = parser.parse(record, stream);
 
@@ -138,4 +145,11 @@ TEST(ConfigurationRecordParserTest, FailedParsePreservesOutputStream)
     EXPECT_EQ(stream.entropy_mode, mffv1::EntropyMode::GolombRice);
     EXPECT_EQ(stream.bits_per_raw_sample, 16u);
     EXPECT_EQ(stream.colorspace_type, 1u);
+    EXPECT_TRUE(stream.chroma_planes);
+    EXPECT_TRUE(stream.extra_plane);
+    EXPECT_EQ(stream.log2_h_chroma_subsample, 1u);
+    EXPECT_EQ(stream.log2_v_chroma_subsample, 1u);
+    EXPECT_EQ(stream.num_h_slices, 4u);
+    EXPECT_EQ(stream.num_v_slices, 3u);
+    EXPECT_FALSE(stream.intra_only);
 }

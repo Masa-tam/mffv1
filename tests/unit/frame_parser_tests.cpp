@@ -824,6 +824,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
 }
 
 TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
@@ -850,6 +851,8 @@ TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
     EXPECT_FALSE(status.ok());
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 1u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 9u);
     EXPECT_TRUE(frame.slices.empty());
 }
 

@@ -221,6 +221,33 @@ TEST(SliceEncodeExecutorTest, RejectsInvalidStreamShapeWithoutChangingOutput)
     EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(SliceEncodeExecutorTest, RejectsChangedReferenceSliceCountWithoutChangingOutput)
+{
+    auto stream = make_stream();
+    stream.intra_only = false;
+    const std::array<std::uint8_t, 8> storage{
+        0, 17, 93, 255,
+        71, 19, 201, 3,
+    };
+    const auto plane = make_input_plane(storage);
+    const mffv1::FrameView input{&plane, 1};
+    mffv1::codec::SliceEncodeExecutor executor(stream, 2);
+    std::vector<std::byte> frame;
+    ASSERT_TRUE(executor.encode(input, true, frame).ok());
+    ASSERT_TRUE(executor.has_reference_state());
+
+    stream.num_h_slices = 1;
+    frame.assign({std::byte{0xaa}});
+    const auto status = executor.encode(input, false, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message,
+              "encoder reference slice state does not match the stream");
+    EXPECT_TRUE(executor.has_reference_state());
+    EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(SliceEncodeExecutorTest, StatefulRangeEncodingRoundTripsNonKeyframe)
 {
     expect_stateful_round_trip(mffv1::EntropyMode::Range);

@@ -910,6 +910,7 @@ TEST(EncoderTest, RejectsInputSampleAboveConfiguredBitDepth)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input sample exceeds configured bit depth");
     EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

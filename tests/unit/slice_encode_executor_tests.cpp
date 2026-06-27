@@ -202,6 +202,25 @@ TEST(SliceEncodeExecutorTest, RejectsNonKeyframeForIntraOnlyStream)
     EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(SliceEncodeExecutorTest, RejectsInvalidStreamShapeWithoutChangingOutput)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 0;
+    const std::array<std::uint8_t, 8> storage{};
+    const auto plane = make_input_plane(storage);
+    const mffv1::FrameView input{&plane, 1};
+    std::vector<std::byte> frame{std::byte{0xaa}};
+    mffv1::codec::SliceEncodeExecutor executor(stream, 2);
+
+    const auto status = executor.encode(input, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "slice grid dimensions must be non-zero");
+    EXPECT_FALSE(executor.has_reference_state());
+    EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(SliceEncodeExecutorTest, StatefulRangeEncodingRoundTripsNonKeyframe)
 {
     expect_stateful_round_trip(mffv1::EntropyMode::Range);

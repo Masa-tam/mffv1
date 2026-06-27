@@ -597,6 +597,53 @@ TEST(DecoderTest, DecodeFrameRejectsTooShortSliceRangePayload)
     EXPECT_EQ(storage[0], 0xee);
 }
 
+TEST(DecoderTest, DecodeFramePreservesSliceLocationFromRangeHeaderFailure)
+{
+    mffv1::StreamInfo stream;
+    stream.width = 16;
+    stream.height = 8;
+    stream.has_chroma_planes = false;
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 1;
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(result.decoder->configure(record.bytes).ok());
+
+    std::array<std::uint8_t, 128> storage{};
+    storage.fill(0xee);
+    auto plane = make_y_plane(storage.data(), stream.width, stream.height, 16);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array malformed_frame_payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x03},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x03},
+    };
+
+    const auto status = result.decoder->decode_frame(malformed_frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0xee);
+    }
+}
+
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 {
     mffv1::DecoderOptions options;

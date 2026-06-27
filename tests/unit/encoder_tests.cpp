@@ -1806,7 +1806,11 @@ TEST(EncoderTest, FailedEncodeDoesNotAdvanceKeyframeCadence)
 
     second_plane.info.stride_bytes = 15;
     frame.bytes.assign({std::byte{0xaa}});
-    ASSERT_FALSE(result.encoder->encode_frame(second_input, frame).ok());
+    const auto failed_status = result.encoder->encode_frame(second_input, frame);
+    ASSERT_FALSE(failed_status.ok());
+    EXPECT_EQ(failed_status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(failed_status.message, "plane stride is smaller than the stream requires");
+    EXPECT_FALSE(failed_status.location.has_slice_index);
     EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 
     second_plane.info.stride_bytes = 16;

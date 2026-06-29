@@ -167,6 +167,78 @@ TEST(SliceInputWindowTest, RejectsNullPlaneData)
     EXPECT_EQ(window.plane_count(), 0u);
 }
 
+TEST(SliceInputWindowTest, RejectsInputPlaneDimensionMismatch)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 14> y{};
+    std::array<std::uint8_t, 6> cb{};
+    std::array<std::uint8_t, 6> cr{};
+    const std::array<mffv1::PlaneView, 3> planes{{
+        {
+            y.data(),
+            {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 4, 3, 5},
+        },
+        {
+            cb.data(),
+            {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 3, 2, 3},
+        },
+        {
+            cr.data(),
+            {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 3, 2, 3},
+        },
+    }};
+    const mffv1::FrameView frame{planes.data(), planes.size()};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 5;
+    slice.height = 3;
+    slice.raster_width = 2;
+    slice.raster_height = 2;
+    mffv1::codec::SliceInputWindow window;
+
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input plane geometry does not match the stream");
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
+TEST(SliceInputWindowTest, RejectsNegativeInputStride)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 15> y{};
+    std::array<std::uint8_t, 6> cb{};
+    std::array<std::uint8_t, 6> cr{};
+    const std::array<mffv1::PlaneView, 3> planes{{
+        {
+            y.data(),
+            {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 3, -5},
+        },
+        {
+            cb.data(),
+            {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 3, 2, 3},
+        },
+        {
+            cr.data(),
+            {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 3, 2, 3},
+        },
+    }};
+    const mffv1::FrameView frame{planes.data(), planes.size()};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 5;
+    slice.height = 3;
+    slice.raster_width = 2;
+    slice.raster_height = 2;
+    mffv1::codec::SliceInputWindow window;
+
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input plane geometry does not match the stream");
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
 TEST(SliceInputWindowTest, RejectsShortStride)
 {
     mffv1::syntax::StreamParameters stream;

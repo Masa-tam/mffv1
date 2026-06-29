@@ -517,11 +517,24 @@ TEST(EncoderTest, EncodeFrameRejectsWrongInputSampleFormat)
         "plane sample format does not match stream bit depth");
 }
 
-TEST(EncoderTest, EncodeFrameRejectsInputPlaneDimensionMismatch)
+TEST(EncoderTest, EncodeFrameRejectsSmallInputPlaneDimensions)
 {
     std::array<std::uint8_t, 128> storage{};
     auto plane = make_input_plane(storage);
     plane.info.width = 15;
+    const mffv1::FrameView input{&plane, 1};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "input plane dimensions do not match the stream");
+}
+
+TEST(EncoderTest, EncodeFrameRejectsLargeInputPlaneDimensions)
+{
+    std::array<std::uint8_t, 128> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.height = 9;
     const mffv1::FrameView input{&plane, 1};
 
     expect_encode_input_rejection(

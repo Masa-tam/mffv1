@@ -824,6 +824,29 @@ TEST(FrameValidatorTest, AcceptsChromaPlaneRoles)
     EXPECT_TRUE(validator.validate_output(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, AcceptsChromaInputPlaneRoles)
+{
+    auto stream = make_y_stream();
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 12> y{};
+    std::array<std::uint8_t, 4> cb{};
+    std::array<std::uint8_t, 4> cr{};
+    std::array<mffv1::PlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 4, 3, 4};
+    planes[1].data = cb.data();
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 2, 2, 2};
+    planes[2].data = cr.data();
+    planes[2].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 2, 2, 2};
+    mffv1::FrameView frame{planes.data(), planes.size()};
+
+    const mffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_input(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, RejectsSwappedChromaPlaneRoles)
 {
     auto stream = make_y_stream();

@@ -84,6 +84,38 @@ TEST(FrameValidatorTest, AcceptsPaddedInputStride)
     EXPECT_TRUE(validator.validate_input(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, RejectsZeroStreamDimensions)
+{
+    auto stream = make_y_stream();
+    stream.width = 0;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "stream dimensions must be non-zero");
+}
+
+TEST(FrameValidatorTest, RejectsZeroSliceGrid)
+{
+    auto stream = make_y_stream();
+    stream.num_h_slices = 0;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "slice grid dimensions must be non-zero");
+}
+
 TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
 {
     const auto stream = make_y_stream();

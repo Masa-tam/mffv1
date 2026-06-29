@@ -315,6 +315,53 @@ TEST(SlicePayloadLocatorTest, LocatesMultipleSlicesInPayloadOrder)
     EXPECT_EQ(descriptors[1].payload[0], std::byte{0xb0});
 }
 
+TEST(SlicePayloadLocatorTest, LocatesMultipleEcSlicesInPayloadOrder)
+{
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x08},
+        std::byte{0x01},
+        std::byte{0x11},
+        std::byte{0x22},
+        std::byte{0x33},
+        std::byte{0x44},
+        std::byte{0xba},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x09},
+        std::byte{0x02},
+        std::byte{0x55},
+        std::byte{0x66},
+        std::byte{0x77},
+        std::byte{0x88},
+    };
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors;
+
+    const mffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(payload, stream, 2, descriptors);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(descriptors.size(), 2u);
+    EXPECT_EQ(descriptors[0].index, 0u);
+    EXPECT_EQ(descriptors[0].slice_size, 8u);
+    EXPECT_EQ(descriptors[0].payload_byte_offset, 0u);
+    EXPECT_EQ(descriptors[0].footer_byte_offset, 0u);
+    EXPECT_EQ(descriptors[0].error_status, 1u);
+    EXPECT_TRUE(descriptors[0].has_crc);
+    EXPECT_EQ(descriptors[0].expected_crc, 0x11223344u);
+    EXPECT_EQ(descriptors[1].index, 1u);
+    EXPECT_EQ(descriptors[1].slice_size, 9u);
+    EXPECT_EQ(descriptors[1].payload_byte_offset, 8u);
+    EXPECT_EQ(descriptors[1].footer_byte_offset, 9u);
+    EXPECT_EQ(descriptors[1].payload[0], std::byte{0xba});
+    EXPECT_EQ(descriptors[1].error_status, 2u);
+    EXPECT_TRUE(descriptors[1].has_crc);
+    EXPECT_EQ(descriptors[1].expected_crc, 0x55667788u);
+}
+
 TEST(SlicePayloadLocatorTest, RejectsZeroMaximumSliceCount)
 {
     const std::array payload{

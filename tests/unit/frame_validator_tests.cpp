@@ -223,6 +223,22 @@ TEST(FrameValidatorTest, RejectsZeroStreamDimensions)
     EXPECT_EQ(status.message, "stream dimensions must be non-zero");
 }
 
+TEST(FrameValidatorTest, RejectsZeroInputStreamDimensions)
+{
+    auto stream = make_y_stream();
+    stream.height = 0;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "stream dimensions must be non-zero");
+}
+
 TEST(FrameValidatorTest, RejectsZeroSliceGrid)
 {
     auto stream = make_y_stream();

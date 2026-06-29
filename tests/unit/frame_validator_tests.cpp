@@ -512,6 +512,23 @@ TEST(FrameValidatorTest, AcceptsWideOutputPlane)
     EXPECT_TRUE(validator.validate_output(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, AcceptsTallOutputPlane)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 16> storage{};
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    plane.info.width = 4;
+    plane.info.height = 4;
+    plane.info.stride_bytes = 4;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, RejectsWrongInputPlaneRole)
 {
     const auto stream = make_y_stream();

@@ -116,6 +116,38 @@ TEST(FrameValidatorTest, RejectsZeroSliceGrid)
     EXPECT_EQ(status.message, "slice grid dimensions must be non-zero");
 }
 
+TEST(FrameValidatorTest, RejectsUnsupportedBitDepth)
+{
+    auto stream = make_y_stream();
+    stream.bits_per_raw_sample = 17;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "only 1-16 bit samples are supported");
+}
+
+TEST(FrameValidatorTest, RejectsUnsupportedColorspace)
+{
+    auto stream = make_y_stream();
+    stream.colorspace_type = 2;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "unsupported colorspace_type");
+}
+
 TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
 {
     const auto stream = make_y_stream();

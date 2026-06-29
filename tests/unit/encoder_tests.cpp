@@ -634,6 +634,57 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
     EXPECT_EQ(decoded, source);
 }
 
+TEST(EncoderTest, PublicEncoderRoundTripsPaddedInputStride)
+{
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 136> padded_source{};
+    padded_source.fill(0xcc);
+    std::array<std::uint8_t, 128> expected{};
+    for (std::uint32_t y = 0; y < stream.height; ++y) {
+        for (std::uint32_t x = 0; x < stream.width; ++x) {
+            const auto value = static_cast<std::uint8_t>(
+                (x * 17u + y * 41u + (x ^ y) * 9u) & 0xffu);
+            padded_source[y * 17u + x] = value;
+            expected[y * stream.width + x] = value;
+        }
+    }
+
+    mffv1::PlaneView input_plane;
+    input_plane.data = padded_source.data();
+    input_plane.info.role = mffv1::PlaneRole::Y;
+    input_plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    input_plane.info.width = stream.width;
+    input_plane.info.height = stream.height;
+    input_plane.info.stride_bytes = 17;
+    const mffv1::FrameView input{&input_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    std::array<std::uint8_t, 128> decoded{};
+    decoded.fill(0xee);
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame.bytes, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decoded, expected);
+}
+
 void expect_public_multi_slice_y_round_trip(mffv1::EntropyMode entropy_mode)
 {
     mffv1::EncoderOptions encoder_options;

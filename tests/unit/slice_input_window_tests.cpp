@@ -116,6 +116,49 @@ TEST(SliceInputWindowTest, MapsPaddedInputStride)
     EXPECT_EQ(window.row_u8(0, 1)[2], 14u);
 }
 
+TEST(SliceInputWindowTest, MapsSixteenBitInputStride)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.width = 5;
+    stream.height = 3;
+    stream.bits_per_raw_sample = 10;
+    stream.chroma_planes = false;
+    stream.num_h_slices = 1;
+    stream.num_v_slices = 1;
+
+    const std::array<std::uint16_t, 18> storage{
+        0, 1, 2, 3, 4, 1000,
+        5, 6, 7, 8, 9, 1001,
+        10, 11, 12, 13, 14, 1002,
+    };
+    const mffv1::PlaneView plane{
+        storage.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt16, 5, 3, 12},
+    };
+    const mffv1::FrameView frame{&plane, 1};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.x = 1;
+    slice.y = 1;
+    slice.width = 3;
+    slice.height = 2;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    mffv1::codec::SliceInputWindow window;
+
+    const auto status = window.validate(stream, frame, slice);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(window.plane_count(), 1u);
+    EXPECT_EQ(window.plane_width(0), 3u);
+    EXPECT_EQ(window.plane_height(0), 2u);
+    EXPECT_EQ(window.row_u8(0, 0), nullptr);
+    EXPECT_EQ(window.row_u16(0, 0), storage.data() + 7);
+    EXPECT_EQ(window.row_u16(0, 1), storage.data() + 13);
+    ASSERT_NE(window.row_u16(0, 1), nullptr);
+    EXPECT_EQ(window.row_u16(0, 0)[2], 8u);
+    EXPECT_EQ(window.row_u16(0, 1)[2], 13u);
+}
+
 TEST(SliceInputWindowTest, RejectsPlaneGeometryMismatch)
 {
     const auto stream = make_stream();

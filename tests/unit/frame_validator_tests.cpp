@@ -292,6 +292,22 @@ TEST(FrameValidatorTest, RejectsShortStride)
     EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
 }
 
+TEST(FrameValidatorTest, RejectsNegativeOutputStride)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    plane.info.stride_bytes = -4;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
+}
+
 TEST(FrameValidatorTest, ComputesWideMinimumStrideWithoutWrapping)
 {
     auto stream = make_y_stream();

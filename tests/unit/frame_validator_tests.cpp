@@ -147,6 +147,26 @@ TEST(FrameValidatorTest, AcceptsSixteenBitOutputFrame)
     EXPECT_TRUE(validator.validate_output(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, AcceptsSixteenBitPaddedOutputStride)
+{
+    auto stream = make_y_stream();
+    stream.bits_per_raw_sample = 16;
+    std::array<std::uint16_t, 15> storage{};
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info = {
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt16,
+        4,
+        3,
+        10,
+    };
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, AcceptsSixteenBitInputFrame)
 {
     auto stream = make_y_stream();

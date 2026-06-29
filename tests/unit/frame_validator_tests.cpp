@@ -84,6 +84,25 @@ TEST(FrameValidatorTest, AcceptsPaddedInputStride)
     EXPECT_TRUE(validator.validate_input(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, AcceptsPaddedOutputStride)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 15> storage{};
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info = {
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt8,
+        4,
+        3,
+        5,
+    };
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, AcceptsOneBitOutputFrame)
 {
     auto stream = make_y_stream();

@@ -518,6 +518,31 @@ TEST(DecoderTest, DecodeFrameRejectsNegativeOutputStride)
     EXPECT_EQ(storage[0], 0xee);
 }
 
+TEST(DecoderTest, DecodeFrameRejectsWrongOutputPlaneRole)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), options.frame_width, options.frame_height, 1);
+    plane.info.role = mffv1::PlaneRole::Cb;
+    mffv1::MutableFrameView output{&plane, 1};
+    const auto frame_payload = zero_scalar_payload();
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane role does not match stream plane order");
+    EXPECT_EQ(storage[0], 0xee);
+}
+
 TEST(DecoderTest, DecodeFrameRejectsWrongOutputSampleFormat)
 {
     mffv1::DecoderOptions options;

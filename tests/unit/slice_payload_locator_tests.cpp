@@ -414,6 +414,41 @@ TEST(SlicePayloadLocatorTest, RejectsMoreSlicesThanMaximum)
     EXPECT_EQ(descriptors.size(), 1u);
 }
 
+TEST(SlicePayloadLocatorTest, FailedLocateSlicesPreservesDescriptors)
+{
+    const std::array payload{
+        std::byte{0xff},
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+    mffv1::syntax::StreamParameters stream;
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors(1);
+    descriptors[0].index = 9;
+    descriptors[0].slice_size = 99;
+    descriptors[0].payload_byte_offset = 77;
+    descriptors[0].footer_byte_offset = 88;
+    const auto original = descriptors;
+
+    const mffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(payload, stream, 2, descriptors);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "frame payload is too small to contain a slice footer");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    ASSERT_EQ(descriptors.size(), original.size());
+    EXPECT_EQ(descriptors[0].index, original[0].index);
+    EXPECT_EQ(descriptors[0].slice_size, original[0].slice_size);
+    EXPECT_EQ(descriptors[0].payload_byte_offset, original[0].payload_byte_offset);
+    EXPECT_EQ(descriptors[0].footer_byte_offset, original[0].footer_byte_offset);
+}
+
 TEST(SlicePayloadLocatorTest, DiscoversFewerSlicesThanMaximum)
 {
     const std::array payload{

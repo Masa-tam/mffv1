@@ -278,6 +278,39 @@ TEST(FrameValidatorTest, RejectsWrongPlaneRole)
     EXPECT_EQ(status.message, "plane role does not match stream plane order");
 }
 
+TEST(FrameValidatorTest, RejectsSmallOutputPlaneDimensions)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    plane.info.height = 2;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane dimensions are smaller than the stream requires");
+}
+
+TEST(FrameValidatorTest, AcceptsLargeOutputPlaneDimensions)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 20> storage{};
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    plane.info.width = 5;
+    plane.info.height = 4;
+    plane.info.stride_bytes = 5;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, RejectsWrongInputPlaneRole)
 {
     const auto stream = make_y_stream();

@@ -908,4 +908,22 @@ TEST(FrameValidatorTest, RejectsSubsampledRgbStream)
     EXPECT_EQ(status.message, "RGB streams require chroma planes without subsampling");
 }
 
+TEST(FrameValidatorTest, RejectsSubsampledRgbInputStream)
+{
+    auto stream = make_y_stream();
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+    stream.log2_v_chroma_subsample = 1;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "RGB streams require chroma planes without subsampling");
+}
+
 } // namespace

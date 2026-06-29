@@ -156,6 +156,19 @@ TEST(SliceRasterValidatorTest, DoesNotApplyParallelAreaLimitBeforeVersionThree)
     EXPECT_TRUE(status.ok()) << status.message;
 }
 
+TEST(SliceRasterValidatorTest, RejectsEmptySliceList)
+{
+    const auto stream = make_stream();
+    const std::array<mffv1::syntax::SliceDescriptor, 0> slices{};
+
+    const auto status = mffv1::codec::validate_slice_raster_coverage(stream, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster coverage has missing cells");
+    EXPECT_FALSE(status.location.has_slice_index);
+}
+
 TEST(SliceRasterValidatorTest, RejectsMissingRasterCell)
 {
     const auto stream = make_stream();

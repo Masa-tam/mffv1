@@ -117,6 +117,55 @@ TEST(SliceOutputWindowTest, RejectsNullPlaneData)
     EXPECT_EQ(window.plane_count(), 0u);
 }
 
+TEST(SliceOutputWindowTest, RejectsSmallOutputPlaneDimensions)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 32> storage{};
+    auto plane = make_y_plane(storage);
+    plane.info.height = 3;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 8;
+    slice.height = 4;
+
+    mffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output plane dimensions are smaller than the frame plane");
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
+TEST(SliceOutputWindowTest, AcceptsLargeOutputPlaneDimensions)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 45> storage{};
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    plane.info.width = 9;
+    plane.info.height = 5;
+    plane.info.stride_bytes = 9;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.x = 6;
+    slice.y = 2;
+    slice.width = 2;
+    slice.height = 2;
+
+    mffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(window.plane_count(), 1u);
+    EXPECT_EQ(window.row_u8(0, 0), storage.data() + 24);
+    EXPECT_EQ(window.row_u8(0, 1), storage.data() + 33);
+}
+
 TEST(SliceOutputWindowTest, RejectsShortStride)
 {
     const auto stream = make_y_stream();

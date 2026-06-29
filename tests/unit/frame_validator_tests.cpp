@@ -212,6 +212,19 @@ TEST(FrameValidatorTest, RejectsUnsupportedColorspace)
     EXPECT_EQ(status.message, "unsupported colorspace_type");
 }
 
+TEST(FrameValidatorTest, RejectsMissingOutputPlaneCountBeforeNullArray)
+{
+    const auto stream = make_y_stream();
+    const mffv1::MutableFrameView frame{nullptr, 0};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output frame does not have enough planes");
+}
+
 TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
 {
     const auto stream = make_y_stream();

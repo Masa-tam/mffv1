@@ -287,6 +287,20 @@ TEST(FrameValidatorTest, RejectsExtraInputPlane)
     EXPECT_EQ(status.message, "input frame plane count does not match the stream");
 }
 
+TEST(FrameValidatorTest, AcceptsExtraOutputPlane)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    std::array<mffv1::MutablePlaneView, 2> planes{
+        make_output_plane(storage),
+        mffv1::MutablePlaneView{},
+    };
+    const mffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    const mffv1::codec::FrameValidator validator;
+    EXPECT_TRUE(validator.validate_output(stream, frame).ok());
+}
+
 TEST(FrameValidatorTest, RejectsWrongInputSampleFormat)
 {
     const auto stream = make_y_stream();

@@ -488,6 +488,19 @@ TEST(EncoderTest, EncodeFrameRejectsNullInputPlaneData)
         "input plane data pointer is null");
 }
 
+TEST(EncoderTest, EncodeFrameRejectsWrongInputPlaneRole)
+{
+    std::array<std::uint8_t, 128> storage{};
+    auto plane = make_input_plane(storage);
+    plane.info.role = mffv1::PlaneRole::Cb;
+    const mffv1::FrameView input{&plane, 1};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "plane role does not match stream plane order");
+}
+
 TEST(EncoderTest, EncodeFrameRejectsWrongInputSampleFormat)
 {
     std::array<std::uint16_t, 128> storage{};

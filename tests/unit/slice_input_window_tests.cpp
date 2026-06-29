@@ -167,6 +167,35 @@ TEST(SliceInputWindowTest, RejectsNullPlaneData)
     EXPECT_EQ(window.plane_count(), 0u);
 }
 
+TEST(SliceInputWindowTest, RejectsShortStride)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.width = 8;
+    stream.height = 4;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = false;
+
+    std::array<std::uint8_t, 32> storage{};
+    const mffv1::PlaneView plane{
+        storage.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 8, 4, 7},
+    };
+    const mffv1::FrameView frame{&plane, 1};
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 8;
+    slice.height = 4;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    mffv1::codec::SliceInputWindow window;
+
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::ResourceExhausted);
+    EXPECT_EQ(status.message, "input slice plane offset is not representable");
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
 TEST(SliceInputWindowTest, RejectsUnrepresentableRowOffset)
 {
     mffv1::syntax::StreamParameters stream;

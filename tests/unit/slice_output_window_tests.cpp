@@ -52,6 +52,8 @@ TEST(SliceOutputWindowTest, MapsSinglePlaneSliceRows)
     EXPECT_EQ(window.plane_height(0), 2u);
     EXPECT_EQ(window.row_u8(0, 0), storage.data() + 10);
     EXPECT_EQ(window.row_u8(0, 1), storage.data() + 18);
+    EXPECT_EQ(window.row_u8(0, 2), nullptr);
+    EXPECT_EQ(window.row_u8(1, 0), nullptr);
     EXPECT_EQ(window.row_u16(0, 0), nullptr);
 }
 
@@ -89,6 +91,8 @@ TEST(SliceOutputWindowTest, MapsSixteenBitSliceRows)
     EXPECT_EQ(window.row_u8(0, 0), nullptr);
     EXPECT_EQ(window.row_u16(0, 0), storage.data() + 7);
     EXPECT_EQ(window.row_u16(0, 1), storage.data() + 13);
+    EXPECT_EQ(window.row_u16(0, 2), nullptr);
+    EXPECT_EQ(window.row_u16(1, 0), nullptr);
 }
 
 TEST(SliceOutputWindowTest, RejectsZeroSliceDimensions)

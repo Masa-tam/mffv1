@@ -187,6 +187,38 @@ TEST(SliceHeaderParserTest, ReadsQuantTableIndexCountFromStreamParameters)
     EXPECT_EQ(reader.byte_position(), 18u);
 }
 
+TEST(SliceHeaderParserTest, ReadRejectsSliceXOutsideRasterWithByteLocation)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({2}, 2);
+    mffv1::codec::SliceHeaderValues values;
+
+    const mffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice_x is outside the slice raster");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 2u);
+}
+
+TEST(SliceHeaderParserTest, ReadRejectsSliceYOutsideRasterWithByteLocation)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({0, 2}, 2);
+    mffv1::codec::SliceHeaderValues values;
+
+    const mffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read(reader, stream, values);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice_y is outside the slice raster");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 4u);
+}
+
 TEST(SliceHeaderParserTest, ReadRejectsOutOfRasterRectangleWithByteLocation)
 {
     const auto stream = make_stream();

@@ -190,6 +190,35 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatus)
     EXPECT_EQ(status.location.byte_offset, 3u);
 }
 
+TEST(SliceFooterParserTest, RejectsReservedErrorStatusFromSliceEnd)
+{
+    const std::array payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+        std::byte{0x03},
+        std::byte{0x12},
+        std::byte{0x34},
+        std::byte{0x56},
+        std::byte{0x78},
+    };
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    mffv1::syntax::SliceDescriptor descriptor;
+    descriptor.payload_byte_offset = 70;
+
+    const mffv1::codec::SliceFooterParser parser;
+    const auto status = parser.read_from_end(payload, stream, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer error_status is reserved");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 75u);
+}
+
 TEST(SliceFooterParserTest, RejectsSliceSizeMismatchFromEnd)
 {
     const std::array payload{

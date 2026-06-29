@@ -449,6 +449,22 @@ TEST(EncoderTest, EncodeFrameRejectsMissingInputPlaneCount)
         "input frame plane count does not match the stream");
 }
 
+TEST(EncoderTest, EncodeFrameRejectsExtraInputPlaneCount)
+{
+    std::array<std::uint8_t, 128> y_storage{};
+    std::array<std::uint8_t, 128> extra_storage{};
+    std::array<mffv1::PlaneView, 2> planes{
+        make_input_plane(y_storage),
+        make_input_plane(extra_storage),
+    };
+    const mffv1::FrameView input{planes.data(), planes.size()};
+
+    expect_encode_input_rejection(
+        input,
+        mffv1::ErrorCode::InvalidArgument,
+        "input frame plane count does not match the stream");
+}
+
 TEST(EncoderTest, EncodeFrameRejectsNullInputPlaneArray)
 {
     const mffv1::FrameView input{nullptr, 1};

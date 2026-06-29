@@ -402,6 +402,22 @@ TEST(FrameValidatorTest, RejectsWrongInputSampleFormat)
     EXPECT_EQ(status.message, "plane sample format does not match stream bit depth");
 }
 
+TEST(FrameValidatorTest, RejectsEightBitInputPlaneForSixteenBitStream)
+{
+    auto stream = make_y_stream();
+    stream.bits_per_raw_sample = 16;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    const mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane sample format does not match stream bit depth");
+}
+
 TEST(FrameValidatorTest, RejectsSmallInputPlaneDimensions)
 {
     const auto stream = make_y_stream();

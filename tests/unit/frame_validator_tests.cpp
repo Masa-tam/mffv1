@@ -450,6 +450,30 @@ TEST(FrameValidatorTest, RejectsShortInputStride)
     EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
 }
 
+TEST(FrameValidatorTest, RejectsSixteenBitShortInputStride)
+{
+    auto stream = make_y_stream();
+    stream.bits_per_raw_sample = 16;
+    std::array<std::uint16_t, 12> storage{};
+    mffv1::PlaneView plane;
+    plane.data = storage.data();
+    plane.info = {
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt16,
+        4,
+        3,
+        7,
+    };
+    const mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane stride is smaller than the stream requires");
+}
+
 TEST(FrameValidatorTest, RejectsNegativeInputStrideAsUnsupported)
 {
     const auto stream = make_y_stream();

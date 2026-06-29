@@ -621,6 +621,37 @@ TEST(DecoderTest, DecodeFrameRejectsMissingRequiredPlaneCount)
     EXPECT_EQ(status.message, "output frame does not have enough planes");
 }
 
+TEST(DecoderTest, DecodeFrameIgnoresExtraOutputPlanes)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 1> y_storage{0xee};
+    std::array<std::uint8_t, 1> extra_storage{0xdd};
+    std::array<mffv1::MutablePlaneView, 2> planes{};
+    planes[0] = make_y_plane(y_storage.data(), options.frame_width, options.frame_height, 1);
+    planes[1].data = extra_storage.data();
+    planes[1].info.role = mffv1::PlaneRole::Alpha;
+    planes[1].info.sample_format = mffv1::SampleFormat::UInt8;
+    planes[1].info.width = options.frame_width;
+    planes[1].info.height = options.frame_height;
+    planes[1].info.stride_bytes = 1;
+    mffv1::MutableFrameView output{planes.data(), planes.size()};
+    const auto frame_payload = zero_scalar_payload();
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(y_storage[0], 0u);
+    EXPECT_EQ(extra_storage[0], 0xdd);
+}
+
 TEST(DecoderTest, DecodeFrameRejectsEmptyPayload)
 {
     mffv1::DecoderOptions options;

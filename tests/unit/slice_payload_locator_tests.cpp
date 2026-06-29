@@ -89,6 +89,35 @@ TEST(SlicePayloadLocatorTest, LocatesEcTrailingSlice)
     EXPECT_EQ(descriptor.expected_crc, 0x12345678u);
 }
 
+TEST(SlicePayloadLocatorTest, LocatesMinimumEcTrailingSlice)
+{
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x08},
+        std::byte{0x02},
+        std::byte{0x12},
+        std::byte{0x34},
+        std::byte{0x56},
+        std::byte{0x78},
+    };
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    mffv1::syntax::SliceDescriptor descriptor;
+
+    const mffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(descriptor.slice_size, payload.size());
+    EXPECT_EQ(descriptor.payload_byte_offset, 0u);
+    EXPECT_EQ(descriptor.footer_byte_offset, 0u);
+    EXPECT_EQ(descriptor.error_status, 2u);
+    EXPECT_TRUE(descriptor.has_crc);
+    EXPECT_EQ(descriptor.expected_crc, 0x12345678u);
+    EXPECT_EQ(descriptor.payload.size(), payload.size());
+}
+
 TEST(SlicePayloadLocatorTest, VerifiesEcTrailingSliceCrc)
 {
     const std::array payload{

@@ -63,6 +63,29 @@ TEST(SliceFooterWriterTest, AppendsErrorStatusAndCrcParity)
     EXPECT_TRUE(descriptor.has_crc);
 }
 
+TEST(SliceFooterWriterTest, AppendsMaximumRepresentableSliceSize)
+{
+    mffv1::syntax::StreamParameters stream;
+    constexpr std::size_t maximum_slice_size = 0x00ffffffu;
+    constexpr std::size_t footer_size = 3;
+    std::vector<std::byte> payload(maximum_slice_size - footer_size,
+                                   std::byte{0xaa});
+    const mffv1::codec::SliceFooterWriter writer;
+
+    const auto status = writer.append(stream, 0, payload);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(payload.size(), maximum_slice_size);
+    EXPECT_EQ(payload[payload.size() - 3], std::byte{0xff});
+    EXPECT_EQ(payload[payload.size() - 2], std::byte{0xff});
+    EXPECT_EQ(payload[payload.size() - 1], std::byte{0xff});
+
+    mffv1::syntax::SliceDescriptor descriptor;
+    const mffv1::codec::SliceFooterParser parser;
+    ASSERT_TRUE(parser.read_from_end(payload, stream, descriptor).ok());
+    EXPECT_EQ(descriptor.slice_size, maximum_slice_size);
+}
+
 TEST(SliceFooterWriterTest, RejectsReservedStatusWithoutChangingPayload)
 {
     mffv1::syntax::StreamParameters stream;

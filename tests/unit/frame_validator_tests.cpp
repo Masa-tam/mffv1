@@ -125,6 +125,22 @@ TEST(FrameValidatorTest, RejectsNullInputPlaneData)
     EXPECT_EQ(status.message, "input plane data pointer is null");
 }
 
+TEST(FrameValidatorTest, RejectsNullOutputPlaneData)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_output_plane(storage);
+    plane.data = nullptr;
+    const mffv1::MutableFrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output plane data pointer is null");
+}
+
 TEST(FrameValidatorTest, RejectsExtraInputPlane)
 {
     const auto stream = make_y_stream();

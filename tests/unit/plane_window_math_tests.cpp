@@ -26,6 +26,26 @@ TEST(PlaneWindowMathTest, ComputesRepresentableRowBytes)
     EXPECT_EQ(row_bytes, 10u);
 }
 
+TEST(PlaneWindowMathTest, ComputesMaximumSupportedRowBytes)
+{
+    const mffv1::PlaneInfo info{
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt16,
+        std::numeric_limits<std::uint32_t>::max(),
+        1,
+        std::numeric_limits<std::ptrdiff_t>::max(),
+    };
+    std::uint64_t row_bytes = 0;
+
+    const auto status = mffv1::codec::checked_plane_row_bytes(
+        info, row_bytes, "row is too large");
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(row_bytes,
+              static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max())
+                  * 2u);
+}
+
 TEST(PlaneWindowMathTest, RejectsUnrepresentableRowOffset)
 {
     const mffv1::PlaneInfo info{

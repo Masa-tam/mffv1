@@ -140,6 +140,33 @@ TEST(PlaneWindowMathTest, ComputesWindowOffset)
     EXPECT_EQ(offset, 20);
 }
 
+TEST(PlaneWindowMathTest, ComputesEmptyWindowOffsetWithoutExtentCheck)
+{
+    const mffv1::PlaneInfo info{
+        mffv1::PlaneRole::Y,
+        mffv1::SampleFormat::UInt16,
+        8,
+        4,
+        16,
+    };
+    std::ptrdiff_t offset = 123;
+
+    const auto status = mffv1::codec::checked_plane_window_offset(
+        info,
+        2,
+        1,
+        0,
+        0,
+        offset,
+        "row offset",
+        "sample offset",
+        "rows",
+        "extent");
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(offset, 20);
+}
+
 TEST(PlaneWindowMathTest, RejectsUnrepresentableLastSampleExtent)
 {
     const mffv1::PlaneInfo info{

@@ -55,6 +55,42 @@ TEST(SliceOutputWindowTest, MapsSinglePlaneSliceRows)
     EXPECT_EQ(window.row_u16(0, 0), nullptr);
 }
 
+TEST(SliceOutputWindowTest, MapsSixteenBitSliceRows)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.width = 5;
+    stream.height = 3;
+    stream.bits_per_raw_sample = 10;
+    stream.chroma_planes = false;
+
+    std::array<std::uint16_t, 18> storage{};
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt16;
+    plane.info.width = 5;
+    plane.info.height = 3;
+    plane.info.stride_bytes = 12;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.x = 1;
+    slice.y = 1;
+    slice.width = 3;
+    slice.height = 2;
+
+    mffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(window.plane_count(), 1u);
+    EXPECT_EQ(window.plane_width(0), 3u);
+    EXPECT_EQ(window.plane_height(0), 2u);
+    EXPECT_EQ(window.row_u8(0, 0), nullptr);
+    EXPECT_EQ(window.row_u16(0, 0), storage.data() + 7);
+    EXPECT_EQ(window.row_u16(0, 1), storage.data() + 13);
+}
+
 TEST(SliceOutputWindowTest, RejectsZeroSliceDimensions)
 {
     const auto stream = make_y_stream();

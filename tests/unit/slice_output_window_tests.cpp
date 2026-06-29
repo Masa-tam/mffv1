@@ -96,6 +96,27 @@ TEST(SliceOutputWindowTest, RejectsOutOfFrameSlice)
     EXPECT_EQ(status.message, "slice rectangle is outside the frame");
 }
 
+TEST(SliceOutputWindowTest, RejectsNullPlaneData)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 32> storage{};
+    auto plane = make_y_plane(storage);
+    plane.data = nullptr;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 8;
+    slice.height = 4;
+
+    mffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "output plane data pointer is null");
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
 TEST(SliceOutputWindowTest, RejectsUnrepresentableRowOffset)
 {
     mffv1::syntax::StreamParameters stream;

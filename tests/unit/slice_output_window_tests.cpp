@@ -55,6 +55,26 @@ TEST(SliceOutputWindowTest, MapsSinglePlaneSliceRows)
     EXPECT_EQ(window.row_u16(0, 0), nullptr);
 }
 
+TEST(SliceOutputWindowTest, RejectsZeroSliceDimensions)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 32> storage{};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 0;
+    slice.height = 1;
+
+    mffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "slice dimensions must be non-zero");
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
 TEST(SliceOutputWindowTest, RejectsOutOfFrameSlice)
 {
     const auto stream = make_y_stream();

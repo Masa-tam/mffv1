@@ -255,6 +255,22 @@ TEST(FrameValidatorTest, RejectsZeroSliceGrid)
     EXPECT_EQ(status.message, "slice grid dimensions must be non-zero");
 }
 
+TEST(FrameValidatorTest, RejectsZeroInputSliceGrid)
+{
+    auto stream = make_y_stream();
+    stream.num_v_slices = 0;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "slice grid dimensions must be non-zero");
+}
+
 TEST(FrameValidatorTest, RejectsUnsupportedBitDepth)
 {
     auto stream = make_y_stream();

@@ -1204,4 +1204,38 @@ TEST(DecoderTest, DecodeFramePreservesStridePadding)
     EXPECT_EQ(storage[7], 0xee);
 }
 
+TEST(DecoderTest, DecodeFrameWritesOnlyStreamRectangleInLargerOutputPlane)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 2;
+    options.frame_height = 2;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 12> storage{};
+    storage.fill(0xee);
+    auto plane = make_y_plane(storage.data(), 4, 3, 4);
+    mffv1::MutableFrameView output{&plane, 1};
+    const auto frame_payload = zero_frame_payload();
+
+    const auto status = result.decoder->decode_frame(frame_payload, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[1], 0u);
+    EXPECT_EQ(storage[2], 0xee);
+    EXPECT_EQ(storage[3], 0xee);
+    EXPECT_EQ(storage[4], 0u);
+    EXPECT_EQ(storage[5], 0u);
+    EXPECT_EQ(storage[6], 0xee);
+    EXPECT_EQ(storage[7], 0xee);
+    EXPECT_EQ(storage[8], 0xee);
+    EXPECT_EQ(storage[9], 0xee);
+    EXPECT_EQ(storage[10], 0xee);
+    EXPECT_EQ(storage[11], 0xee);
+}
+
 } // namespace

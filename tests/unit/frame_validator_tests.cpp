@@ -237,6 +237,19 @@ TEST(FrameValidatorTest, RejectsMissingOutputPlaneArray)
     EXPECT_EQ(status.message, "output plane array is null");
 }
 
+TEST(FrameValidatorTest, RejectsMissingInputPlaneCountBeforeNullArray)
+{
+    const auto stream = make_y_stream();
+    const mffv1::FrameView frame{nullptr, 0};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input frame plane count does not match the stream");
+}
+
 TEST(FrameValidatorTest, RejectsMissingInputPlaneArray)
 {
     const auto stream = make_y_stream();

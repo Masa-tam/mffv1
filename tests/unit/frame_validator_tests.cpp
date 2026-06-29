@@ -287,6 +287,22 @@ TEST(FrameValidatorTest, RejectsUnsupportedColorspace)
     EXPECT_EQ(status.message, "unsupported colorspace_type");
 }
 
+TEST(FrameValidatorTest, RejectsUnsupportedInputColorspace)
+{
+    auto stream = make_y_stream();
+    stream.colorspace_type = 2;
+    std::array<std::uint8_t, 12> storage{};
+    auto plane = make_input_plane(storage);
+    mffv1::FrameView frame{&plane, 1};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "unsupported colorspace_type");
+}
+
 TEST(FrameValidatorTest, RejectsMissingOutputPlaneCountBeforeNullArray)
 {
     const auto stream = make_y_stream();

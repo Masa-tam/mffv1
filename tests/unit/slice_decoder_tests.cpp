@@ -475,6 +475,7 @@ TEST(SliceDecoderTest, ReportsRangeCoderResetErrorAtAbsoluteContentOffset)
 {
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
     auto plane = make_plane(storage);
     mffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 3> payload{
@@ -503,6 +504,10 @@ TEST(SliceDecoderTest, ReportsRangeCoderResetErrorAtAbsoluteContentOffset)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, slice.content_byte_offset);
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{
+                           0xee, 0xee, 0xee, 0xee,
+                           0xee, 0xee, 0xee, 0xee,
+                       }));
 }
 
 TEST(SliceDecoderTest, DecodesOnlyContentBeforeFooter)

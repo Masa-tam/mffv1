@@ -517,4 +517,20 @@ TEST(ConfigurationRecordWriterTest, RejectsCustomInitialStates)
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(ConfigurationRecordWriterTest, RejectsErrorStatusWithoutChangingOutput)
+{
+    auto stream = make_initial_profile();
+    stream.error_status_enabled = true;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record{std::byte{0xaa}};
+
+    const auto status = writer.write(stream, record);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message,
+              "configuration writer supports only streams without custom states or EC");
+    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 } // namespace

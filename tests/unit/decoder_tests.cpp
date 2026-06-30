@@ -1168,6 +1168,38 @@ TEST(DecoderTest, DecodeFrameContinuesLegacyGolombRiceNonKeyframe)
     }
 }
 
+TEST(DecoderTest, FailedGolombRiceSliceDecodePreservesReferenceState)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 4;
+    options.frame_height = 2;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_golomb_rice_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_y_plane(storage.data(), 4, 2, 4);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array keyframe_payload{std::byte{0xfe}};
+    ASSERT_TRUE(result.decoder->decode_frame(keyframe_payload, output).ok());
+
+    storage.fill(0xdd);
+    const std::array malformed_keyframe{std::byte{0xff}};
+    const auto failed_status =
+        result.decoder->decode_frame(malformed_keyframe, output);
+    ASSERT_FALSE(failed_status.ok());
+    EXPECT_NE(failed_status.code, mffv1::ErrorCode::Ok);
+
+    const std::array non_keyframe_payload{std::byte{0x70}};
+    const auto status = result.decoder->decode_frame(non_keyframe_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0u);
+    }
+}
+
 TEST(DecoderTest, DecodeFrameReconstructsPositiveDifference)
 {
     mffv1::DecoderOptions options;

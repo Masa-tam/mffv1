@@ -1841,6 +1841,7 @@ TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
 {
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
     auto plane = make_plane(storage);
     mffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
@@ -1861,6 +1862,11 @@ TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice has no quantization table set indexes");
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{
+                           0xee, 0xee, 0xee, 0xee,
+                           0xee, 0xee, 0xee, 0xee,
+                       }));
 }
 
 TEST(SliceDecoderTest, AcceptsUnusedVersionThreeChromaCompatibilityIndex)
@@ -1898,6 +1904,7 @@ TEST(SliceDecoderTest, RejectsOutOfRangeQuantTableSetIndex)
 {
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
     auto plane = make_plane(storage);
     mffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
@@ -1919,6 +1926,11 @@ TEST(SliceDecoderTest, RejectsOutOfRangeQuantTableSetIndex)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice quantization table set index is out of range");
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{
+                           0xee, 0xee, 0xee, 0xee,
+                           0xee, 0xee, 0xee, 0xee,
+                       }));
 }
 
 } // namespace

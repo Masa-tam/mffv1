@@ -1887,6 +1887,69 @@ TEST(EncoderTest, SuccessfulReconfigureResetsKeyframeCadence)
     EXPECT_TRUE(parsed_reset.keyframe);
 }
 
+TEST(EncoderTest, SuccessfulGolombRiceReconfigureResetsReferenceState)
+{
+    mffv1::EncoderOptions options;
+    options.entropy_mode = mffv1::EntropyMode::GolombRice;
+    options.keyframe_interval = 2;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> first{};
+    std::array<std::uint8_t, 128> second{};
+    std::array<std::uint8_t, 128> after_reconfigure{};
+    for (std::size_t index = 0; index < first.size(); ++index) {
+        first[index] = static_cast<std::uint8_t>(
+            index < 32 ? 0 : (index * 13u) & 0xffu);
+        second[index] = static_cast<std::uint8_t>(
+            index < 48 ? 7 : (255u - index * 11u) & 0xffu);
+        after_reconfigure[index] =
+            static_cast<std::uint8_t>((17u + index * 23u) & 0xffu);
+    }
+    const auto first_plane = make_input_plane(first);
+    const auto second_plane = make_input_plane(second);
+    const auto after_reconfigure_plane =
+        make_input_plane(after_reconfigure);
+    const mffv1::FrameView first_input{&first_plane, 1};
+    const mffv1::FrameView second_input{&second_plane, 1};
+    const mffv1::FrameView after_reconfigure_input{
+        &after_reconfigure_plane, 1};
+    mffv1::EncodedFrame first_frame;
+    mffv1::EncodedFrame second_frame;
+    mffv1::EncodedFrame reset_frame;
+    ASSERT_TRUE(result.encoder->encode_frame(first_input, first_frame).ok());
+    ASSERT_TRUE(result.encoder->encode_frame(second_input, second_frame).ok());
+
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+    ASSERT_TRUE(result.encoder->encode_frame(
+        after_reconfigure_input, reset_frame).ok());
+
+    mffv1::FrameInfo info;
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+    ASSERT_TRUE(decoder.decoder->inspect_frame(reset_frame.bytes, info).ok());
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::GolombRice);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 4u);
+
+    std::array<std::uint8_t, 128> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    ASSERT_TRUE(decoder.decoder->decode_frame(reset_frame.bytes, output).ok());
+    EXPECT_EQ(decoded, after_reconfigure);
+}
+
 TEST(EncoderTest, FailedReconfigurePreservesKeyframeCadence)
 {
     mffv1::EncoderOptions options;

@@ -2054,6 +2054,91 @@ TEST(EncoderTest, FailedGolombRicePlaneCountEncodeDoesNotAdvanceKeyframeCadence)
         mffv1::EntropyMode::GolombRice);
 }
 
+void expect_failed_slice_encode_does_not_advance_keyframe_cadence(
+    mffv1::EntropyMode entropy_mode)
+{
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    options.keyframe_interval = 2;
+    options.thread_count = 4;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.width = 4;
+    stream.height = 2;
+    stream.bits_per_raw_sample = 10;
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+
+    const std::array<std::uint16_t, 8> first{
+        0, 17, 93, 255,
+        71, 19, 201, 3,
+    };
+    const std::array<std::uint16_t, 8> rejected{
+        0, 17, 93, 255,
+        71, 19, 1024, 3,
+    };
+    const std::array<std::uint16_t, 8> second{
+        255, 201, 19, 71,
+        3, 93, 17, 0,
+    };
+    const mffv1::PlaneView first_plane{
+        first.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt16, 4, 2, 8},
+    };
+    const mffv1::PlaneView rejected_plane{
+        rejected.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt16, 4, 2, 8},
+    };
+    const mffv1::PlaneView second_plane{
+        second.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt16, 4, 2, 8},
+    };
+    const mffv1::FrameView first_input{&first_plane, 1};
+    const mffv1::FrameView rejected_input{&rejected_plane, 1};
+    const mffv1::FrameView second_input{&second_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(result.encoder->encode_frame(first_input, frame).ok());
+
+    frame.bytes.assign({std::byte{0xaa}});
+    const auto failed_status =
+        result.encoder->encode_frame(rejected_input, frame);
+    ASSERT_FALSE(failed_status.ok());
+    EXPECT_EQ(failed_status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(failed_status.message,
+              "input sample exceeds configured bit depth");
+    EXPECT_TRUE(failed_status.location.has_slice_index);
+    EXPECT_EQ(failed_status.location.slice_index, 3u);
+    EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+
+    ASSERT_TRUE(result.encoder->encode_frame(second_input, frame).ok());
+
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::codec::ConfigurationRecordParser record_parser;
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    parsed_stream.width = stream.width;
+    parsed_stream.height = stream.height;
+    const mffv1::codec::FrameParser frame_parser(parsed_stream);
+    mffv1::codec::FrameDecodeContext parsed;
+    ASSERT_TRUE(frame_parser.parse_with_range_header(frame.bytes, parsed).ok());
+    EXPECT_FALSE(parsed.keyframe);
+}
+
+TEST(EncoderTest, FailedRangeSliceEncodeDoesNotAdvanceKeyframeCadence)
+{
+    expect_failed_slice_encode_does_not_advance_keyframe_cadence(
+        mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, FailedGolombRiceSliceEncodeDoesNotAdvanceKeyframeCadence)
+{
+    expect_failed_slice_encode_does_not_advance_keyframe_cadence(
+        mffv1::EntropyMode::GolombRice);
+}
+
 TEST(EncoderTest, EncodeFrameRequiresConfigurationWithoutChangingOutput)
 {
     auto result = mffv1::create_encoder({});

@@ -439,7 +439,7 @@ TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
 {
     const auto stream = make_stream();
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array<std::byte, 1> payload{std::byte{0}};
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -448,13 +448,14 @@ TEST(FrameParserTest, RejectsTooShortRangeHeaderPayload)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
 {
     const auto stream = make_stream();
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array<std::byte, 4> payload{
         std::byte{0xff},
         std::byte{0x00},
@@ -466,13 +467,14 @@ TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
 {
     const auto stream = make_stream();
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array<std::byte, 5> payload{
         std::byte{0x00},
         std::byte{0x00},
@@ -491,8 +493,7 @@ TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
     EXPECT_EQ(status.location.byte_offset, 0u);
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
-    EXPECT_FALSE(frame.keyframe);
-    EXPECT_TRUE(frame.slices.empty());
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, AcceptsRangeCodedNonKeyframeForNonIntraStream)
@@ -660,7 +661,7 @@ TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
     auto stream = make_stream();
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array<std::byte, 1> payload{std::byte{0}};
 
     const auto status = parser.parse(payload, frame);
@@ -668,6 +669,7 @@ TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
     EXPECT_EQ(status.message, "multi-slice frame parsing is not implemented yet");
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
@@ -675,7 +677,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
     auto stream = make_stream();
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array<std::byte, 2> payload{
         std::byte{0},
         std::byte{0},
@@ -687,6 +689,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, RejectsMalformedSingleSliceInMultiCellRaster)
@@ -694,7 +697,7 @@ TEST(FrameParserTest, RejectsMalformedSingleSliceInMultiCellRaster)
     auto stream = make_stream();
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array payload{
         std::byte{0xaa},
         std::byte{0xbb},
@@ -709,7 +712,7 @@ TEST(FrameParserTest, RejectsMalformedSingleSliceInMultiCellRaster)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
-    EXPECT_TRUE(frame.slices.empty());
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
@@ -807,7 +810,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
     auto stream = make_stream();
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array payload{
         std::byte{0x00},
         std::byte{0x00},
@@ -825,6 +828,7 @@ TEST(FrameParserTest, RejectsMultiSliceRangeHeaderWithSliceLocation)
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+    expect_existing_frame_preserved(frame);
 }
 
 TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
@@ -832,7 +836,7 @@ TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
     auto stream = make_stream();
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
-    mffv1::codec::FrameDecodeContext frame;
+    auto frame = make_existing_frame();
     const std::array payload{
         std::byte{0xff},
         std::byte{0x00},
@@ -853,7 +857,7 @@ TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
     EXPECT_EQ(status.location.slice_index, 1u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 9u);
-    EXPECT_TRUE(frame.slices.empty());
+    expect_existing_frame_preserved(frame);
 }
 
 } // namespace

@@ -9,6 +9,39 @@
 
 namespace {
 
+constexpr std::array kSentinelPayload{
+    std::byte{0xde},
+    std::byte{0xad},
+};
+
+mffv1::syntax::SliceDescriptor make_sentinel_descriptor()
+{
+    mffv1::syntax::SliceDescriptor descriptor;
+    descriptor.index = 17;
+    descriptor.payload = kSentinelPayload;
+    descriptor.payload_byte_offset = 123;
+    descriptor.footer_byte_offset = 456;
+    descriptor.slice_size = 789;
+    descriptor.error_status = 2;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    return descriptor;
+}
+
+void expect_descriptor_equal(const mffv1::syntax::SliceDescriptor& actual,
+                             const mffv1::syntax::SliceDescriptor& expected)
+{
+    EXPECT_EQ(actual.index, expected.index);
+    EXPECT_EQ(actual.payload.data(), expected.payload.data());
+    EXPECT_EQ(actual.payload.size(), expected.payload.size());
+    EXPECT_EQ(actual.payload_byte_offset, expected.payload_byte_offset);
+    EXPECT_EQ(actual.footer_byte_offset, expected.footer_byte_offset);
+    EXPECT_EQ(actual.slice_size, expected.slice_size);
+    EXPECT_EQ(actual.error_status, expected.error_status);
+    EXPECT_EQ(actual.expected_crc, expected.expected_crc);
+    EXPECT_EQ(actual.has_crc, expected.has_crc);
+}
+
 TEST(SlicePayloadLocatorTest, LocatesWholeFrameAsTrailingSlice)
 {
     const std::array payload{
@@ -192,14 +225,7 @@ TEST(SlicePayloadLocatorTest, FailedTrailingSlicePreservesDescriptor)
     };
     mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
-    mffv1::syntax::SliceDescriptor descriptor;
-    descriptor.index = 17;
-    descriptor.payload_byte_offset = 123;
-    descriptor.footer_byte_offset = 456;
-    descriptor.slice_size = 789;
-    descriptor.error_status = 2;
-    descriptor.expected_crc = 0xabcdef01u;
-    descriptor.has_crc = true;
+    auto descriptor = make_sentinel_descriptor();
     const auto original = descriptor;
 
     const mffv1::codec::SlicePayloadLocator locator;
@@ -208,13 +234,7 @@ TEST(SlicePayloadLocatorTest, FailedTrailingSlicePreservesDescriptor)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
     EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
-    EXPECT_EQ(descriptor.index, original.index);
-    EXPECT_EQ(descriptor.payload_byte_offset, original.payload_byte_offset);
-    EXPECT_EQ(descriptor.footer_byte_offset, original.footer_byte_offset);
-    EXPECT_EQ(descriptor.slice_size, original.slice_size);
-    EXPECT_EQ(descriptor.error_status, original.error_status);
-    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
-    EXPECT_EQ(descriptor.has_crc, original.has_crc);
+    expect_descriptor_equal(descriptor, original);
 }
 
 TEST(SlicePayloadLocatorTest, RejectsFrameTooSmallForFooter)
@@ -224,7 +244,8 @@ TEST(SlicePayloadLocatorTest, RejectsFrameTooSmallForFooter)
         std::byte{0x05},
     };
     mffv1::syntax::StreamParameters stream;
-    mffv1::syntax::SliceDescriptor descriptor;
+    auto descriptor = make_sentinel_descriptor();
+    const auto original = descriptor;
 
     const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
@@ -234,6 +255,7 @@ TEST(SlicePayloadLocatorTest, RejectsFrameTooSmallForFooter)
     EXPECT_EQ(status.message, "frame payload is too small to contain a slice footer");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+    expect_descriptor_equal(descriptor, original);
 }
 
 TEST(SlicePayloadLocatorTest, RejectsSliceSizeSmallerThanFooter)
@@ -246,7 +268,8 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeSmallerThanFooter)
         std::byte{0x02},
     };
     mffv1::syntax::StreamParameters stream;
-    mffv1::syntax::SliceDescriptor descriptor;
+    auto descriptor = make_sentinel_descriptor();
+    const auto original = descriptor;
 
     const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
@@ -256,6 +279,7 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeSmallerThanFooter)
     EXPECT_EQ(status.message, "slice footer size is smaller than the footer");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
+    expect_descriptor_equal(descriptor, original);
 }
 
 TEST(SlicePayloadLocatorTest, RejectsSliceSizeLargerThanFrame)
@@ -268,7 +292,8 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeLargerThanFrame)
         std::byte{0x06},
     };
     mffv1::syntax::StreamParameters stream;
-    mffv1::syntax::SliceDescriptor descriptor;
+    auto descriptor = make_sentinel_descriptor();
+    const auto original = descriptor;
 
     const mffv1::codec::SlicePayloadLocator locator;
     const auto status = locator.locate_trailing_slice(payload, stream, descriptor);
@@ -278,6 +303,7 @@ TEST(SlicePayloadLocatorTest, RejectsSliceSizeLargerThanFrame)
     EXPECT_EQ(status.message, "slice footer size is larger than the frame payload");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 2u);
+    expect_descriptor_equal(descriptor, original);
 }
 
 TEST(SlicePayloadLocatorTest, LocatesMultipleSlicesInPayloadOrder)

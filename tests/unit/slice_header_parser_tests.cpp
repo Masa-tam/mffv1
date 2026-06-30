@@ -58,6 +58,33 @@ mffv1::syntax::StreamParameters make_stream()
     return stream;
 }
 
+mffv1::codec::SliceHeaderValues make_sentinel_values()
+{
+    mffv1::codec::SliceHeaderValues values;
+    values.x = 11;
+    values.y = 12;
+    values.width = 13;
+    values.height = 14;
+    values.quant_table_set_indexes = {1, 0};
+    values.picture_structure = 2;
+    values.sar_num = 3;
+    values.sar_den = 4;
+    return values;
+}
+
+void expect_values_equal(const mffv1::codec::SliceHeaderValues& actual,
+                         const mffv1::codec::SliceHeaderValues& expected)
+{
+    EXPECT_EQ(actual.x, expected.x);
+    EXPECT_EQ(actual.y, expected.y);
+    EXPECT_EQ(actual.width, expected.width);
+    EXPECT_EQ(actual.height, expected.height);
+    EXPECT_EQ(actual.quant_table_set_indexes, expected.quant_table_set_indexes);
+    EXPECT_EQ(actual.picture_structure, expected.picture_structure);
+    EXPECT_EQ(actual.sar_num, expected.sar_num);
+    EXPECT_EQ(actual.sar_den, expected.sar_den);
+}
+
 TEST(SliceHeaderParserTest, AppliesValidHeaderValues)
 {
     const auto stream = make_stream();
@@ -239,7 +266,8 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation
 {
     const auto stream = make_stream();
     ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 2}, 2);
-    mffv1::codec::SliceHeaderValues values;
+    auto values = make_sentinel_values();
+    const auto original = values;
 
     const mffv1::codec::SliceHeaderParser parser;
     const auto status = parser.read(reader, stream, values);
@@ -249,13 +277,15 @@ TEST(SliceHeaderParserTest, ReadRejectsOutOfRangeQuantTableIndexWithByteLocation
     EXPECT_EQ(status.message, "slice header quantization table set index is out of range");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 12u);
+    expect_values_equal(values, original);
 }
 
 TEST(SliceHeaderParserTest, ReadRejectsReservedPictureStructureWithByteLocation)
 {
     const auto stream = make_stream();
     ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 4}, 2);
-    mffv1::codec::SliceHeaderValues values;
+    auto values = make_sentinel_values();
+    const auto original = values;
 
     const mffv1::codec::SliceHeaderParser parser;
     const auto status = parser.read(reader, stream, values);
@@ -265,6 +295,7 @@ TEST(SliceHeaderParserTest, ReadRejectsReservedPictureStructureWithByteLocation)
     EXPECT_EQ(status.message, "slice header picture_structure is reserved");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 14u);
+    expect_values_equal(values, original);
 }
 
 TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)

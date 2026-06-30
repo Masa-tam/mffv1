@@ -24,6 +24,7 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
                                const syntax::StreamParameters& stream,
                                SliceHeaderValues& out_values) const
 {
+    SliceHeaderValues values;
     std::uint64_t value = 0;
     Status status = reader.read_unsigned(value);
     if (!status.ok()) {
@@ -32,7 +33,7 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     if (value > stream.num_h_slices || value > std::numeric_limits<std::uint32_t>::max()) {
         return make_byte_error(ErrorCode::SyntaxError, "slice_x is outside the slice raster", reader.byte_position());
     }
-    out_values.x = static_cast<std::uint32_t>(value);
+    values.x = static_cast<std::uint32_t>(value);
 
     status = reader.read_unsigned(value);
     if (!status.ok()) {
@@ -41,7 +42,7 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
     if (value > stream.num_v_slices || value > std::numeric_limits<std::uint32_t>::max()) {
         return make_byte_error(ErrorCode::SyntaxError, "slice_y is outside the slice raster", reader.byte_position());
     }
-    out_values.y = static_cast<std::uint32_t>(value);
+    values.y = static_cast<std::uint32_t>(value);
 
     status = reader.read_unsigned(value);
     if (!status.ok()) {
@@ -52,7 +53,7 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
                                "slice_width_minus_one is too large",
                                reader.byte_position());
     }
-    out_values.width = static_cast<std::uint32_t>(value + 1);
+    values.width = static_cast<std::uint32_t>(value + 1);
 
     status = reader.read_unsigned(value);
     if (!status.ok()) {
@@ -63,18 +64,17 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
                                "slice_height_minus_one is too large",
                                reader.byte_position());
     }
-    out_values.height = static_cast<std::uint32_t>(value + 1);
+    values.height = static_cast<std::uint32_t>(value + 1);
 
-    if (out_values.width > stream.num_h_slices - out_values.x
-        || out_values.height > stream.num_v_slices - out_values.y) {
+    if (values.width > stream.num_h_slices - values.x
+        || values.height > stream.num_v_slices - values.y) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice header rectangle is outside the slice raster",
                                reader.byte_position());
     }
 
     const auto index_count = syntax::quant_table_set_index_count(stream);
-    out_values.quant_table_set_indexes.clear();
-    out_values.quant_table_set_indexes.reserve(index_count);
+    values.quant_table_set_indexes.reserve(index_count);
     for (std::size_t i = 0; i < index_count; ++i) {
         std::uint64_t index = 0;
         status = reader.read_unsigned(index);
@@ -91,31 +91,32 @@ Status SliceHeaderParser::read(entropy::SymbolReader& reader,
                                    "slice header quantization table set index is out of range",
                                    reader.byte_position());
         }
-        out_values.quant_table_set_indexes.push_back(static_cast<std::uint32_t>(index));
+        values.quant_table_set_indexes.push_back(static_cast<std::uint32_t>(index));
     }
 
-    status = reader.read_unsigned(out_values.picture_structure);
+    status = reader.read_unsigned(values.picture_structure);
     if (!status.ok()) {
         return status;
     }
-    status = validate_picture_structure(out_values.picture_structure);
+    status = validate_picture_structure(values.picture_structure);
     if (!status.ok()) {
         set_byte_location_if_missing(status, reader.byte_position());
         return status;
     }
-    status = reader.read_unsigned(out_values.sar_num);
+    status = reader.read_unsigned(values.sar_num);
     if (!status.ok()) {
         return status;
     }
-    status = reader.read_unsigned(out_values.sar_den);
+    status = reader.read_unsigned(values.sar_den);
     if (!status.ok()) {
         return status;
     }
-    if (out_values.sar_num == 0 || out_values.sar_den == 0) {
-        out_values.sar_num = 0;
-        out_values.sar_den = 0;
+    if (values.sar_num == 0 || values.sar_den == 0) {
+        values.sar_num = 0;
+        values.sar_den = 0;
     }
 
+    out_values = values;
     return ok_status();
 }
 

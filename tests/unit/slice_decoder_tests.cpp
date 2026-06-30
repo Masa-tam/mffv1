@@ -1793,6 +1793,7 @@ TEST(SliceDecoderTest, RejectsNonzeroGolombRicePadding)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{0, 0, 0, 0, 0, 0, 0, 0}));
 }
 
 TEST(SliceDecoderTest, RejectsTrailingGolombRiceByte)
@@ -1828,6 +1829,7 @@ TEST(SliceDecoderTest, RejectsTrailingGolombRiceByte)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 3u);
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{0, 0, 0, 0, 0, 0, 0, 0}));
 }
 
 TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)

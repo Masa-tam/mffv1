@@ -1920,6 +1920,56 @@ TEST(EncoderTest, FailedEncodeDoesNotAdvanceKeyframeCadence)
     EXPECT_FALSE(parsed.keyframe);
 }
 
+TEST(EncoderTest, FailedPlaneCountEncodeDoesNotAdvanceKeyframeCadence)
+{
+    mffv1::EncoderOptions options;
+    options.keyframe_interval = 2;
+    auto result = mffv1::create_encoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    const auto stream = make_initial_profile();
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> first{};
+    std::array<std::uint8_t, 128> second{};
+    second.fill(0x55);
+    const auto first_plane = make_input_plane(first);
+    const auto second_plane = make_input_plane(second);
+    const mffv1::FrameView first_input{&first_plane, 1};
+    std::array<mffv1::PlaneView, 2> rejected_planes{
+        second_plane,
+        second_plane,
+    };
+    const mffv1::FrameView rejected_input{
+        rejected_planes.data(), rejected_planes.size()};
+    const mffv1::FrameView second_input{&second_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(result.encoder->encode_frame(first_input, frame).ok());
+
+    frame.bytes.assign({std::byte{0xaa}});
+    const auto failed_status =
+        result.encoder->encode_frame(rejected_input, frame);
+    ASSERT_FALSE(failed_status.ok());
+    EXPECT_EQ(failed_status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(failed_status.message,
+              "input frame plane count does not match the stream");
+    EXPECT_FALSE(failed_status.location.has_slice_index);
+    EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+
+    ASSERT_TRUE(result.encoder->encode_frame(second_input, frame).ok());
+
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::codec::ConfigurationRecordParser record_parser;
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    parsed_stream.width = stream.width;
+    parsed_stream.height = stream.height;
+    const mffv1::codec::FrameParser frame_parser(parsed_stream);
+    mffv1::codec::FrameDecodeContext parsed;
+    ASSERT_TRUE(frame_parser.parse_with_range_header(frame.bytes, parsed).ok());
+    EXPECT_FALSE(parsed.keyframe);
+}
+
 TEST(EncoderTest, EncodeFrameRequiresConfigurationWithoutChangingOutput)
 {
     auto result = mffv1::create_encoder({});

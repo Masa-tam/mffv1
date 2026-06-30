@@ -164,6 +164,32 @@ TEST(SliceEncodeExecutorTest, ParallelFailureReportsFirstSliceInInputOrder)
     EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
+TEST(SliceEncodeExecutorTest, ParallelFailureAfterSuccessfulSlicesDoesNotPublishPartialFrame)
+{
+    const auto stream = make_stream(10);
+    const std::array<std::uint16_t, 8> storage{
+        0, 17, 93, 255,
+        71, 19, 1024, 3,
+    };
+    const mffv1::PlaneView plane{
+        storage.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt16, 4, 2, 8},
+    };
+    const mffv1::FrameView input{&plane, 1};
+    std::vector<std::byte> frame{std::byte{0xaa}};
+    mffv1::codec::SliceEncodeExecutor executor(stream, 4);
+
+    const auto status = executor.encode(input, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input sample exceeds configured bit depth");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 3u);
+    EXPECT_FALSE(executor.has_reference_state());
+    EXPECT_EQ(frame, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
 TEST(SliceEncodeExecutorTest, RejectsNonKeyframeWithoutReferenceState)
 {
     auto stream = make_stream();

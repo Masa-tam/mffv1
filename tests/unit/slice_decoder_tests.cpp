@@ -381,6 +381,7 @@ TEST(SliceDecoderTest, RejectsContentOffsetOutsidePayload)
 {
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
     auto plane = make_plane(storage);
     mffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
@@ -402,14 +403,20 @@ TEST(SliceDecoderTest, RejectsContentOffsetOutsidePayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice content offset is outside payload");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, slice.content_byte_offset);
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{
+                           0xee, 0xee, 0xee, 0xee,
+                           0xee, 0xee, 0xee, 0xee,
+                       }));
 }
 
 TEST(SliceDecoderTest, RejectsContentOffsetBeforePayload)
 {
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
     auto plane = make_plane(storage);
     mffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
@@ -432,8 +439,13 @@ TEST(SliceDecoderTest, RejectsContentOffsetBeforePayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice content offset is before payload");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, slice.content_byte_offset);
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{
+                           0xee, 0xee, 0xee, 0xee,
+                           0xee, 0xee, 0xee, 0xee,
+                       }));
 }
 
 TEST(SliceDecoderTest, DecodesWithAbsoluteContentOffset)
@@ -554,6 +566,7 @@ TEST(SliceDecoderTest, RejectsFooterOffsetBeforePayload)
 {
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
     auto plane = make_plane(storage);
     mffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 4> payload{
@@ -583,14 +596,20 @@ TEST(SliceDecoderTest, RejectsFooterOffsetBeforePayload)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer offset is before payload");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, slice.footer_byte_offset);
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{
+                           0xee, 0xee, 0xee, 0xee,
+                           0xee, 0xee, 0xee, 0xee,
+                       }));
 }
 
 TEST(SliceDecoderTest, RejectsFooterOffsetBeforeContent)
 {
     const auto stream = make_stream();
     std::array<std::uint8_t, 8> storage{};
+    storage.fill(0xee);
     auto plane = make_plane(storage);
     mffv1::MutableFrameView frame{&plane, 1};
     const std::array<std::byte, 4> payload{
@@ -620,8 +639,13 @@ TEST(SliceDecoderTest, RejectsFooterOffsetBeforeContent)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer offset is before content");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, slice.footer_byte_offset);
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{
+                           0xee, 0xee, 0xee, 0xee,
+                           0xee, 0xee, 0xee, 0xee,
+                       }));
 }
 
 TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly8BitSlice)

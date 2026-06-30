@@ -152,6 +152,12 @@ TEST(SliceFooterParserTest, RejectsCrcMismatchFromSliceEnd)
     stream.error_status_enabled = true;
     mffv1::syntax::SliceDescriptor descriptor;
     descriptor.payload_byte_offset = 50;
+    descriptor.footer_byte_offset = 123;
+    descriptor.slice_size = 456;
+    descriptor.error_status = 2;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    const auto original = descriptor;
 
     const mffv1::codec::SliceFooterParser parser;
     const auto status = parser.read_from_end(payload, stream, descriptor, true);
@@ -161,6 +167,12 @@ TEST(SliceFooterParserTest, RejectsCrcMismatchFromSliceEnd)
     EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 56u);
+    EXPECT_EQ(descriptor.payload_byte_offset, original.payload_byte_offset);
+    EXPECT_EQ(descriptor.footer_byte_offset, original.footer_byte_offset);
+    EXPECT_EQ(descriptor.slice_size, original.slice_size);
+    EXPECT_EQ(descriptor.error_status, original.error_status);
+    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
+    EXPECT_EQ(descriptor.has_crc, original.has_crc);
 }
 
 TEST(SliceFooterParserTest, RejectsReservedErrorStatus)
@@ -179,6 +191,11 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatus)
     mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
     mffv1::syntax::SliceDescriptor descriptor;
+    descriptor.slice_size = 99;
+    descriptor.error_status = 1;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    const auto original = descriptor;
 
     const mffv1::codec::SliceFooterParser parser;
     const auto status = parser.read(reader, stream, descriptor);
@@ -188,6 +205,10 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatus)
     EXPECT_EQ(status.message, "slice footer error_status is reserved");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 3u);
+    EXPECT_EQ(descriptor.slice_size, original.slice_size);
+    EXPECT_EQ(descriptor.error_status, original.error_status);
+    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
+    EXPECT_EQ(descriptor.has_crc, original.has_crc);
 }
 
 TEST(SliceFooterParserTest, RejectsReservedErrorStatusFromSliceEnd)
@@ -208,6 +229,12 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatusFromSliceEnd)
     stream.error_status_enabled = true;
     mffv1::syntax::SliceDescriptor descriptor;
     descriptor.payload_byte_offset = 70;
+    descriptor.footer_byte_offset = 123;
+    descriptor.slice_size = 456;
+    descriptor.error_status = 2;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    const auto original = descriptor;
 
     const mffv1::codec::SliceFooterParser parser;
     const auto status = parser.read_from_end(payload, stream, descriptor);
@@ -217,6 +244,12 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatusFromSliceEnd)
     EXPECT_EQ(status.message, "slice footer error_status is reserved");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 75u);
+    EXPECT_EQ(descriptor.payload_byte_offset, original.payload_byte_offset);
+    EXPECT_EQ(descriptor.footer_byte_offset, original.footer_byte_offset);
+    EXPECT_EQ(descriptor.slice_size, original.slice_size);
+    EXPECT_EQ(descriptor.error_status, original.error_status);
+    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
+    EXPECT_EQ(descriptor.has_crc, original.has_crc);
 }
 
 TEST(SliceFooterParserTest, RejectsSliceSizeMismatchFromEnd)
@@ -231,6 +264,12 @@ TEST(SliceFooterParserTest, RejectsSliceSizeMismatchFromEnd)
     mffv1::syntax::StreamParameters stream;
     mffv1::syntax::SliceDescriptor descriptor;
     descriptor.payload_byte_offset = 20;
+    descriptor.footer_byte_offset = 123;
+    descriptor.slice_size = 456;
+    descriptor.error_status = 2;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    const auto original = descriptor;
 
     const mffv1::codec::SliceFooterParser parser;
     const auto status = parser.read_from_end(payload, stream, descriptor);
@@ -240,6 +279,12 @@ TEST(SliceFooterParserTest, RejectsSliceSizeMismatchFromEnd)
     EXPECT_EQ(status.message, "slice footer size does not match slice payload size");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 22u);
+    EXPECT_EQ(descriptor.payload_byte_offset, original.payload_byte_offset);
+    EXPECT_EQ(descriptor.footer_byte_offset, original.footer_byte_offset);
+    EXPECT_EQ(descriptor.slice_size, original.slice_size);
+    EXPECT_EQ(descriptor.error_status, original.error_status);
+    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
+    EXPECT_EQ(descriptor.has_crc, original.has_crc);
 }
 
 TEST(SliceFooterParserTest, RejectsPayloadTooSmallForFooter)
@@ -251,6 +296,12 @@ TEST(SliceFooterParserTest, RejectsPayloadTooSmallForFooter)
     mffv1::syntax::StreamParameters stream;
     mffv1::syntax::SliceDescriptor descriptor;
     descriptor.payload_byte_offset = 30;
+    descriptor.footer_byte_offset = 123;
+    descriptor.slice_size = 456;
+    descriptor.error_status = 2;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    const auto original = descriptor;
 
     const mffv1::codec::SliceFooterParser parser;
     const auto status = parser.read_from_end(payload, stream, descriptor);
@@ -260,6 +311,12 @@ TEST(SliceFooterParserTest, RejectsPayloadTooSmallForFooter)
     EXPECT_EQ(status.message, "slice payload is too small to contain a footer");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 30u);
+    EXPECT_EQ(descriptor.payload_byte_offset, original.payload_byte_offset);
+    EXPECT_EQ(descriptor.footer_byte_offset, original.footer_byte_offset);
+    EXPECT_EQ(descriptor.slice_size, original.slice_size);
+    EXPECT_EQ(descriptor.error_status, original.error_status);
+    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
+    EXPECT_EQ(descriptor.has_crc, original.has_crc);
 }
 
 TEST(SliceFooterParserTest, RejectsUnalignedFooter)

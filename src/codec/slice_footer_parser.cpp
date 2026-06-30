@@ -30,9 +30,10 @@ Status SliceFooterParser::read(bitstream::BitReader& reader,
         set_byte_location_if_missing(status, footer_offset);
         return status;
     }
-    descriptor.slice_size = static_cast<std::uint32_t>(value);
+    const auto slice_size = static_cast<std::uint32_t>(value);
 
     if (!stream.error_status_enabled) {
+        descriptor.slice_size = slice_size;
         descriptor.error_status = 0;
         descriptor.expected_crc = 0;
         descriptor.has_crc = false;
@@ -50,7 +51,7 @@ Status SliceFooterParser::read(bitstream::BitReader& reader,
                                "slice footer error_status is reserved",
                                error_status_offset);
     }
-    descriptor.error_status = static_cast<std::uint8_t>(value);
+    const auto error_status = static_cast<std::uint8_t>(value);
 
     const auto crc_offset = reader.byte_position();
     status = reader.read_bits(32, value);
@@ -58,6 +59,8 @@ Status SliceFooterParser::read(bitstream::BitReader& reader,
         set_byte_location_if_missing(status, crc_offset);
         return status;
     }
+    descriptor.slice_size = slice_size;
+    descriptor.error_status = error_status;
     descriptor.expected_crc = static_cast<std::uint32_t>(value);
     descriptor.has_crc = true;
     return ok_status();
@@ -76,31 +79,33 @@ Status SliceFooterParser::read_from_end(ByteSpan slice_payload,
     }
 
     const auto footer_offset = slice_payload.size() - required_footer_size;
-    descriptor.footer_byte_offset = descriptor.payload_byte_offset + footer_offset;
+    auto next = descriptor;
+    next.footer_byte_offset = next.payload_byte_offset + footer_offset;
 
     bitstream::BitReader reader(slice_payload.subspan(footer_offset, required_footer_size));
-    Status status = read(reader, stream, descriptor);
+    Status status = read(reader, stream, next);
     if (!status.ok()) {
         if (status.location.has_byte_offset) {
-            status.location.byte_offset += descriptor.footer_byte_offset;
+            status.location.byte_offset += next.footer_byte_offset;
         } else {
-            set_byte_location_if_missing(status, descriptor.footer_byte_offset);
+            set_byte_location_if_missing(status, next.footer_byte_offset);
         }
         return status;
     }
 
-    if (descriptor.slice_size != slice_payload.size()) {
+    if (next.slice_size != slice_payload.size()) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice footer size does not match slice payload size",
-                               descriptor.footer_byte_offset);
+                               next.footer_byte_offset);
     }
 
-    if (verify_crc && descriptor.has_crc && util::crc32_ieee_msb(slice_payload) != 0) {
+    if (verify_crc && next.has_crc && util::crc32_ieee_msb(slice_payload) != 0) {
         return make_byte_error(ErrorCode::CrcMismatch,
                                "slice CRC remainder is non-zero",
-                               descriptor.footer_byte_offset + 4);
+                               next.footer_byte_offset + 4);
     }
 
+    descriptor = next;
     return ok_status();
 }
 

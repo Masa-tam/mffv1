@@ -975,9 +975,12 @@ TEST(EncoderTest, PublicEncoderRoundTripsSixteenBitGolombRiceSamples)
         16, mffv1::EntropyMode::GolombRice);
 }
 
-TEST(EncoderTest, RejectsInputSampleAboveConfiguredBitDepth)
+void expect_input_sample_above_configured_bit_depth_rejected(
+    mffv1::EntropyMode entropy_mode)
 {
-    auto encoder = mffv1::create_encoder({});
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(options);
     ASSERT_TRUE(encoder.status.ok());
     ASSERT_NE(encoder.encoder, nullptr);
     auto stream = make_initial_profile();
@@ -1007,6 +1010,18 @@ TEST(EncoderTest, RejectsInputSampleAboveConfiguredBitDepth)
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(EncoderTest, RejectsRangeInputSampleAboveConfiguredBitDepth)
+{
+    expect_input_sample_above_configured_bit_depth_rejected(
+        mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, RejectsGolombRiceInputSampleAboveConfiguredBitDepth)
+{
+    expect_input_sample_above_configured_bit_depth_rejected(
+        mffv1::EntropyMode::GolombRice);
 }
 
 void expect_public_subsampled_round_trip(

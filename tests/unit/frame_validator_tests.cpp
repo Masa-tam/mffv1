@@ -1029,6 +1029,28 @@ TEST(FrameValidatorTest, AcceptsFullResolutionRgbInputPlaneRoles)
     EXPECT_TRUE(validator.validate_input(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, RejectsSwappedRgbInputPlaneRoles)
+{
+    auto stream = make_y_stream();
+    stream.colorspace_type = 1;
+    stream.chroma_planes = true;
+
+    std::array<std::uint8_t, 12> r{};
+    std::array<std::uint8_t, 12> g{};
+    std::array<std::uint8_t, 12> b{};
+    std::array<mffv1::PlaneView, 3> planes{};
+    planes[0] = {r.data(), {mffv1::PlaneRole::R, mffv1::SampleFormat::UInt8, 4, 3, 4}};
+    planes[1] = {g.data(), {mffv1::PlaneRole::B, mffv1::SampleFormat::UInt8, 4, 3, 4}};
+    planes[2] = {b.data(), {mffv1::PlaneRole::G, mffv1::SampleFormat::UInt8, 4, 3, 4}};
+    mffv1::FrameView frame{planes.data(), planes.size()};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane role does not match stream plane order");
+}
+
 TEST(FrameValidatorTest, RejectsSubsampledRgbStream)
 {
     auto stream = make_y_stream();

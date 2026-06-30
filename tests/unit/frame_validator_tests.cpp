@@ -917,6 +917,27 @@ TEST(FrameValidatorTest, AcceptsExtraPlaneRole)
     EXPECT_TRUE(validator.validate_output(stream, frame).ok());
 }
 
+TEST(FrameValidatorTest, RejectsWrongExtraOutputPlaneRole)
+{
+    auto stream = make_y_stream();
+    stream.extra_plane = true;
+
+    std::array<std::uint8_t, 12> y{};
+    std::array<std::uint8_t, 12> alpha{};
+    std::array<mffv1::MutablePlaneView, 2> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 4, 3, 4};
+    planes[1].data = alpha.data();
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 4, 3, 4};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_output(stream, frame);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane role does not match stream plane order");
+}
+
 TEST(FrameValidatorTest, AcceptsExtraInputPlaneRole)
 {
     auto stream = make_y_stream();

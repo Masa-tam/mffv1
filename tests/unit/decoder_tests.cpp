@@ -1189,7 +1189,11 @@ TEST(DecoderTest, FailedGolombRiceSliceDecodePreservesReferenceState)
     const auto failed_status =
         result.decoder->decode_frame(malformed_keyframe, output);
     ASSERT_FALSE(failed_status.ok());
-    EXPECT_NE(failed_status.code, mffv1::ErrorCode::Ok);
+    EXPECT_EQ(failed_status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(failed_status.message,
+              "Golomb-Rice alignment padding must be zero");
+    EXPECT_TRUE(failed_status.location.has_byte_offset);
+    EXPECT_EQ(failed_status.location.byte_offset, 0u);
 
     const std::array non_keyframe_payload{std::byte{0x70}};
     const auto status = result.decoder->decode_frame(non_keyframe_payload, output);

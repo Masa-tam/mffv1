@@ -1024,6 +1024,61 @@ TEST(EncoderTest, RejectsGolombRiceInputSampleAboveConfiguredBitDepth)
         mffv1::EntropyMode::GolombRice);
 }
 
+void expect_multi_slice_input_sample_above_configured_bit_depth_rejected(
+    mffv1::EntropyMode entropy_mode)
+{
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    options.thread_count = 4;
+    auto encoder = mffv1::create_encoder(options);
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.width = 4;
+    stream.height = 2;
+    stream.bits_per_raw_sample = 10;
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+    const std::array<std::uint16_t, 8> source{
+        0, 17, 93, 255,
+        71, 19, 1024, 3,
+    };
+    const mffv1::PlaneView input_plane{
+        source.data(),
+        {mffv1::PlaneRole::Y,
+         mffv1::SampleFormat::UInt16,
+         4,
+         2,
+         8},
+    };
+    const mffv1::FrameView input{&input_plane, 1};
+    mffv1::EncodedFrame frame;
+    frame.bytes.push_back(std::byte{0xaa});
+
+    const auto status = encoder.encoder->encode_frame(input, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "input sample exceeds configured bit depth");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 3u);
+    EXPECT_EQ(frame.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
+}
+
+TEST(EncoderTest, RejectsMultiSliceRangeInputSampleAboveConfiguredBitDepth)
+{
+    expect_multi_slice_input_sample_above_configured_bit_depth_rejected(
+        mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, RejectsMultiSliceGolombRiceInputSampleAboveConfiguredBitDepth)
+{
+    expect_multi_slice_input_sample_above_configured_bit_depth_rejected(
+        mffv1::EntropyMode::GolombRice);
+}
+
 void expect_public_subsampled_round_trip(
     std::uint8_t log2_v_chroma_subsample,
     bool has_extra_plane = false,

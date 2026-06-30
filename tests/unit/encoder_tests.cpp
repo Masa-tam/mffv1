@@ -1935,9 +1935,11 @@ TEST(EncoderTest, FailedEncodeDoesNotAdvanceKeyframeCadence)
     EXPECT_FALSE(parsed.keyframe);
 }
 
-TEST(EncoderTest, FailedPlaneCountEncodeDoesNotAdvanceKeyframeCadence)
+void expect_failed_plane_count_encode_does_not_advance_keyframe_cadence(
+    mffv1::EntropyMode entropy_mode)
 {
     mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
     options.keyframe_interval = 2;
     auto result = mffv1::create_encoder(options);
     ASSERT_TRUE(result.status.ok());
@@ -1983,6 +1985,18 @@ TEST(EncoderTest, FailedPlaneCountEncodeDoesNotAdvanceKeyframeCadence)
     mffv1::codec::FrameDecodeContext parsed;
     ASSERT_TRUE(frame_parser.parse_with_range_header(frame.bytes, parsed).ok());
     EXPECT_FALSE(parsed.keyframe);
+}
+
+TEST(EncoderTest, FailedRangePlaneCountEncodeDoesNotAdvanceKeyframeCadence)
+{
+    expect_failed_plane_count_encode_does_not_advance_keyframe_cadence(
+        mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, FailedGolombRicePlaneCountEncodeDoesNotAdvanceKeyframeCadence)
+{
+    expect_failed_plane_count_encode_does_not_advance_keyframe_cadence(
+        mffv1::EntropyMode::GolombRice);
 }
 
 TEST(EncoderTest, EncodeFrameRequiresConfigurationWithoutChangingOutput)

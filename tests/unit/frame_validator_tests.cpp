@@ -873,6 +873,32 @@ TEST(FrameValidatorTest, RejectsSwappedChromaPlaneRoles)
     EXPECT_EQ(status.message, "plane role does not match stream plane order");
 }
 
+TEST(FrameValidatorTest, RejectsSwappedChromaInputPlaneRoles)
+{
+    auto stream = make_y_stream();
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 12> y{};
+    std::array<std::uint8_t, 4> cb{};
+    std::array<std::uint8_t, 4> cr{};
+    std::array<mffv1::PlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 4, 3, 4};
+    planes[1].data = cb.data();
+    planes[1].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 2, 2, 2};
+    planes[2].data = cr.data();
+    planes[2].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 2, 2, 2};
+    mffv1::FrameView frame{planes.data(), planes.size()};
+
+    const mffv1::codec::FrameValidator validator;
+    const auto status = validator.validate_input(stream, frame);
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "plane role does not match stream plane order");
+}
+
 TEST(FrameValidatorTest, AcceptsExtraPlaneRole)
 {
     auto stream = make_y_stream();

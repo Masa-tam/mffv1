@@ -5,6 +5,7 @@
 #include "util/crc32.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -28,12 +29,22 @@ class RecordingSymbolWriter final : public mffv1::entropy::SymbolWriter {
 public:
     mffv1::Status write_bool(bool value) override
     {
+        if (should_fail()) {
+            return mffv1::make_error(
+                mffv1::ErrorCode::InvalidState,
+                "injected symbol writer failure");
+        }
         symbols.push_back({SymbolKind::Bool, value ? 1 : 0});
         return mffv1::ok_status();
     }
 
     mffv1::Status write_unsigned(std::uint64_t value) override
     {
+        if (should_fail()) {
+            return mffv1::make_error(
+                mffv1::ErrorCode::InvalidState,
+                "injected symbol writer failure");
+        }
         symbols.push_back({
             SymbolKind::Unsigned,
             static_cast<std::int64_t>(value),
@@ -48,6 +59,16 @@ public:
     }
 
     std::vector<Symbol> symbols;
+    std::optional<std::size_t> fail_on_write;
+
+private:
+    bool should_fail()
+    {
+        if (!fail_on_write.has_value()) {
+            return false;
+        }
+        return symbols.size() == *fail_on_write;
+    }
 };
 
 mffv1::syntax::StreamParameters make_initial_profile()
@@ -439,6 +460,24 @@ TEST(ConfigurationRecordWriterTest, RejectsInvalidParametersBeforeWritingSymbols
     EXPECT_EQ(status.message,
               "configuration writer supports only 4:4:4, 4:2:2, and 4:2:0 chroma geometry");
     EXPECT_EQ(symbols.symbols, original);
+}
+
+TEST(ConfigurationRecordWriterTest, StopsWritingParametersAfterSymbolWriterFailure)
+{
+    const auto stream = make_initial_profile();
+    RecordingSymbolWriter symbols;
+    symbols.fail_on_write = 3;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write_parameters(stream, symbols);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "injected symbol writer failure");
+    ASSERT_EQ(symbols.symbols.size(), 3u);
+    EXPECT_EQ(symbols.symbols[0], (Symbol{SymbolKind::Unsigned, 3}));
+    EXPECT_EQ(symbols.symbols[1], (Symbol{SymbolKind::Unsigned, 4}));
+    EXPECT_EQ(symbols.symbols[2], (Symbol{SymbolKind::Unsigned, 1}));
 }
 
 TEST(ConfigurationRecordWriterTest, RejectsVerticalOnlySubsampling)

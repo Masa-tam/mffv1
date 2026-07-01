@@ -989,6 +989,33 @@ TEST(FrameParserTest, DefaultParseRejectsVersionThreeMultiSliceCrcMismatch)
     expect_existing_frame_preserved(frame);
 }
 
+TEST(FrameParserTest, DefaultParseReportsSecondMultiSliceCrcMismatchLocation)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    stream.error_status_enabled = true;
+    mffv1::codec::FrameParser parser(stream, true);
+    auto frame = make_existing_frame();
+    const mffv1::codec::SliceFooterWriter footer_writer;
+    std::vector<std::byte> first_slice{std::byte{0xff}, std::byte{0x00}};
+    ASSERT_TRUE(footer_writer.append(stream, 0, first_slice).ok());
+    std::vector<std::byte> second_slice{std::byte{0xff}, std::byte{0x00}};
+    ASSERT_TRUE(footer_writer.append(stream, 0, second_slice).ok());
+    second_slice.back() ^= std::byte{0x01};
+    std::vector<std::byte> payload = first_slice;
+    payload.insert(payload.end(), second_slice.begin(), second_slice.end());
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 1u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 16u);
+    expect_existing_frame_preserved(frame);
+}
+
 TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)
 {
     auto stream = make_stream();

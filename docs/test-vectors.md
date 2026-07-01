@@ -20,6 +20,10 @@ The repository contains only:
   `NO_DEFINE_TEST_VECTOR_DATA`.
 - `tests/unit/test_vector_tests.cpp`: skip-aware test hook.
 
+Generator archives should be reviewed before commit. See
+`docs/test-vector-generator-review.md` for the current review notes for the
+local `createVector.zip` candidate.
+
 ## Required Record For Each Added Vector
 
 Each committed external vector must have an entry with:

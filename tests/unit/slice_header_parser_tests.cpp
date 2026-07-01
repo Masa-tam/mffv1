@@ -386,6 +386,24 @@ TEST(SliceHeaderParserTest, ReadDescriptorSetsHeaderAndContentOffsets)
     EXPECT_EQ(descriptor.payload_byte_offset, 0u);
 }
 
+TEST(SliceHeaderParserTest, FailedReadDescriptorPreservesDescriptor)
+{
+    const auto stream = make_stream();
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 2}, 2);
+    auto descriptor = make_sentinel_descriptor();
+    const auto original = descriptor;
+
+    const mffv1::codec::SliceHeaderParser parser;
+    const auto status = parser.read_descriptor(reader, stream, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice header quantization table set index is out of range");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 12u);
+    expect_descriptor_equal(descriptor, original);
+}
+
 TEST(SliceHeaderParserTest, RejectsOutOfFrameRectangle)
 {
     const auto stream = make_stream();

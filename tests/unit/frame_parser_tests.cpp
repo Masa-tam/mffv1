@@ -737,6 +737,8 @@ TEST(FrameParserTest, AcceptsRangeCodedNonKeyframeForNonIntraStream)
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_FALSE(frame.keyframe);
+    EXPECT_FALSE(frame.frame_info.keyframe);
+    EXPECT_EQ(frame.frame_info.slice_count, 1u);
     ASSERT_EQ(frame.slices.size(), 1u);
     EXPECT_EQ(frame.slices[0].raster_x, 0u);
     EXPECT_EQ(frame.slices[0].raster_y, 0u);

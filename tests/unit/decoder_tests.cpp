@@ -1,8 +1,12 @@
 #include "mffv1/codec.hpp"
 
+#include "codec/configuration_record_writer.hpp"
+#include "codec/slice_footer_writer.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -114,6 +118,53 @@ mffv1::MutablePlaneView make_y_plane(std::uint8_t* data,
     plane.info.height = height;
     plane.info.stride_bytes = stride_bytes;
     return plane;
+}
+
+mffv1::syntax::StreamParameters make_two_slice_ec_stream()
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.version = 3;
+    stream.micro_version = 4;
+    stream.entropy_mode = mffv1::EntropyMode::Range;
+    stream.width = 2;
+    stream.height = 1;
+    stream.bits_per_raw_sample = 8;
+    stream.colorspace_type = 0;
+    stream.chroma_planes = false;
+    stream.extra_plane = false;
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 1;
+    stream.error_status_enabled = true;
+    stream.intra_only = true;
+    stream.quant_table_sets.push_back(
+        mffv1::syntax::make_zero_quant_table_set());
+    return stream;
+}
+
+std::vector<std::byte> make_two_slice_ec_payload()
+{
+    const auto stream = make_two_slice_ec_stream();
+    const mffv1::codec::SliceFooterWriter footer_writer;
+
+    std::vector<std::byte> first_slice{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    EXPECT_TRUE(footer_writer.append(stream, 0, first_slice).ok());
+
+    std::vector<std::byte> second_slice{
+        std::byte{0x3d},
+        std::byte{0x34},
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    EXPECT_TRUE(footer_writer.append(stream, 0, second_slice).ok());
+
+    std::vector<std::byte> payload = first_slice;
+    payload.insert(payload.end(), second_slice.begin(), second_slice.end());
+    return payload;
 }
 
 TEST(DecoderTest, FactoryCreatesDecoder)
@@ -870,6 +921,72 @@ TEST(DecoderTest, DecodesMultiSliceRangeFrameThroughPublicApi)
     EXPECT_EQ(info.plane_count, 1u);
     EXPECT_EQ(info.planes[0].width, stream.width);
     EXPECT_EQ(info.planes[0].height, stream.height);
+
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);
+    mffv1::MutableFrameView output{&plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame_payload, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[1], 1u);
+}
+
+TEST(DecoderTest, DecodeFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
+{
+    const auto stream = make_two_slice_ec_stream();
+    const mffv1::codec::ConfigurationRecordWriter record_writer;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    auto frame_payload = make_two_slice_ec_payload();
+    ASSERT_FALSE(frame_payload.empty());
+    frame_payload.back() ^= std::byte{0x01};
+
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);
+    mffv1::MutableFrameView output{&plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0xee);
+}
+
+TEST(DecoderTest, DecodeFrameCanIgnoreMultiSliceCrcMismatch)
+{
+    const auto stream = make_two_slice_ec_stream();
+    const mffv1::codec::ConfigurationRecordWriter record_writer;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    options.verify_crc = false;
+    auto decoder = mffv1::create_decoder(options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    auto frame_payload = make_two_slice_ec_payload();
+    ASSERT_FALSE(frame_payload.empty());
+    frame_payload.back() ^= std::byte{0x01};
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);

@@ -169,7 +169,7 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(0); // ec
+    status = write_unsigned(stream.error_status_enabled ? 1 : 0); // ec
     if (!status.ok()) {
         return status;
     }
@@ -239,13 +239,12 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             ErrorCode::UnsupportedFeature,
             "configuration writer supports only one zero quantization table set");
     }
-    if ((!stream.initial_states.empty()
-         && (stream.initial_states.size() != 1
-             || !stream.initial_states[0].contexts.empty()))
-        || stream.error_status_enabled) {
+    if (!stream.initial_states.empty()
+        && (stream.initial_states.size() != 1
+            || !stream.initial_states[0].contexts.empty())) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports only streams without custom states or EC");
+            "configuration writer supports only streams without custom states");
     }
     return ok_status();
 }

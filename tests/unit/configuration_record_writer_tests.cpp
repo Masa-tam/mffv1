@@ -568,24 +568,26 @@ TEST(ConfigurationRecordWriterTest, RejectsCustomInitialStates)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(status.message, "configuration writer supports only streams without custom states or EC");
+    EXPECT_EQ(status.message, "configuration writer supports only streams without custom states");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
-TEST(ConfigurationRecordWriterTest, RejectsErrorStatusWithoutChangingOutput)
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesErrorStatus)
 {
     auto stream = make_initial_profile();
     stream.error_status_enabled = true;
     const mffv1::codec::ConfigurationRecordWriter writer;
-    std::vector<std::byte> record{std::byte{0xaa}};
+    std::vector<std::byte> record;
 
     const auto status = writer.write(stream, record);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(status.message,
-              "configuration writer supports only streams without custom states or EC");
-    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(record), 0u);
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_TRUE(parsed.error_status_enabled);
 }
 
 } // namespace

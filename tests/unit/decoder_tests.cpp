@@ -1018,8 +1018,9 @@ TEST(DecoderTest, DecodeFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
     EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
     EXPECT_TRUE(status.location.has_slice_index);
-    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_EQ(status.location.slice_index, 1u);
     EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 20u);
     EXPECT_EQ(storage[0], 0xee);
     EXPECT_EQ(storage[1], 0xee);
 }
@@ -1111,8 +1112,9 @@ TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
     EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
     EXPECT_TRUE(status.location.has_slice_index);
-    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_EQ(status.location.slice_index, 1u);
     EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 20u);
     EXPECT_EQ(info.slice_count, 0u);
 }
 

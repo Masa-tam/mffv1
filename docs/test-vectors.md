@@ -38,6 +38,9 @@ Each committed external vector must have an entry with:
 - Notes on whether the vector contains codec private data, frame payloads, or
   decoded expected samples.
 
+Generated C++ headers used by the unit tests must follow the local test-only
+schema documented in `testvectors/README.md`.
+
 ## Entry Template
 
 ```markdown

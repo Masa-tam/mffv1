@@ -89,6 +89,46 @@ FFmpeg libraries must remain confined to the generator tool.
    The generated header should not define `NO_DEFINE_TEST_VECTOR_DATA`.
 8. Reconfigure, rebuild, and run the mffv1 tests.
 
+## Generated Header Contract
+
+The generated `test_vector_data.hpp` should be header-only and define the
+following test-only API:
+
+```cpp
+#pragma once
+
+#include "mffv1/frame.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
+namespace mffv1_testvectors {
+
+struct PlaneVector {
+    mffv1::PlaneInfo info;
+    std::span<const std::byte> samples;
+};
+
+struct DecodeVector {
+    std::string_view name;
+    std::uint32_t frame_width = 0;
+    std::uint32_t frame_height = 0;
+    std::span<const std::byte> configuration_record;
+    std::span<const std::byte> frame_payload;
+    std::span<const PlaneVector> expected_planes;
+};
+
+std::span<const DecodeVector> decode_vectors();
+
+} // namespace mffv1_testvectors
+```
+
+The `samples` span for each plane must contain at least
+`info.stride_bytes * info.height` bytes. The tests compare those bytes exactly
+after decoding through the public decoder API.
+
 ## Provenance Rules
 
 - Generated vector data should come from media files and FFmpeg's public

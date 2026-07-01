@@ -1106,6 +1106,10 @@ TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
     const auto frame_payload = make_corrupt_two_slice_ec_payload();
 
     mffv1::FrameInfo info;
+    info.width = 99;
+    info.height = 77;
+    info.slice_count = 6;
+    info.error_status_enabled = false;
     const auto status = decoder.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_FALSE(status.ok());
@@ -1115,7 +1119,10 @@ TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
     EXPECT_EQ(status.location.slice_index, 1u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 20u);
-    EXPECT_EQ(info.slice_count, 0u);
+    EXPECT_EQ(info.width, 99u);
+    EXPECT_EQ(info.height, 77u);
+    EXPECT_EQ(info.slice_count, 6u);
+    EXPECT_FALSE(info.error_status_enabled);
 }
 
 TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatus)
@@ -1127,6 +1134,10 @@ TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatus)
     const auto frame_payload = make_reserved_error_status_two_slice_ec_payload();
 
     mffv1::FrameInfo info;
+    info.width = 99;
+    info.height = 77;
+    info.slice_count = 6;
+    info.error_status_enabled = false;
     const auto status = decoder.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_FALSE(status.ok());
@@ -1136,7 +1147,10 @@ TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatus)
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 7u);
-    EXPECT_EQ(info.slice_count, 0u);
+    EXPECT_EQ(info.width, 99u);
+    EXPECT_EQ(info.height, 77u);
+    EXPECT_EQ(info.slice_count, 6u);
+    EXPECT_FALSE(info.error_status_enabled);
 }
 
 TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatusWhenIgnoringCrc)

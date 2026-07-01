@@ -57,6 +57,11 @@ public:
         return byte_position_;
     }
 
+    std::size_t remaining_value_count() const noexcept
+    {
+        return values_.size();
+    }
+
 private:
     std::deque<std::uint64_t> values_;
     std::uint64_t bytes_per_read_ = 0;
@@ -413,6 +418,28 @@ TEST(FrameParserTest, FailedHeaderReaderMultiSliceDoesNotExposeParsedPrefix)
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 1u);
     expect_existing_frame_preserved(frame);
+}
+
+TEST(FrameParserTest, HeaderReaderStopsAfterRasterCoverageIsComplete)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({
+        0, 0, 1, 0, 0, 0, 3, 4, 3,
+        1, 0, 0, 0,
+    }, 1);
+    const std::array<std::byte, 20> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 2u);
+    EXPECT_EQ(frame.frame_info.slice_count, 1u);
+    EXPECT_EQ(reader.remaining_value_count(), 4u);
 }
 
 TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)

@@ -420,6 +420,28 @@ TEST(FrameParserTest, FailedHeaderReaderMultiSliceDoesNotExposeParsedPrefix)
     expect_existing_frame_preserved(frame);
 }
 
+TEST(FrameParserTest, RejectsOverlappingHeaderReaderSlicesWithoutChangingFrame)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    auto frame = make_existing_frame();
+    ScriptedUnsignedReader reader({
+        0, 0, 0, 0, 0, 0, 3, 4, 3,
+        0, 0, 0, 0, 0, 0, 3, 4, 3,
+    }, 1);
+    const std::array<std::byte, 20> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster rectangles overlap");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 1u);
+    expect_existing_frame_preserved(frame);
+}
+
 TEST(FrameParserTest, HeaderReaderStopsAfterRasterCoverageIsComplete)
 {
     auto stream = make_stream();

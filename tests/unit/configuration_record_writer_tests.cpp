@@ -480,6 +480,22 @@ TEST(ConfigurationRecordWriterTest, StopsWritingParametersAfterSymbolWriterFailu
     EXPECT_EQ(symbols.symbols[2], (Symbol{SymbolKind::Unsigned, 1}));
 }
 
+TEST(ConfigurationRecordWriterTest, PropagatesFinalParameterSymbolFailure)
+{
+    const auto stream = make_initial_profile();
+    RecordingSymbolWriter symbols;
+    symbols.fail_on_write = 19;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write_parameters(stream, symbols);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "injected symbol writer failure");
+    ASSERT_EQ(symbols.symbols.size(), 19u);
+    EXPECT_EQ(symbols.symbols.back(), (Symbol{SymbolKind::Unsigned, 0}));
+}
+
 TEST(ConfigurationRecordWriterTest, RejectsVerticalOnlySubsampling)
 {
     auto stream = make_initial_profile();

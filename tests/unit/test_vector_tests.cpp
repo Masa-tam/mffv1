@@ -39,36 +39,30 @@ bool compute_plane_size(const mffv1_testvectors::PlaneVector& plane,
     return true;
 }
 
-void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
+void expect_decodes_frame(
+    mffv1::IDecoder& decoder,
+    const mffv1_testvectors::DecodeVector& vector,
+    std::size_t frame_index,
+    std::span<const std::byte> frame_payload,
+    std::span<const mffv1_testvectors::PlaneVector> expected_planes)
 {
-    SCOPED_TRACE(vector.name);
-    ASSERT_GT(vector.frame_width, 0u);
-    ASSERT_GT(vector.frame_height, 0u);
-    ASSERT_FALSE(vector.configuration_record.empty());
-    ASSERT_FALSE(vector.frame_payload.empty());
-    ASSERT_FALSE(vector.expected_planes.empty());
-
-    mffv1::DecoderOptions options;
-    options.frame_width = vector.frame_width;
-    options.frame_height = vector.frame_height;
-    auto decoder = mffv1::create_decoder(options);
-    ASSERT_TRUE(decoder.status.ok()) << decoder.status.message;
-    ASSERT_NE(decoder.decoder, nullptr);
-    ASSERT_TRUE(decoder.decoder->configure(vector.configuration_record).ok());
+    SCOPED_TRACE(frame_index);
+    ASSERT_FALSE(frame_payload.empty());
+    ASSERT_FALSE(expected_planes.empty());
 
     mffv1::FrameInfo info;
-    ASSERT_TRUE(decoder.decoder->inspect_frame(vector.frame_payload, info).ok());
+    ASSERT_TRUE(decoder.inspect_frame(frame_payload, info).ok());
     EXPECT_EQ(info.width, vector.frame_width);
     EXPECT_EQ(info.height, vector.frame_height);
-    ASSERT_EQ(info.plane_count, vector.expected_planes.size());
+    ASSERT_EQ(info.plane_count, expected_planes.size());
 
     std::vector<std::vector<std::byte>> plane_storage;
     std::vector<mffv1::MutablePlaneView> output_planes;
-    plane_storage.reserve(vector.expected_planes.size());
-    output_planes.reserve(vector.expected_planes.size());
+    plane_storage.reserve(expected_planes.size());
+    output_planes.reserve(expected_planes.size());
 
-    for (std::size_t index = 0; index < vector.expected_planes.size(); ++index) {
-        const auto& expected = vector.expected_planes[index];
+    for (std::size_t index = 0; index < expected_planes.size(); ++index) {
+        const auto& expected = expected_planes[index];
         SCOPED_TRACE(index);
         std::size_t expected_size = 0;
         ASSERT_TRUE(compute_plane_size(expected, expected_size));
@@ -84,16 +78,46 @@ void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
     }
 
     mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
-    const auto status = decoder.decoder->decode_frame(vector.frame_payload, output);
+    const auto status = decoder.decode_frame(frame_payload, output);
     ASSERT_TRUE(status.ok()) << status.message;
 
-    for (std::size_t index = 0; index < vector.expected_planes.size(); ++index) {
-        const auto& expected = vector.expected_planes[index];
+    for (std::size_t index = 0; index < expected_planes.size(); ++index) {
+        const auto& expected = expected_planes[index];
         std::size_t expected_size = 0;
         ASSERT_TRUE(compute_plane_size(expected, expected_size));
         const std::vector<std::byte> expected_bytes{
             expected.samples.begin(), expected.samples.begin() + expected_size};
         EXPECT_EQ(plane_storage[index], expected_bytes);
+    }
+}
+
+void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
+{
+    SCOPED_TRACE(vector.name);
+    ASSERT_GT(vector.frame_width, 0u);
+    ASSERT_GT(vector.frame_height, 0u);
+    ASSERT_FALSE(vector.configuration_record.empty());
+    ASSERT_FALSE(vector.frame_payloads.empty());
+    ASSERT_FALSE(vector.expected_planes.empty());
+    ASSERT_EQ(vector.frame_payloads.size(), vector.expected_planes.size());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = vector.frame_width;
+    options.frame_height = vector.frame_height;
+    auto decoder = mffv1::create_decoder(options);
+    ASSERT_TRUE(decoder.status.ok()) << decoder.status.message;
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(vector.configuration_record).ok());
+
+    for (std::size_t frame_index = 0;
+         frame_index < vector.frame_payloads.size();
+         ++frame_index) {
+        expect_decodes_frame(
+            *decoder.decoder,
+            vector,
+            frame_index,
+            vector.frame_payloads[frame_index],
+            vector.expected_planes[frame_index]);
     }
 }
 

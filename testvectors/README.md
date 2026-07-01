@@ -21,19 +21,12 @@ the local generator. Do not copy FFmpeg source code into this repository.
 Primary download page:
 
 ```text
-https://ffmpeg.org/download.html
+https://github.com/BtbN/FFmpeg-Builds/releases
 ```
 
-Windows build example:
+Download ffmpeg-master-latest-win64-gpl-shared.zip.
 
-```text
-https://www.gyan.dev/ffmpeg/builds/
-```
-
-The gyan.dev release page provides `ffmpeg-release-essentials.zip` and SHA-256
-files. These builds are convenient for local extraction, but check the build
-license notes before redistribution. Keep all downloaded FFmpeg files outside
-version control.
+Keep all downloaded FFmpeg files outside version control.
 
 ## Suggested Local Layout
 
@@ -43,19 +36,15 @@ Create the following local-only layout:
 testvectors/
   ffmpeg/
     bin/
-      ffmpeg.exe
-      ffprobe.exe
+      *.dll
     include/
       libavcodec/
       libavformat/
       libavutil/
     lib/
-      avcodec.lib
-      avformat.lib
-      avutil.lib
+      *.lib
   createVector.zip
   createVector/
-  generated/
   test_vector_data.hpp
 ```
 
@@ -81,12 +70,34 @@ FFmpeg libraries must remain confined to the generator tool.
    testvectors/createVector/
    ```
 
-5. Configure and build the generator with CMake from the extracted directory.
-   Point its FFmpeg include, library, and binary paths at
-   `testvectors/ffmpeg/`.
-6. Run the generator on local MKV files containing FFV1 streams.
-7. Replace `testvectors/test_vector_data.hpp` with the generated C++ header.
-   The generated header should not define `NO_DEFINE_TEST_VECTOR_DATA`.
+5. Configure and build the generator with CMake from the extracted directory using the provided preset:
+
+   ```cmd
+   cd testvectors/createVector
+   cmake --preset vs2026-x64
+   cmake --build --preset vs2026-x64-release
+   ```
+
+   *(Note: The build process will automatically copy the required FFmpeg DLLs into the output directory.)*
+
+6. Run the generator on local MKV files containing FFV1 streams. You can pass the MKV files directly as arguments, or provide a text file containing a list of paths (one per line) prefixed with `@`:
+
+   ```cmd
+   cd build/vs2026-x64/Release
+   mkv_to_cpp.exe "C:\path\to\video1.mkv" "C:\path\to\video2.mkv"
+
+   :: Or using a list file:
+   mkv_to_cpp.exe @list.txt
+   ```
+
+   This will generate `test_vector_data.hpp` in the current directory.
+
+7. Copy the generated header back to the `testvectors/` root, replacing the placeholder file:
+
+   ```cmd
+   copy test_vector_data.hpp ..\..\..\..\test_vector_data.hpp
+   ```
+
 8. Reconfigure, rebuild, and run the mffv1 tests.
 
 ## Generated Header Contract
@@ -103,6 +114,7 @@ following test-only API:
 #include <cstdint>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace mffv1_testvectors {
 
@@ -116,8 +128,8 @@ struct DecodeVector {
     std::uint32_t frame_width = 0;
     std::uint32_t frame_height = 0;
     std::span<const std::byte> configuration_record;
-    std::span<const std::byte> frame_payload;
-    std::span<const PlaneVector> expected_planes;
+    std::vector<std::span<const std::byte>> frame_payloads;
+    std::vector<std::span<const PlaneVector>> expected_planes;
 };
 
 std::span<const DecodeVector> decode_vectors();
@@ -128,6 +140,11 @@ std::span<const DecodeVector> decode_vectors();
 The `samples` span for each plane must contain at least
 `info.stride_bytes * info.height` bytes. The tests compare those bytes exactly
 after decoding through the public decoder API.
+
+`frame_payloads[index]` and `expected_planes[index]` describe one decoded
+frame. The tests configure one decoder per `DecodeVector`, then inspect and
+decode the frame payloads in order. This means inter frames may rely on the
+reference state produced by earlier payloads in the same vector.
 
 ## Provenance Rules
 

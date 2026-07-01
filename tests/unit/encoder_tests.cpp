@@ -417,6 +417,10 @@ TEST(EncoderTest, FailedReconfigurePreservesUsablePreviousConfiguration)
     mffv1::EncodedFrame frame;
     frame.bytes.push_back(std::byte{0xaa});
     std::array<std::uint8_t, 128> storage{};
+    for (std::size_t index = 0; index < storage.size(); ++index) {
+        storage[index] = static_cast<std::uint8_t>(
+            (index * 37u + (index / 16u) * 13u) & 0xffu);
+    }
     const auto plane = make_input_plane(storage);
     const mffv1::FrameView input{&plane, 1};
 
@@ -424,6 +428,27 @@ TEST(EncoderTest, FailedReconfigurePreservesUsablePreviousConfiguration)
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_GT(frame.bytes.size(), 3u);
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(original_record).ok());
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.bits_per_raw_sample, 8u);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 1u);
+
+    std::array<std::uint8_t, 128> decoded{};
+    decoded.fill(0xee);
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+    EXPECT_EQ(decoded, storage);
 }
 
 TEST(EncoderTest, EncodeFrameRejectsInvalidInputWithoutChangingOutput)

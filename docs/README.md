@@ -12,6 +12,8 @@
 - [Build Guide](BUILD.md): supported build workflow and CMake presets.
 - [License And Provenance](LICENSE_AND_PROVENANCE.md): MIT licensing,
   clean-room rules, FFmpeg independence, and third-party boundaries.
+- [Test Vector Registry](test-vectors.md): provenance checklist and committed
+  external vector inventory.
 
 These references describe implemented public behavior and are the appropriate
 starting point for library integration.

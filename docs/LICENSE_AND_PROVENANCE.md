@@ -65,8 +65,9 @@ GoogleTest is used for development and testing through the
 
 Generated project-owned vectors may be covered by the project license.
 Externally supplied vectors must be accompanied by provenance and licensing
-information. The design reserves `docs/test-vectors.md` for that registry when
-external vectors are added.
+information. Record committed external vectors in:
+
+- [Test Vector Registry](test-vectors.md)
 
 The `testvectors/` directory is an optional local workspace for black-box
 interoperability vectors. The committed placeholder header defines

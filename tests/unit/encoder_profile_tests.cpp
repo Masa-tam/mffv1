@@ -19,6 +19,7 @@ mffv1::StreamInfo make_stream_info()
     info.log2_v_chroma_subsample = 1;
     info.num_h_slices = 2;
     info.num_v_slices = 1;
+    info.error_status_enabled = true;
     return info;
 }
 
@@ -47,6 +48,7 @@ TEST(EncoderProfileTest, NormalizesPublicStreamInfo)
     EXPECT_EQ(stream.log2_v_chroma_subsample, 1u);
     EXPECT_EQ(stream.num_h_slices, 2u);
     EXPECT_EQ(stream.num_v_slices, 1u);
+    EXPECT_TRUE(stream.error_status_enabled);
     EXPECT_FALSE(stream.intra_only);
     ASSERT_EQ(stream.quant_table_sets.size(), 1u);
     EXPECT_EQ(stream.quant_table_sets[0].context_count, 1u);
@@ -135,6 +137,7 @@ TEST(EncoderProfileTest, FailedNormalizationDoesNotChangeOutputStream)
     stream.log2_v_chroma_subsample = 0;
     stream.num_h_slices = 7;
     stream.num_v_slices = 3;
+    stream.error_status_enabled = true;
     stream.quant_table_sets.push_back(
         mffv1::syntax::make_zero_quant_table_set());
     stream.intra_only = true;
@@ -162,6 +165,7 @@ TEST(EncoderProfileTest, FailedNormalizationDoesNotChangeOutputStream)
               original.log2_v_chroma_subsample);
     EXPECT_EQ(stream.num_h_slices, original.num_h_slices);
     EXPECT_EQ(stream.num_v_slices, original.num_v_slices);
+    EXPECT_EQ(stream.error_status_enabled, original.error_status_enabled);
     EXPECT_EQ(stream.quant_table_sets.size(), original.quant_table_sets.size());
     EXPECT_EQ(stream.intra_only, original.intra_only);
 }

@@ -19,6 +19,7 @@ struct StreamInfo {
     ColorSpace color_space = ColorSpace::YCbCr;
     std::uint32_t num_h_slices = 1;
     std::uint32_t num_v_slices = 1;
+    bool error_status_enabled = false;
 };
 
 struct ConfigurationRecord {

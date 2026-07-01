@@ -762,6 +762,71 @@ TEST(EncoderTest, PublicEncoderRoundTripsMultiSliceRangeFrame)
     expect_public_multi_slice_y_round_trip(mffv1::EntropyMode::Range);
 }
 
+TEST(EncoderTest, PublicEncoderWritesEcMultiSliceRangeFrame)
+{
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    stream.error_status_enabled = true;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::codec::ConfigurationRecordParser record_parser;
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    EXPECT_TRUE(parsed_stream.error_status_enabled);
+    parsed_stream.width = stream.width;
+    parsed_stream.height = stream.height;
+
+    std::array<std::uint8_t, 128> source{};
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = static_cast<std::uint8_t>(
+            (index * 37u + (index / 16u) * 19u) & 0xffu);
+    }
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    const mffv1::codec::FrameParser frame_parser(parsed_stream, true);
+    mffv1::codec::FrameDecodeContext parsed_frame;
+    ASSERT_TRUE(frame_parser.parse_with_range_header(
+        frame.bytes, parsed_frame).ok());
+    ASSERT_EQ(parsed_frame.slices.size(), 4u);
+    for (const auto& slice : parsed_frame.slices) {
+        EXPECT_TRUE(slice.has_crc);
+        EXPECT_EQ(slice.error_status, 0u);
+        EXPECT_EQ(mffv1::util::crc32_ieee_msb(slice.payload), 0u);
+    }
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    decoder_options.verify_crc = true;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_TRUE(info.error_status_enabled);
+    EXPECT_EQ(info.slice_count, 4u);
+
+    std::array<std::uint8_t, 128> decoded{};
+    decoded.fill(0xee);
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame.bytes, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decoded, source);
+}
+
 TEST(EncoderTest, PublicEncoderRoundTripsMultiSliceGolombRiceFrame)
 {
     expect_public_multi_slice_y_round_trip(mffv1::EntropyMode::GolombRice);

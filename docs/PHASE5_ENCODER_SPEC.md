@@ -67,6 +67,11 @@ all non-zero 32-bit grid dimensions. The encoder emits one independent slice
 per raster cell in row-major order. Prediction, entropy, and run state restart
 at every slice boundary; only the first slice carries the frame keyframe flag.
 
+`StreamInfo::error_status_enabled` enables version 3 slice error-status and
+CRC footer fields. The baseline encoder writes error status `0` for generated
+slices and emits CRC parity so the public decoder can verify the frame when
+`DecoderOptions::verify_crc` is true.
+
 `configure()` is transactional:
 
 - On success, the encoder stores normalized stream parameters and replaces

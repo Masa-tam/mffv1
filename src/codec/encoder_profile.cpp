@@ -88,6 +88,7 @@ Status normalize_encoder_profile(const EncoderOptions& options,
     stream.log2_v_chroma_subsample = info.log2_v_chroma_subsample;
     stream.num_h_slices = info.num_h_slices;
     stream.num_v_slices = info.num_v_slices;
+    stream.error_status_enabled = info.error_status_enabled;
     const auto slice_count =
         static_cast<std::uint64_t>(stream.num_h_slices)
         * static_cast<std::uint64_t>(stream.num_v_slices);

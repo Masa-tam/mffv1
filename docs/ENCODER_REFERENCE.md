@@ -163,6 +163,7 @@ The input `StreamInfo` does not need to remain alive after the call.
 | `color_space` | Selects planar YCbCr or planar RGB input. |
 | `num_h_slices` | Number of columns in the version 3 slice raster. |
 | `num_v_slices` | Number of rows in the version 3 slice raster. |
+| `error_status_enabled` | Enables version 3 slice error-status and CRC footer fields. Generated slices currently write error status `0`. |
 
 ### Supported Color Layouts
 

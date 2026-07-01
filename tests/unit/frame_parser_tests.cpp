@@ -401,6 +401,30 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromHeaderReader)
     EXPECT_EQ(frame.frame_info.slice_count, 2u);
 }
 
+TEST(FrameParserTest, CreatesMultiSliceNonKeyframeFromHeaderReader)
+{
+    auto stream = make_stream();
+    stream.intra_only = false;
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({
+        0, 0, 0, 0, 0, 0, 3, 4, 3,
+        1, 0, 0, 0, 0, 0, 3, 4, 3,
+    }, 1, false);
+    const std::array<std::byte, 20> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_FALSE(frame.keyframe);
+    EXPECT_FALSE(frame.frame_info.keyframe);
+    EXPECT_EQ(frame.frame_info.slice_count, 2u);
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[1].raster_x, 1u);
+}
+
 TEST(FrameParserTest, FailedHeaderReaderMultiSliceDoesNotExposeParsedPrefix)
 {
     auto stream = make_stream();

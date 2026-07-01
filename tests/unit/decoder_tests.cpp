@@ -1377,6 +1377,41 @@ TEST(DecoderTest, InspectFramePreservesReferenceState)
     EXPECT_EQ(storage[0], 0u);
 }
 
+TEST(DecoderTest, FailedInspectFramePreservesReferenceState)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), 1, 1, 1);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array keyframe_payload{std::byte{0xff}, std::byte{0x00}};
+    ASSERT_TRUE(result.decoder->decode_frame(keyframe_payload, output).ok());
+    EXPECT_EQ(storage[0], 0u);
+
+    mffv1::FrameInfo info;
+    const std::array<std::byte, 1> truncated_keyframe{std::byte{0xff}};
+    const auto failed_status =
+        result.decoder->inspect_frame(truncated_keyframe, info);
+    ASSERT_FALSE(failed_status.ok());
+    EXPECT_EQ(failed_status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_TRUE(failed_status.location.has_byte_offset);
+    EXPECT_EQ(failed_status.location.byte_offset, 0u);
+
+    storage[0] = 0xdd;
+    const std::array non_keyframe_payload{std::byte{0x70}, std::byte{0x00}};
+    const auto status =
+        result.decoder->decode_frame(non_keyframe_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+}
+
 TEST(DecoderTest, InspectFramePreservesGolombRiceReferenceState)
 {
     mffv1::DecoderOptions options;

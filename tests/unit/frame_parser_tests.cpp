@@ -908,9 +908,10 @@ TEST(FrameParserTest, RejectsMultiSliceCrcMismatchWithoutChangingFrame)
     expect_existing_frame_preserved(frame);
 }
 
-TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
+TEST(FrameParserTest, ReportsLegacyMultiSliceAsNotImplemented)
 {
     auto stream = make_stream();
+    stream.version = 0;
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
     auto frame = make_existing_frame();
@@ -922,6 +923,43 @@ TEST(FrameParserTest, ReportsMultiSliceAsNotImplemented)
     EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
     EXPECT_EQ(status.message, "multi-slice frame parsing is not implemented yet");
     expect_existing_frame_preserved(frame);
+}
+
+TEST(FrameParserTest, ParsesVersionThreeMultiSliceThroughDefaultParse)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    const std::array payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+        std::byte{0x3d},
+        std::byte{0x34},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+    };
+
+    const auto status = parser.parse(payload, frame);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_EQ(frame.slices[0].index, 0u);
+    EXPECT_EQ(frame.slices[0].payload_byte_offset, 0u);
+    EXPECT_EQ(frame.slices[0].slice_size, 7u);
+    EXPECT_EQ(frame.slices[1].index, 1u);
+    EXPECT_EQ(frame.slices[1].payload_byte_offset, 7u);
+    EXPECT_EQ(frame.slices[1].slice_size, 7u);
+    EXPECT_EQ(frame.frame_info.slice_count, 2u);
 }
 
 TEST(FrameParserTest, RejectsMultiSliceRangePayloadTooSmallForFooter)

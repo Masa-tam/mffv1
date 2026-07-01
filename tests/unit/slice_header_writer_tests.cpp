@@ -1,6 +1,7 @@
 #include "codec/slice_header_writer.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -18,6 +19,11 @@ public:
 
     mffv1::Status write_unsigned(std::uint64_t value) override
     {
+        if (fail_on_write.has_value() && values.size() == *fail_on_write) {
+            return mffv1::make_error(
+                mffv1::ErrorCode::InvalidState,
+                "injected slice header writer failure");
+        }
         values.push_back(value);
         return mffv1::ok_status();
     }
@@ -30,6 +36,7 @@ public:
     }
 
     std::vector<std::uint64_t> values;
+    std::optional<std::size_t> fail_on_write;
 };
 
 mffv1::syntax::StreamParameters make_stream()
@@ -106,6 +113,31 @@ TEST(SliceHeaderWriterTest, RejectsIncompleteAspectRatioBeforeWriting)
     EXPECT_EQ(status.message,
               "slice header sample aspect ratio must be fully specified or absent");
     EXPECT_TRUE(symbols.values.empty());
+}
+
+TEST(SliceHeaderWriterTest, StopsAfterSymbolWriterFailure)
+{
+    const auto stream = make_stream();
+    mffv1::codec::SliceHeaderValues values;
+    values.x = 1;
+    values.y = 0;
+    values.width = 1;
+    values.height = 2;
+    values.quant_table_set_indexes = {0, 0};
+    values.picture_structure = 2;
+    values.sar_num = 4;
+    values.sar_den = 3;
+    RecordingWriter symbols;
+    symbols.fail_on_write = 5;
+    const mffv1::codec::SliceHeaderWriter writer;
+
+    const auto status = writer.write(symbols, stream, values);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "injected slice header writer failure");
+    EXPECT_EQ(symbols.values,
+              (std::vector<std::uint64_t>{1, 0, 0, 1, 0}));
 }
 
 } // namespace

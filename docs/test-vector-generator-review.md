@@ -8,7 +8,7 @@ provenance handling are accepted.
 
 - Path: `testvectors/createVector.zip`
 - SHA-256:
-  `C34398233EF59E027F044AC3E502CFAFF75A07796D70E0DDAD848613E766FBB3`
+  `F2C5D746AF4BE43C21F5EB79187568E56F3044032DE81A36E1E03CA5327E9930`
 - Contents:
   - `CMakeLists.txt`
   - `CMakePresets.json`
@@ -20,7 +20,9 @@ This snapshot replaces the first candidate reviewed at SHA-256
 and the second candidate reviewed at SHA-256
 `A166BE96812388CC461A9E84D546CB70582DFF7661F19197EF515E24A9DDCFA6`,
 and the third candidate reviewed at SHA-256
-`7A1CF7E54C8DDDF58751BB266C4BDDD5839CBDAA9A5E41978B96AB587E9AAD7D`.
+`7A1CF7E54C8DDDF58751BB266C4BDDD5839CBDAA9A5E41978B96AB587E9AAD7D`,
+and the fourth candidate reviewed at SHA-256
+`C34398233EF59E027F044AC3E502CFAFF75A07796D70E0DDAD848613E766FBB3`.
 
 ## Clean-Room Position
 
@@ -52,15 +54,31 @@ build and must not introduce any FFmpeg dependency into the library itself.
 - Output file creation failure is propagated through `WriteOutput()` and
   causes a non-zero process status.
 - The generated header no longer declares its own SPDX license identifier.
+- The generator source comments explicitly document packed-format rejection,
+  alpha-plane mapping, and byte-for-byte stride-padding copies.
+
+## Sample Vector Check
+
+The refreshed local `test_vector_data_sample.hpp` was generated with additional
+RGBA/YUVA inputs. The RGBA input was rejected by the generator because FFmpeg
+returned it as a packed format. The YUVA input was accepted and appears in the
+sample header as `smptebars_intra_yuva.mkv` with an explicit
+`mffv1::PlaneRole::Alpha` plane.
+
+The checked input commands were:
+
+```text
+ffmpeg -hide_banner -loglevel error -y -f lavfi -i "smptebars=size=320x240:rate=25" -vf "format=gbrap" -frames:v 1 -c:v ffv1 -level 3 -g 1 -slices 4 -pix_fmt gbrap "smptebars_intra_rgba.mkv"
+ffmpeg -hide_banner -loglevel error -y -f lavfi -i "smptebars=size=320x240:rate=25" -vf "format=yuva444p" -frames:v 1 -c:v ffv1 -level 3 -g 1 -slices 4 -pix_fmt yuva444p "smptebars_intra_yuva.mkv"
+```
 
 ## Remaining Acceptance Concerns
 
 - The generator source is now GPL-3.0-or-later. Keep this archive and any
   generator binaries clearly separate from the MIT-licensed mffv1 library
   deliverables. The mffv1 library must not link to FFmpeg or the generator.
-- The plane mapping logic should still be verified with actual planar RGB,
-  alpha, packed-format rejection, negative-linesize rejection, and padded-line
-  samples before generated vectors are treated as accepted conformance data.
+- Broader plane mapping should still be verified with more source formats
+  before generated vectors are treated as accepted conformance data.
 - Generated vector data still needs a provenance entry for each input source.
 
 ## Current Recommendation

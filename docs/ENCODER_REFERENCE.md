@@ -202,7 +202,8 @@ The generated Configuration Record currently declares:
 - Intra-only coding when `EncoderOptions::keyframe_interval == 1`.
 - Non-intra coding when `EncoderOptions::keyframe_interval > 1`.
 - No custom initial states.
-- Error-status and slice CRC fields disabled.
+- Error-status and slice CRC fields when `StreamInfo::error_status_enabled`
+  is true; otherwise, these slice footer fields are omitted.
 
 With the default options, every generated frame is a keyframe. When
 `keyframe_interval` is greater than one, frame zero and every Nth frame after it
@@ -371,6 +372,7 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 - RGB and RGBA with the reversible FFV1 color transform.
 - Independent version 3 slices and deterministic parallel encoding.
 - Complete Configuration Records with CRC parity.
+- Optional version 3 error-status and per-slice CRC footer output.
 - Runtime CPU feature resolution and immutable kernel dispatch.
 - AVX2 and SSE2 RGB forward color-transform rows with scalar tails.
 
@@ -378,7 +380,8 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 
 - Versions 0, 1, and 2 are not encoded.
 - Custom quantization tables and custom initial states are absent.
-- Error-status fields and per-slice CRC output are disabled.
+- Generated error-status values are always `0`; the encoder does not report
+  correctable or uncorrectable slice errors in its own output.
 - Sample depths below 8 or above 16 are unsupported.
 - Colorspaces other than planar YCbCr and planar RGB are unsupported.
 - Input format conversion, packed pixels, and negative strides are unsupported.

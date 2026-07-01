@@ -21,7 +21,10 @@ The first end-to-end encoder milestone is deliberately narrow:
 - One quantization table set containing the zero tables.
 - One slice covering the complete frame.
 - Keyframes only.
-- No error-status field and no custom initial states.
+- Error-status fields are omitted by default. The public encoder exposes
+  `StreamInfo::error_status_enabled` to enable generated error status `0` and
+  slice CRC parity.
+- No custom initial states.
 
 The output MUST be accepted by the mffv1 decoder. Internal round-trip tests are
 necessary but not sufficient for final conformance; later milestones add

@@ -2045,6 +2045,69 @@ TEST(EncoderTest, SuccessfulReconfigureAppliesErrorStatusSetting)
     EXPECT_EQ(info.slice_count, 4u);
 }
 
+TEST(EncoderTest, SuccessfulReconfigureDisablesErrorStatusSetting)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    stream.error_status_enabled = true;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 128> source{};
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = static_cast<std::uint8_t>(
+            (index * 7u + (index / 16u) * 19u) & 0xffu);
+    }
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+    mffv1::EncodedFrame first_frame;
+    ASSERT_TRUE(result.encoder->encode_frame(input, first_frame).ok());
+
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::codec::ConfigurationRecordParser record_parser;
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    EXPECT_TRUE(parsed_stream.error_status_enabled);
+
+    stream.error_status_enabled = false;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    EXPECT_FALSE(parsed_stream.error_status_enabled);
+    parsed_stream.width = stream.width;
+    parsed_stream.height = stream.height;
+
+    mffv1::EncodedFrame reset_frame;
+    ASSERT_TRUE(result.encoder->encode_frame(input, reset_frame).ok());
+
+    const mffv1::codec::FrameParser frame_parser(parsed_stream, true);
+    mffv1::codec::FrameDecodeContext parsed_reset;
+    ASSERT_TRUE(frame_parser.parse_with_range_header(
+        reset_frame.bytes, parsed_reset).ok());
+    ASSERT_EQ(parsed_reset.slices.size(), 4u);
+    EXPECT_TRUE(parsed_reset.keyframe);
+    for (const auto& slice : parsed_reset.slices) {
+        EXPECT_FALSE(slice.has_crc);
+        EXPECT_EQ(slice.error_status, 0u);
+    }
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    decoder_options.verify_crc = true;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(reset_frame.bytes, info).ok());
+    EXPECT_FALSE(info.error_status_enabled);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 4u);
+}
+
 TEST(EncoderTest, SuccessfulGolombRiceReconfigureResetsReferenceState)
 {
     mffv1::EncoderOptions options;

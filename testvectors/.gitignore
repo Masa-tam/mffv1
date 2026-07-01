@@ -6,6 +6,8 @@
 
 # Locally generated vector outputs and sample media.
 /generated/
+test_vector_data_sample.hpp
+test_vector_data_*.hpp
 *.mkv
 *.mka
 *.nut

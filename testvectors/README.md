@@ -13,6 +13,12 @@ The default `test_vector_data.hpp` defines:
 Unit tests use this macro to skip external-vector checks when vectors have not
 been generated.
 
+Generated preview headers such as `test_vector_data_sample.hpp` are local
+scratch artifacts and are ignored by Git. Commit an actual generated
+`test_vector_data.hpp` only after its provenance entry is reviewed.
+`createVector.zip` is intentionally not ignored so it can be reviewed and
+committed separately if the generator code is accepted.
+
 ## FFmpeg Source
 
 Use FFmpeg only as an external black-box tool and header/library provider for

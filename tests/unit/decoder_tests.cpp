@@ -208,6 +208,56 @@ std::vector<std::byte> make_reserved_error_status_two_slice_ec_payload()
     return payload;
 }
 
+void set_sentinel_frame_info(mffv1::FrameInfo& info)
+{
+    info.width = 99;
+    info.height = 77;
+    info.version = 2;
+    info.micro_version = 3;
+    info.entropy_mode = mffv1::EntropyMode::GolombRice;
+    info.bits_per_raw_sample = 16;
+    info.plane_count = 4;
+    info.planes[0].role = mffv1::PlaneRole::Alpha;
+    info.planes[0].sample_format = mffv1::SampleFormat::UInt16;
+    info.planes[0].width = 5;
+    info.planes[0].height = 6;
+    info.planes[0].stride_bytes = 12;
+    info.color_space = mffv1::ColorSpace::Rgb;
+    info.has_chroma_planes = true;
+    info.has_extra_plane = true;
+    info.log2_h_chroma_subsample = 1;
+    info.log2_v_chroma_subsample = 2;
+    info.error_status_enabled = false;
+    info.intra_only = true;
+    info.keyframe = true;
+    info.slice_count = 6;
+}
+
+void expect_sentinel_frame_info_preserved(const mffv1::FrameInfo& info)
+{
+    EXPECT_EQ(info.width, 99u);
+    EXPECT_EQ(info.height, 77u);
+    EXPECT_EQ(info.version, 2u);
+    EXPECT_EQ(info.micro_version, 3u);
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::GolombRice);
+    EXPECT_EQ(info.bits_per_raw_sample, 16u);
+    EXPECT_EQ(info.plane_count, 4u);
+    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Alpha);
+    EXPECT_EQ(info.planes[0].sample_format, mffv1::SampleFormat::UInt16);
+    EXPECT_EQ(info.planes[0].width, 5u);
+    EXPECT_EQ(info.planes[0].height, 6u);
+    EXPECT_EQ(info.planes[0].stride_bytes, 12);
+    EXPECT_EQ(info.color_space, mffv1::ColorSpace::Rgb);
+    EXPECT_TRUE(info.has_chroma_planes);
+    EXPECT_TRUE(info.has_extra_plane);
+    EXPECT_EQ(info.log2_h_chroma_subsample, 1u);
+    EXPECT_EQ(info.log2_v_chroma_subsample, 2u);
+    EXPECT_FALSE(info.error_status_enabled);
+    EXPECT_TRUE(info.intra_only);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 6u);
+}
+
 TEST(DecoderTest, FactoryCreatesDecoder)
 {
     const auto result = mffv1::create_decoder({});
@@ -1122,10 +1172,7 @@ TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
     const auto frame_payload = make_corrupt_two_slice_ec_payload();
 
     mffv1::FrameInfo info;
-    info.width = 99;
-    info.height = 77;
-    info.slice_count = 6;
-    info.error_status_enabled = false;
+    set_sentinel_frame_info(info);
     const auto status = decoder.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_FALSE(status.ok());
@@ -1135,10 +1182,7 @@ TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
     EXPECT_EQ(status.location.slice_index, 1u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 20u);
-    EXPECT_EQ(info.width, 99u);
-    EXPECT_EQ(info.height, 77u);
-    EXPECT_EQ(info.slice_count, 6u);
-    EXPECT_FALSE(info.error_status_enabled);
+    expect_sentinel_frame_info_preserved(info);
 }
 
 TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatus)
@@ -1150,10 +1194,7 @@ TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatus)
     const auto frame_payload = make_reserved_error_status_two_slice_ec_payload();
 
     mffv1::FrameInfo info;
-    info.width = 99;
-    info.height = 77;
-    info.slice_count = 6;
-    info.error_status_enabled = false;
+    set_sentinel_frame_info(info);
     const auto status = decoder.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_FALSE(status.ok());
@@ -1163,10 +1204,7 @@ TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatus)
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 7u);
-    EXPECT_EQ(info.width, 99u);
-    EXPECT_EQ(info.height, 77u);
-    EXPECT_EQ(info.slice_count, 6u);
-    EXPECT_FALSE(info.error_status_enabled);
+    expect_sentinel_frame_info_preserved(info);
 }
 
 TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatusWhenIgnoringCrc)
@@ -1178,21 +1216,7 @@ TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatusWhenIgnoringCr
     const auto frame_payload = make_reserved_error_status_two_slice_ec_payload();
 
     mffv1::FrameInfo info;
-    info.width = 99;
-    info.height = 77;
-    info.version = 2;
-    info.micro_version = 3;
-    info.entropy_mode = mffv1::EntropyMode::GolombRice;
-    info.bits_per_raw_sample = 16;
-    info.plane_count = 4;
-    info.planes[0].role = mffv1::PlaneRole::Alpha;
-    info.planes[0].width = 5;
-    info.color_space = mffv1::ColorSpace::Rgb;
-    info.has_chroma_planes = true;
-    info.has_extra_plane = true;
-    info.keyframe = true;
-    info.slice_count = 6;
-    info.error_status_enabled = false;
+    set_sentinel_frame_info(info);
     const auto status = decoder.decoder->inspect_frame(frame_payload, info);
 
     EXPECT_FALSE(status.ok());
@@ -1202,21 +1226,7 @@ TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatusWhenIgnoringCr
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 7u);
-    EXPECT_EQ(info.width, 99u);
-    EXPECT_EQ(info.height, 77u);
-    EXPECT_EQ(info.version, 2u);
-    EXPECT_EQ(info.micro_version, 3u);
-    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::GolombRice);
-    EXPECT_EQ(info.bits_per_raw_sample, 16u);
-    EXPECT_EQ(info.plane_count, 4u);
-    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Alpha);
-    EXPECT_EQ(info.planes[0].width, 5u);
-    EXPECT_EQ(info.color_space, mffv1::ColorSpace::Rgb);
-    EXPECT_TRUE(info.has_chroma_planes);
-    EXPECT_TRUE(info.has_extra_plane);
-    EXPECT_TRUE(info.keyframe);
-    EXPECT_EQ(info.slice_count, 6u);
-    EXPECT_FALSE(info.error_status_enabled);
+    expect_sentinel_frame_info_preserved(info);
 }
 
 TEST(DecoderTest, InspectFrameCanIgnoreMultiSliceCrcMismatch)

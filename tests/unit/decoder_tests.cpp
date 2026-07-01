@@ -167,6 +167,36 @@ std::vector<std::byte> make_two_slice_ec_payload()
     return payload;
 }
 
+mffv1::DecoderFactoryResult create_two_slice_ec_decoder(bool verify_crc = true)
+{
+    const auto stream = make_two_slice_ec_stream();
+    const mffv1::codec::ConfigurationRecordWriter record_writer;
+    mffv1::ConfigurationRecord record;
+    EXPECT_TRUE(record_writer.write(stream, record.bytes).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    options.verify_crc = verify_crc;
+    auto decoder = mffv1::create_decoder(options);
+    EXPECT_TRUE(decoder.status.ok()) << decoder.status.message;
+    EXPECT_NE(decoder.decoder, nullptr);
+    if (decoder.decoder != nullptr) {
+        EXPECT_TRUE(decoder.decoder->configure(record.bytes).ok());
+    }
+    return decoder;
+}
+
+std::vector<std::byte> make_corrupt_two_slice_ec_payload()
+{
+    auto payload = make_two_slice_ec_payload();
+    EXPECT_FALSE(payload.empty());
+    if (!payload.empty()) {
+        payload.back() ^= std::byte{0x01};
+    }
+    return payload;
+}
+
 TEST(DecoderTest, FactoryCreatesDecoder)
 {
     const auto result = mffv1::create_decoder({});
@@ -936,17 +966,9 @@ TEST(DecoderTest, DecodesMultiSliceRangeFrameThroughPublicApi)
 TEST(DecoderTest, DecodesCrcVerifiedMultiSliceRangeFrameThroughPublicApi)
 {
     const auto stream = make_two_slice_ec_stream();
-    const mffv1::codec::ConfigurationRecordWriter record_writer;
-    mffv1::ConfigurationRecord record;
-    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
-
-    mffv1::DecoderOptions options;
-    options.frame_width = stream.width;
-    options.frame_height = stream.height;
-    auto decoder = mffv1::create_decoder(options);
+    auto decoder = create_two_slice_ec_decoder();
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
-    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
 
     const auto frame_payload = make_two_slice_ec_payload();
     mffv1::FrameInfo info;
@@ -969,21 +991,11 @@ TEST(DecoderTest, DecodesCrcVerifiedMultiSliceRangeFrameThroughPublicApi)
 TEST(DecoderTest, DecodeFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
 {
     const auto stream = make_two_slice_ec_stream();
-    const mffv1::codec::ConfigurationRecordWriter record_writer;
-    mffv1::ConfigurationRecord record;
-    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
-
-    mffv1::DecoderOptions options;
-    options.frame_width = stream.width;
-    options.frame_height = stream.height;
-    auto decoder = mffv1::create_decoder(options);
+    auto decoder = create_two_slice_ec_decoder();
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
-    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
 
-    auto frame_payload = make_two_slice_ec_payload();
-    ASSERT_FALSE(frame_payload.empty());
-    frame_payload.back() ^= std::byte{0x01};
+    const auto frame_payload = make_corrupt_two_slice_ec_payload();
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);
@@ -1004,22 +1016,11 @@ TEST(DecoderTest, DecodeFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
 TEST(DecoderTest, DecodeFrameCanIgnoreMultiSliceCrcMismatch)
 {
     const auto stream = make_two_slice_ec_stream();
-    const mffv1::codec::ConfigurationRecordWriter record_writer;
-    mffv1::ConfigurationRecord record;
-    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
-
-    mffv1::DecoderOptions options;
-    options.frame_width = stream.width;
-    options.frame_height = stream.height;
-    options.verify_crc = false;
-    auto decoder = mffv1::create_decoder(options);
+    auto decoder = create_two_slice_ec_decoder(false);
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
-    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
 
-    auto frame_payload = make_two_slice_ec_payload();
-    ASSERT_FALSE(frame_payload.empty());
-    frame_payload.back() ^= std::byte{0x01};
+    const auto frame_payload = make_corrupt_two_slice_ec_payload();
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);
@@ -1034,22 +1035,11 @@ TEST(DecoderTest, DecodeFrameCanIgnoreMultiSliceCrcMismatch)
 
 TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
 {
-    const auto stream = make_two_slice_ec_stream();
-    const mffv1::codec::ConfigurationRecordWriter record_writer;
-    mffv1::ConfigurationRecord record;
-    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
-
-    mffv1::DecoderOptions options;
-    options.frame_width = stream.width;
-    options.frame_height = stream.height;
-    auto decoder = mffv1::create_decoder(options);
+    auto decoder = create_two_slice_ec_decoder();
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
-    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
 
-    auto frame_payload = make_two_slice_ec_payload();
-    ASSERT_FALSE(frame_payload.empty());
-    frame_payload.back() ^= std::byte{0x01};
+    const auto frame_payload = make_corrupt_two_slice_ec_payload();
 
     mffv1::FrameInfo info;
     const auto status = decoder.decoder->inspect_frame(frame_payload, info);
@@ -1065,23 +1055,11 @@ TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
 
 TEST(DecoderTest, InspectFrameCanIgnoreMultiSliceCrcMismatch)
 {
-    const auto stream = make_two_slice_ec_stream();
-    const mffv1::codec::ConfigurationRecordWriter record_writer;
-    mffv1::ConfigurationRecord record;
-    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
-
-    mffv1::DecoderOptions options;
-    options.frame_width = stream.width;
-    options.frame_height = stream.height;
-    options.verify_crc = false;
-    auto decoder = mffv1::create_decoder(options);
+    auto decoder = create_two_slice_ec_decoder(false);
     ASSERT_TRUE(decoder.status.ok());
     ASSERT_NE(decoder.decoder, nullptr);
-    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
 
-    auto frame_payload = make_two_slice_ec_payload();
-    ASSERT_FALSE(frame_payload.empty());
-    frame_payload.back() ^= std::byte{0x01};
+    const auto frame_payload = make_corrupt_two_slice_ec_payload();
 
     mffv1::FrameInfo info;
     const auto status = decoder.decoder->inspect_frame(frame_payload, info);

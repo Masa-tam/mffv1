@@ -475,6 +475,28 @@ TEST(FrameParserTest, RejectsUnknownDimensionsWithoutChangingFrame)
     expect_existing_frame_preserved(frame);
 }
 
+TEST(FrameParserTest, RejectsZeroSliceGridWithoutChangingFrame)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 0;
+    mffv1::codec::FrameParser parser(stream);
+    auto frame = make_existing_frame();
+    const std::array<std::byte, 5> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x05},
+    };
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "slice grid dimensions must be non-zero");
+    expect_existing_frame_preserved(frame);
+}
+
 TEST(FrameParserTest, RejectsInvalidSliceHeaderThroughRangeCoder)
 {
     const auto stream = make_stream();

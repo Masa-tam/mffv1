@@ -1028,6 +1028,43 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     EXPECT_EQ(frame.slices[1].payload.size(), 7u);
 }
 
+TEST(FrameParserTest, PreservesMultiSliceErrorStatusFromLocatedRangeHeaders)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    stream.error_status_enabled = true;
+    const mffv1::codec::SliceFooterWriter footer_writer;
+    std::vector<std::byte> first_slice{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    ASSERT_TRUE(footer_writer.append(stream, 1, first_slice).ok());
+    std::vector<std::byte> second_slice{
+        std::byte{0x3d},
+        std::byte{0x34},
+        std::byte{0xff},
+        std::byte{0x00},
+    };
+    ASSERT_TRUE(footer_writer.append(stream, 2, second_slice).ok());
+    std::vector<std::byte> payload = first_slice;
+    payload.insert(payload.end(), second_slice.begin(), second_slice.end());
+    mffv1::codec::FrameParser parser(stream, true);
+    mffv1::codec::FrameDecodeContext frame;
+
+    const auto status = parser.parse_with_range_header(payload, frame);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_TRUE(frame.slices[0].has_crc);
+    EXPECT_EQ(frame.slices[0].error_status, 1u);
+    EXPECT_EQ(frame.slices[0].slice_size, first_slice.size());
+    EXPECT_TRUE(frame.slices[1].has_crc);
+    EXPECT_EQ(frame.slices[1].error_status, 2u);
+    EXPECT_EQ(frame.slices[1].slice_size, second_slice.size());
+}
+
 TEST(FrameParserTest, AcceptsSingleSliceCoveringMultipleRasterCells)
 {
     auto stream = make_stream();

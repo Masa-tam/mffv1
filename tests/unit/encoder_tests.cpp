@@ -2137,6 +2137,54 @@ TEST(EncoderTest, FailedReconfigurePreservesKeyframeCadence)
     EXPECT_EQ(decoded, second);
 }
 
+TEST(EncoderTest, FailedReconfigurePreservesErrorStatusSetting)
+{
+    auto result = mffv1::create_encoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 2;
+    stream.error_status_enabled = true;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(result.encoder->configure(stream, record).ok());
+    const auto original_record = record.bytes;
+
+    std::array<std::uint8_t, 128> source{};
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = static_cast<std::uint8_t>(
+            (index * 17u + (index / 16u) * 31u) & 0xffu);
+    }
+    const auto input_plane = make_input_plane(source);
+    const mffv1::FrameView input{&input_plane, 1};
+
+    stream.error_status_enabled = false;
+    stream.bits_per_raw_sample = 17;
+    ASSERT_FALSE(result.encoder->configure(stream, record).ok());
+    EXPECT_EQ(record.bytes, original_record);
+
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::codec::ConfigurationRecordParser record_parser;
+    ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    EXPECT_TRUE(parsed_stream.error_status_enabled);
+    parsed_stream.width = 16;
+    parsed_stream.height = 8;
+
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(result.encoder->encode_frame(input, frame).ok());
+
+    const mffv1::codec::FrameParser frame_parser(parsed_stream, true);
+    mffv1::codec::FrameDecodeContext parsed_frame;
+    ASSERT_TRUE(frame_parser.parse_with_range_header(
+        frame.bytes, parsed_frame).ok());
+    ASSERT_EQ(parsed_frame.slices.size(), 4u);
+    for (const auto& slice : parsed_frame.slices) {
+        EXPECT_TRUE(slice.has_crc);
+        EXPECT_EQ(slice.error_status, 0u);
+        EXPECT_EQ(mffv1::util::crc32_ieee_msb(slice.payload), 0u);
+    }
+}
+
 TEST(EncoderTest, FailedGolombRiceReconfigurePreservesReferenceState)
 {
     mffv1::EncoderOptions options;

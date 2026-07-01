@@ -342,6 +342,40 @@ TEST(SliceFooterParserTest, RejectsUnalignedFooter)
     EXPECT_EQ(status.location.byte_offset, 0u);
 }
 
+TEST(SliceFooterParserTest, CrcUnderflowPreservesDescriptor)
+{
+    const std::array payload{
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+        std::byte{0x01},
+        std::byte{0x12},
+        std::byte{0x34},
+    };
+    mffv1::bitstream::BitReader reader(payload);
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    mffv1::syntax::SliceDescriptor descriptor;
+    descriptor.slice_size = 99;
+    descriptor.error_status = 2;
+    descriptor.expected_crc = 0xabcdef01u;
+    descriptor.has_crc = true;
+    const auto original = descriptor;
+
+    const mffv1::codec::SliceFooterParser parser;
+    const auto status = parser.read(reader, stream, descriptor);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "bitstream underflow while reading bits");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 4u);
+    EXPECT_EQ(descriptor.slice_size, original.slice_size);
+    EXPECT_EQ(descriptor.error_status, original.error_status);
+    EXPECT_EQ(descriptor.expected_crc, original.expected_crc);
+    EXPECT_EQ(descriptor.has_crc, original.has_crc);
+}
+
 TEST(SliceFooterParserTest, ReportsUnderflowAtFooterOffset)
 {
     const std::array payload{

@@ -2452,6 +2452,7 @@ void expect_failed_plane_count_encode_does_not_advance_keyframe_cadence(
     const mffv1::FrameView second_input{&second_plane, 1};
     mffv1::EncodedFrame frame;
     ASSERT_TRUE(result.encoder->encode_frame(first_input, frame).ok());
+    const auto first_frame = frame;
 
     frame.bytes.assign({std::byte{0xaa}});
     const auto failed_status =
@@ -2474,6 +2475,22 @@ void expect_failed_plane_count_encode_does_not_advance_keyframe_cadence(
     mffv1::codec::FrameDecodeContext parsed;
     ASSERT_TRUE(frame_parser.parse_with_range_header(frame.bytes, parsed).ok());
     EXPECT_FALSE(parsed.keyframe);
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+    std::array<std::uint8_t, 128> decoded{};
+    auto output_plane = make_output_plane(decoded);
+    mffv1::MutableFrameView output{&output_plane, 1};
+    ASSERT_TRUE(decoder.decoder->decode_frame(first_frame.bytes, output).ok());
+    EXPECT_EQ(decoded, first);
+    decoded.fill(0);
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+    EXPECT_EQ(decoded, second);
 }
 
 TEST(EncoderTest, FailedRangePlaneCountEncodeDoesNotAdvanceKeyframeCadence)

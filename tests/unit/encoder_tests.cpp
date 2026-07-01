@@ -2029,6 +2029,20 @@ TEST(EncoderTest, SuccessfulReconfigureAppliesErrorStatusSetting)
         EXPECT_EQ(slice.error_status, 0u);
         EXPECT_EQ(mffv1::util::crc32_ieee_msb(slice.payload), 0u);
     }
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    decoder_options.verify_crc = true;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(reset_frame.bytes, info).ok());
+    EXPECT_TRUE(info.error_status_enabled);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 4u);
 }
 
 TEST(EncoderTest, SuccessfulGolombRiceReconfigureResetsReferenceState)
@@ -2199,6 +2213,19 @@ TEST(EncoderTest, FailedReconfigurePreservesErrorStatusSetting)
         EXPECT_EQ(slice.error_status, 0u);
         EXPECT_EQ(mffv1::util::crc32_ieee_msb(slice.payload), 0u);
     }
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = parsed_stream.width;
+    decoder_options.frame_height = parsed_stream.height;
+    decoder_options.verify_crc = true;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_TRUE(info.error_status_enabled);
+    EXPECT_EQ(info.slice_count, 4u);
 }
 
 TEST(EncoderTest, FailedGolombRiceReconfigurePreservesReferenceState)

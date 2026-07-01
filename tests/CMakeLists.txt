@@ -60,6 +60,7 @@ add_executable(mffv1_unit_tests
     unit/slice_raster_validator_tests.cpp
     unit/status_tests.cpp
     unit/stream_parameters_tests.cpp
+    unit/test_vector_tests.cpp
     unit/version3_constraints_tests.cpp
 )
 
@@ -72,6 +73,7 @@ target_link_libraries(mffv1_unit_tests
 target_include_directories(mffv1_unit_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src"
+        "${PROJECT_SOURCE_DIR}/testvectors"
 )
 
 mffv1_apply_common_options(mffv1_unit_tests)

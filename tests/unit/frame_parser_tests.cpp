@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <deque>
 #include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -124,6 +125,15 @@ void write_crc_parity(std::array<std::byte, Size>& payload)
     payload[Size - 3] = static_cast<std::byte>((crc >> 16) & 0xffu);
     payload[Size - 2] = static_cast<std::byte>((crc >> 8) & 0xffu);
     payload[Size - 1] = static_cast<std::byte>(crc & 0xffu);
+}
+
+std::uint32_t read_trailing_crc(const std::vector<std::byte>& payload)
+{
+    const auto size = payload.size();
+    return (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(payload[size - 4])) << 24)
+        | (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(payload[size - 3])) << 16)
+        | (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(payload[size - 2])) << 8)
+        | static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(payload[size - 1]));
 }
 
 TEST(FrameParserTest, RejectsEmptyPayload)
@@ -1151,9 +1161,11 @@ TEST(FrameParserTest, PreservesMultiSliceErrorStatusFromLocatedRangeHeaders)
     ASSERT_EQ(frame.slices.size(), 2u);
     EXPECT_TRUE(frame.slices[0].has_crc);
     EXPECT_EQ(frame.slices[0].error_status, 1u);
+    EXPECT_EQ(frame.slices[0].expected_crc, read_trailing_crc(first_slice));
     EXPECT_EQ(frame.slices[0].slice_size, first_slice.size());
     EXPECT_TRUE(frame.slices[1].has_crc);
     EXPECT_EQ(frame.slices[1].error_status, 2u);
+    EXPECT_EQ(frame.slices[1].expected_crc, read_trailing_crc(second_slice));
     EXPECT_EQ(frame.slices[1].slice_size, second_slice.size());
 }
 

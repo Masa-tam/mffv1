@@ -762,9 +762,11 @@ TEST(EncoderTest, PublicEncoderRoundTripsMultiSliceRangeFrame)
     expect_public_multi_slice_y_round_trip(mffv1::EntropyMode::Range);
 }
 
-TEST(EncoderTest, PublicEncoderWritesEcMultiSliceRangeFrame)
+void expect_public_ec_multi_slice_y_round_trip(mffv1::EntropyMode entropy_mode)
 {
-    auto encoder = mffv1::create_encoder({});
+    mffv1::EncoderOptions encoder_options;
+    encoder_options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(encoder_options);
     ASSERT_TRUE(encoder.status.ok());
     ASSERT_NE(encoder.encoder, nullptr);
     auto stream = make_initial_profile();
@@ -777,6 +779,7 @@ TEST(EncoderTest, PublicEncoderWritesEcMultiSliceRangeFrame)
     mffv1::syntax::StreamParameters parsed_stream;
     const mffv1::codec::ConfigurationRecordParser record_parser;
     ASSERT_TRUE(record_parser.parse(record.bytes, parsed_stream).ok());
+    EXPECT_EQ(parsed_stream.entropy_mode, entropy_mode);
     EXPECT_TRUE(parsed_stream.error_status_enabled);
     parsed_stream.width = stream.width;
     parsed_stream.height = stream.height;
@@ -813,6 +816,7 @@ TEST(EncoderTest, PublicEncoderWritesEcMultiSliceRangeFrame)
 
     mffv1::FrameInfo info;
     ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.entropy_mode, entropy_mode);
     EXPECT_TRUE(info.error_status_enabled);
     EXPECT_EQ(info.slice_count, 4u);
 
@@ -825,6 +829,16 @@ TEST(EncoderTest, PublicEncoderWritesEcMultiSliceRangeFrame)
 
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(decoded, source);
+}
+
+TEST(EncoderTest, PublicEncoderWritesEcMultiSliceRangeFrame)
+{
+    expect_public_ec_multi_slice_y_round_trip(mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, PublicEncoderWritesEcMultiSliceGolombRiceFrame)
+{
+    expect_public_ec_multi_slice_y_round_trip(mffv1::EntropyMode::GolombRice);
 }
 
 TEST(EncoderTest, PublicEncoderRoundTripsMultiSliceGolombRiceFrame)

@@ -50,3 +50,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The authoritative copy is also present at
 `third-party/googletest/LICENSE` when the submodule is initialized.
 
+## FFmpeg
+
+FFmpeg is not included in this repository and is not a build dependency of the
+mffv1 library.
+
+The optional `testvectors/` workflow may use a locally downloaded FFmpeg build
+as an external black-box tool and, for a local generator, as a header/library
+provider. Those files must remain outside version control unless their license
+and provenance have been reviewed separately.
+
+FFmpeg license information is published by the FFmpeg project:
+
+```text
+https://ffmpeg.org/legal.html
+https://ffmpeg.org/download.html
+```

@@ -68,3 +68,19 @@ Externally supplied vectors must be accompanied by provenance and licensing
 information. The design reserves `docs/test-vectors.md` for that registry when
 external vectors are added.
 
+The `testvectors/` directory is an optional local workspace for black-box
+interoperability vectors. The committed placeholder header defines
+`NO_DEFINE_TEST_VECTOR_DATA` so the related tests are skipped until a local
+generated header replaces it.
+
+The intended external-vector workflow is:
+
+- Use FFmpeg only as a locally installed binary/header provider or black-box
+  demuxing tool.
+- Do not copy FFmpeg source code, implementation comments, internal structures,
+  or implementation-specific tables into this repository.
+- Do not commit downloaded FFmpeg binaries, FFmpeg headers, generated media
+  files, or local generator build products unless their license and provenance
+  have been reviewed separately.
+- Generated C++ vector data must be traceable to input media files and public
+  container/codec metadata extraction, not to FFmpeg source code.

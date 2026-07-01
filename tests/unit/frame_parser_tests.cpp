@@ -360,6 +360,61 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromHeaderReader)
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[1], 0u);
 }
 
+TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromHeaderReader)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    ScriptedUnsignedReader reader({
+        0, 0, 0, 0, 0, 0, 3, 4, 3,
+        1, 0, 0, 0, 0, 0, 3, 4, 3,
+    }, 1);
+    const std::array<std::byte, 20> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(frame.keyframe);
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_EQ(frame.slices[0].index, 0u);
+    EXPECT_EQ(frame.slices[0].x, 0u);
+    EXPECT_EQ(frame.slices[0].width, 8u);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].header_byte_offset, 1u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 10u);
+    EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
+    EXPECT_EQ(frame.slices[1].index, 1u);
+    EXPECT_EQ(frame.slices[1].x, 8u);
+    EXPECT_EQ(frame.slices[1].width, 8u);
+    EXPECT_EQ(frame.slices[1].raster_x, 1u);
+    EXPECT_EQ(frame.slices[1].raster_width, 1u);
+    EXPECT_EQ(frame.slices[1].header_byte_offset, 10u);
+    EXPECT_EQ(frame.slices[1].content_byte_offset, 19u);
+    EXPECT_EQ(frame.slices[1].payload.size(), payload.size());
+    EXPECT_EQ(frame.frame_info.slice_count, 2u);
+}
+
+TEST(FrameParserTest, FailedHeaderReaderMultiSliceDoesNotExposeParsedPrefix)
+{
+    auto stream = make_stream();
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    auto frame = make_existing_frame();
+    ScriptedUnsignedReader reader({0, 0, 0, 0, 0, 0, 3, 4, 3}, 1);
+    const std::array<std::byte, 20> payload{};
+
+    const auto status = parser.parse_with_header_reader(payload, reader, frame);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "scripted reader underflow");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 1u);
+    expect_existing_frame_preserved(frame);
+}
+
 TEST(FrameParserTest, RejectsHeaderReaderThatConsumesPastPayload)
 {
     const auto stream = make_stream();

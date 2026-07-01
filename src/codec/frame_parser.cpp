@@ -158,10 +158,6 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return status;
     }
 
-    if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
-        return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
-    }
-
     bool keyframe = false;
     status = header_reader.read_bool(keyframe);
     if (!status.ok()) {
@@ -173,26 +169,44 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return status;
     }
 
-    syntax::SliceDescriptor slice;
-    slice.index = 0;
     const SliceHeaderParser header_parser;
-    status = header_parser.read_descriptor(header_reader, stream_, slice);
-    if (!status.ok()) {
-        set_slice_location_if_missing(status, slice.index);
-        return status;
+    const auto max_slices = maximum_slice_count(stream_);
+    for (std::size_t slice_index = 0; slice_index < max_slices; ++slice_index) {
+        syntax::SliceDescriptor slice;
+        slice.index = static_cast<std::uint32_t>(slice_index);
+        status = header_parser.read_descriptor(header_reader, stream_, slice);
+        if (!status.ok()) {
+            set_slice_location_if_missing(status, slice.index);
+            return status;
+        }
+        if (slice.content_byte_offset > payload.size()) {
+            status = make_byte_error(ErrorCode::SyntaxError,
+                                     "slice header consumes more bytes than the frame payload contains",
+                                     slice.content_byte_offset);
+            set_slice_location_if_missing(status, slice.index);
+            return status;
+        }
+        slice.payload = payload;
+        next_frame.slices.push_back(slice);
+
+        status = validate_slice_raster_coverage(stream_, next_frame.slices);
+        if (status.ok()) {
+            next_frame.keyframe = keyframe;
+            next_frame.frame_info.keyframe = keyframe;
+            next_frame.frame_info.slice_count =
+                static_cast<std::uint32_t>(next_frame.slices.size());
+            out_frame = std::move(next_frame);
+            return ok_status();
+        }
+        if (status.code != ErrorCode::SyntaxError
+            || status.message != "slice raster coverage has missing cells") {
+            set_slice_location_if_missing(status, slice.index);
+            return status;
+        }
     }
-    if (slice.content_byte_offset > payload.size()) {
-        status = make_byte_error(ErrorCode::SyntaxError,
-                                 "slice header consumes more bytes than the frame payload contains",
-                                 slice.content_byte_offset);
-        set_slice_location_if_missing(status, slice.index);
-        return status;
-    }
-    slice.payload = payload;
-    next_frame.slices.push_back(slice);
+
     status = validate_slice_raster_coverage(stream_, next_frame.slices);
     if (!status.ok()) {
-        set_slice_location_if_missing(status, slice.index);
         return status;
     }
     next_frame.keyframe = keyframe;

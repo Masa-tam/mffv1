@@ -933,6 +933,39 @@ TEST(DecoderTest, DecodesMultiSliceRangeFrameThroughPublicApi)
     EXPECT_EQ(storage[1], 1u);
 }
 
+TEST(DecoderTest, DecodesCrcVerifiedMultiSliceRangeFrameThroughPublicApi)
+{
+    const auto stream = make_two_slice_ec_stream();
+    const mffv1::codec::ConfigurationRecordWriter record_writer;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    const auto frame_payload = make_two_slice_ec_payload();
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame_payload, info).ok());
+    EXPECT_TRUE(info.error_status_enabled);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 2u);
+
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);
+    mffv1::MutableFrameView output{&plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame_payload, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[1], 1u);
+}
+
 TEST(DecoderTest, DecodeFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
 {
     const auto stream = make_two_slice_ec_stream();

@@ -1377,6 +1377,41 @@ TEST(DecoderTest, InspectFramePreservesReferenceState)
     EXPECT_EQ(storage[0], 0u);
 }
 
+TEST(DecoderTest, InspectFramePreservesGolombRiceReferenceState)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 4;
+    options.frame_height = 2;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_golomb_rice_y_only(*result.decoder).ok());
+
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_y_plane(storage.data(), 4, 2, 4);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array keyframe_payload{std::byte{0xfe}};
+    ASSERT_TRUE(result.decoder->decode_frame(keyframe_payload, output).ok());
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0u);
+    }
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(result.decoder->inspect_frame(keyframe_payload, info).ok());
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::GolombRice);
+
+    storage.fill(0xdd);
+    const std::array non_keyframe_payload{std::byte{0x70}};
+    const auto status =
+        result.decoder->decode_frame(non_keyframe_payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0u);
+    }
+}
+
 TEST(DecoderTest, DecodeFrameWritesZeroYOnlyFrame)
 {
     mffv1::DecoderOptions options;

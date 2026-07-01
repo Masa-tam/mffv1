@@ -43,6 +43,14 @@ Status validate_keyframe(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
+void finalize_frame_metadata(FrameDecodeContext& frame, bool keyframe) noexcept
+{
+    frame.keyframe = keyframe;
+    frame.frame_info.keyframe = keyframe;
+    frame.frame_info.slice_count =
+        static_cast<std::uint32_t>(frame.slices.size());
+}
+
 } // namespace
 
 FrameParser::FrameParser(const syntax::StreamParameters& stream) noexcept
@@ -131,8 +139,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         set_slice_location_if_missing(status, slice.index);
         return status;
     }
-    next_frame.frame_info.slice_count =
-        static_cast<std::uint32_t>(next_frame.slices.size());
+    finalize_frame_metadata(next_frame, next_frame.keyframe);
     out_frame = std::move(next_frame);
     return ok_status();
 }
@@ -191,10 +198,7 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
 
         status = validate_slice_raster_coverage(stream_, next_frame.slices);
         if (status.ok()) {
-            next_frame.keyframe = keyframe;
-            next_frame.frame_info.keyframe = keyframe;
-            next_frame.frame_info.slice_count =
-                static_cast<std::uint32_t>(next_frame.slices.size());
+            finalize_frame_metadata(next_frame, keyframe);
             out_frame = std::move(next_frame);
             return ok_status();
         }
@@ -209,10 +213,7 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
     if (!status.ok()) {
         return status;
     }
-    next_frame.keyframe = keyframe;
-    next_frame.frame_info.keyframe = keyframe;
-    next_frame.frame_info.slice_count =
-        static_cast<std::uint32_t>(next_frame.slices.size());
+    finalize_frame_metadata(next_frame, keyframe);
     out_frame = std::move(next_frame);
     return ok_status();
 }
@@ -296,11 +297,8 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
     if (!status.ok()) {
         return status;
     }
-    out_frame.keyframe = keyframe;
-    out_frame.frame_info.keyframe = keyframe;
     out_frame.slices = std::move(parsed_slices);
-    out_frame.frame_info.slice_count =
-        static_cast<std::uint32_t>(out_frame.slices.size());
+    finalize_frame_metadata(out_frame, keyframe);
     return ok_status();
 }
 

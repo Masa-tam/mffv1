@@ -209,6 +209,37 @@ TEST(SlicePayloadLocatorTest, RejectsEcTrailingSliceCrcMismatch)
     EXPECT_EQ(status.location.byte_offset, 7u);
 }
 
+TEST(SlicePayloadLocatorTest, CanIgnoreEcTrailingSliceCrcMismatch)
+{
+    const std::array payload{
+        std::byte{0x99},
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x0a},
+        std::byte{0x00},
+        std::byte{0x1f},
+        std::byte{0xfe},
+        std::byte{0xb9},
+        std::byte{0xe8},
+    };
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    mffv1::syntax::SliceDescriptor descriptor;
+
+    const mffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_trailing_slice(payload, stream, descriptor, false);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(descriptor.payload_byte_offset, 1u);
+    EXPECT_EQ(descriptor.footer_byte_offset, 3u);
+    EXPECT_EQ(descriptor.slice_size, 10u);
+    EXPECT_EQ(descriptor.error_status, 0u);
+    EXPECT_TRUE(descriptor.has_crc);
+    EXPECT_EQ(descriptor.expected_crc, 0x1ffeb9e8u);
+}
+
 TEST(SlicePayloadLocatorTest, FailedTrailingSlicePreservesDescriptor)
 {
     const std::array payload{
@@ -538,6 +569,36 @@ TEST(SlicePayloadLocatorTest, ReportsTrailingCrcMismatchAfterEarlierSliceIndex)
     EXPECT_EQ(status.location.slice_index, 1u);
     ASSERT_EQ(descriptors.size(), original.size());
     expect_descriptor_equal(descriptors[0], original[0]);
+}
+
+TEST(SlicePayloadLocatorTest, CanIgnoreTrailingCrcMismatchAfterEarlierSlice)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.error_status_enabled = true;
+    const mffv1::codec::SliceFooterWriter footer_writer;
+    std::vector<std::byte> first_slice{std::byte{0xa0}, std::byte{0xa1}};
+    ASSERT_TRUE(footer_writer.append(stream, 0, first_slice).ok());
+    std::vector<std::byte> second_slice{std::byte{0xb0}, std::byte{0xb1}};
+    ASSERT_TRUE(footer_writer.append(stream, 0, second_slice).ok());
+    second_slice.back() ^= std::byte{0x01};
+    std::vector<std::byte> payload = first_slice;
+    payload.insert(payload.end(), second_slice.begin(), second_slice.end());
+    std::vector<mffv1::syntax::SliceDescriptor> descriptors{
+        make_sentinel_descriptor(),
+    };
+
+    const mffv1::codec::SlicePayloadLocator locator;
+    const auto status = locator.locate_slices(
+        payload, stream, 2, descriptors, false);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(descriptors.size(), 2u);
+    EXPECT_EQ(descriptors[0].index, 0u);
+    EXPECT_EQ(descriptors[0].payload_byte_offset, 0u);
+    EXPECT_TRUE(descriptors[0].has_crc);
+    EXPECT_EQ(descriptors[1].index, 1u);
+    EXPECT_EQ(descriptors[1].payload_byte_offset, first_slice.size());
+    EXPECT_TRUE(descriptors[1].has_crc);
 }
 
 TEST(SlicePayloadLocatorTest, DiscoversFewerSlicesThanMaximum)

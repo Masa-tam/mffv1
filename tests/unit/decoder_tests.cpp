@@ -999,6 +999,66 @@ TEST(DecoderTest, DecodeFrameCanIgnoreMultiSliceCrcMismatch)
     EXPECT_EQ(storage[1], 1u);
 }
 
+TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
+{
+    const auto stream = make_two_slice_ec_stream();
+    const mffv1::codec::ConfigurationRecordWriter record_writer;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    auto frame_payload = make_two_slice_ec_payload();
+    ASSERT_FALSE(frame_payload.empty());
+    frame_payload.back() ^= std::byte{0x01};
+
+    mffv1::FrameInfo info;
+    const auto status = decoder.decoder->inspect_frame(frame_payload, info);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+    EXPECT_EQ(status.message, "slice CRC remainder is non-zero");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(info.slice_count, 0u);
+}
+
+TEST(DecoderTest, InspectFrameCanIgnoreMultiSliceCrcMismatch)
+{
+    const auto stream = make_two_slice_ec_stream();
+    const mffv1::codec::ConfigurationRecordWriter record_writer;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(record_writer.write(stream, record.bytes).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    options.verify_crc = false;
+    auto decoder = mffv1::create_decoder(options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    auto frame_payload = make_two_slice_ec_payload();
+    ASSERT_FALSE(frame_payload.empty());
+    frame_payload.back() ^= std::byte{0x01};
+
+    mffv1::FrameInfo info;
+    const auto status = decoder.decoder->inspect_frame(frame_payload, info);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(info.error_status_enabled);
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 2u);
+}
+
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 {
     mffv1::DecoderOptions options;

@@ -19,6 +19,15 @@ scratch artifacts and are ignored by Git. Commit an actual generated
 `createVector.zip` is intentionally not ignored so it can be reviewed and
 committed separately if the generator code is accepted.
 
+## Generator License Boundary
+
+The mffv1 library remains independent of FFmpeg and is not linked to FFmpeg.
+The optional mkv-to-C++ generator is a separate local tool that may link to
+FFmpeg libraries. If the generator is built or distributed against a GPL-enabled
+FFmpeg build, treat that generator binary as subject to the corresponding
+FFmpeg/GPL distribution obligations. Keep that decision separate from the
+MIT-licensed mffv1 library and do not commit FFmpeg binaries or headers.
+
 ## FFmpeg Source
 
 Use FFmpeg only as an external black-box tool and header/library provider for

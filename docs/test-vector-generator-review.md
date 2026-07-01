@@ -1,18 +1,21 @@
 # Test Vector Generator Review
 
-This note records the first review of `testvectors/createVector.zip`.
-The archive is intentionally not committed until the generator source,
-license status, and provenance handling are accepted.
+This note records reviews of `testvectors/createVector.zip`. The archive is
+intentionally not committed until the generator source, license status, and
+provenance handling are accepted.
 
 ## Archive Snapshot
 
 - Path: `testvectors/createVector.zip`
 - SHA-256:
-  `5B7B8FDC1BB56AABD4AF199B066DB72305B294D79266E4B9F84EA74CE8362B26`
+  `A166BE96812388CC461A9E84D546CB70582DFF7661F19197EF515E24A9DDCFA6`
 - Contents:
   - `CMakeLists.txt`
   - `CMakePresets.json`
   - `mkv_to_cpp.cpp`
+
+This snapshot replaces the first candidate reviewed at SHA-256
+`5B7B8FDC1BB56AABD4AF199B066DB72305B294D79266E4B9F84EA74CE8362B26`.
 
 ## Clean-Room Position
 
@@ -24,31 +27,42 @@ No FFmpeg source-code-derived algorithm implementation was identified in the
 archive during this review. The generator must remain outside the mffv1 library
 build and must not introduce any FFmpeg dependency into the library itself.
 
-## Acceptance Concerns
+## Resolved First-Review Concerns
 
-- The archive has no explicit license file or source header. Add a clear
-  license statement before committing the generator.
-- If the generator is linked against a GPL FFmpeg build, review whether the
-  generator archive should be distributed, and under what license, separately
-  from the MIT-licensed mffv1 library.
-- The CMake file uses global `include_directories()` and `link_directories()`.
-  Prefer target-scoped include paths and imported library paths.
-- FFmpeg allocation and setup calls are not fully checked:
-  `avcodec_alloc_context3()`, `avcodec_parameters_to_context()`,
-  `av_packet_alloc()`, and `av_frame_alloc()` need failure handling.
-- Delayed decoder frames are not flushed after packet reading completes.
-- The pixel format descriptor is assumed to be present.
-- Plane size is computed as `int stride * int height`; use checked
-  `std::size_t` arithmetic before copying plane data.
-- Generated C++ string literals should escape file names.
-- The plane mapping logic should be verified against planar RGB, alpha,
+- Source and CMake files now carry SPDX-style MIT license headers.
+- CMake now uses target-scoped include paths and library paths.
+- FFmpeg allocation and setup calls now have basic failure handling.
+- The decoder is flushed after packet reading.
+- Pixel format descriptor lookup is checked.
+- Plane data size is computed with `std::size_t` values.
+- Generated C++ string literals escape quotes and backslashes in vector names.
+- The generator accepts an explicit `-o output.hpp` argument.
+- The generated header contract now supports multiple frame payloads and
+  expected plane sets per vector.
+
+## Remaining Acceptance Concerns
+
+- The archive has source-file SPDX headers but still has no standalone
+  generator license file. Add one before committing the archive, especially if
+  the generator's license differs from the main mffv1 MIT license.
+- The generator directly links to FFmpeg libraries. If built or distributed
+  against a GPL-enabled FFmpeg build, treat the generated executable as subject
+  to GPL distribution obligations. Keeping the generator source under MIT is
+  compatible with GPL use, but distributing generator binaries built against
+  GPL FFmpeg should be handled separately from the MIT-licensed mffv1 library.
+- Negative FFmpeg `linesize` values are not copied safely. The expression
+  `src + y * src_linesize` mixes `std::size_t` and a potentially negative
+  stride, which can wrap and read outside the plane. Either reject negative
+  linesizes explicitly or normalize the starting pointer before row copying.
+- The plane mapping logic should still be verified against planar RGB, alpha,
   packed formats, negative linesizes, and padded lines.
-- The output path is fixed to `test_vector_data.hpp`; an explicit output
-  argument would make scripted use safer.
+- The generator returns success even when all input files fail but an empty
+  header is written. Consider returning a non-zero process status when no
+  vectors were produced.
 
 ## Current Recommendation
 
 Do not commit `createVector.zip` yet. Keep it visible as an untracked review
-candidate, update the generator source with the concerns above, then commit it
-in a dedicated generator-only change once license and provenance expectations
-are settled.
+candidate until the remaining acceptance concerns are settled. Once accepted,
+commit the generator archive in a dedicated generator-only change and keep
+generated vector data separate unless its provenance entry is complete.

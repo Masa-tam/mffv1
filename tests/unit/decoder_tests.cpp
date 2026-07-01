@@ -984,9 +984,25 @@ TEST(DecoderTest, DecodesCrcVerifiedMultiSliceRangeFrameThroughPublicApi)
     const auto frame_payload = make_two_slice_ec_payload();
     mffv1::FrameInfo info;
     ASSERT_TRUE(decoder.decoder->inspect_frame(frame_payload, info).ok());
+    EXPECT_EQ(info.width, stream.width);
+    EXPECT_EQ(info.height, stream.height);
+    EXPECT_EQ(info.version, 3u);
+    EXPECT_EQ(info.micro_version, 4u);
+    EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::Range);
+    EXPECT_EQ(info.bits_per_raw_sample, 8u);
+    EXPECT_EQ(info.color_space, mffv1::ColorSpace::YCbCr);
+    EXPECT_FALSE(info.has_chroma_planes);
+    EXPECT_FALSE(info.has_extra_plane);
     EXPECT_TRUE(info.error_status_enabled);
+    EXPECT_TRUE(info.intra_only);
     EXPECT_TRUE(info.keyframe);
     EXPECT_EQ(info.slice_count, 2u);
+    ASSERT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.planes[0].role, mffv1::PlaneRole::Y);
+    EXPECT_EQ(info.planes[0].sample_format, mffv1::SampleFormat::UInt8);
+    EXPECT_EQ(info.planes[0].width, stream.width);
+    EXPECT_EQ(info.planes[0].height, stream.height);
+    EXPECT_EQ(info.planes[0].stride_bytes, 2);
 
     std::array<std::uint8_t, 2> storage{0xee, 0xee};
     auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);

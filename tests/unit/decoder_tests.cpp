@@ -823,6 +823,65 @@ TEST(DecoderTest, DecodeFramePreservesSliceLocationFromRangeHeaderFailure)
     }
 }
 
+TEST(DecoderTest, DecodesMultiSliceRangeFrameThroughPublicApi)
+{
+    mffv1::StreamInfo stream;
+    stream.width = 2;
+    stream.height = 1;
+    stream.has_chroma_planes = false;
+    stream.num_h_slices = 2;
+    stream.num_v_slices = 1;
+
+    auto encoder = mffv1::create_encoder({});
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    mffv1::DecoderOptions options;
+    options.frame_width = stream.width;
+    options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    const std::array frame_payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+        std::byte{0x3d},
+        std::byte{0x34},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x07},
+    };
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame_payload, info).ok());
+    EXPECT_TRUE(info.keyframe);
+    EXPECT_EQ(info.slice_count, 2u);
+    EXPECT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.planes[0].width, stream.width);
+    EXPECT_EQ(info.planes[0].height, stream.height);
+
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);
+    mffv1::MutableFrameView output{&plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame_payload, output);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[1], 1u);
+}
+
 TEST(DecoderTest, InspectFrameUsesExternalDimensions)
 {
     mffv1::DecoderOptions options;

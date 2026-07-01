@@ -197,6 +197,17 @@ std::vector<std::byte> make_corrupt_two_slice_ec_payload()
     return payload;
 }
 
+std::vector<std::byte> make_reserved_error_status_two_slice_ec_payload()
+{
+    auto payload = make_two_slice_ec_payload();
+    constexpr std::size_t kFirstSliceErrorStatusOffset = 7;
+    EXPECT_GT(payload.size(), kFirstSliceErrorStatusOffset);
+    if (payload.size() > kFirstSliceErrorStatusOffset) {
+        payload[kFirstSliceErrorStatusOffset] = std::byte{0x03};
+    }
+    return payload;
+}
+
 TEST(DecoderTest, FactoryCreatesDecoder)
 {
     const auto result = mffv1::create_decoder({});
@@ -1033,6 +1044,32 @@ TEST(DecoderTest, DecodeFrameCanIgnoreMultiSliceCrcMismatch)
     EXPECT_EQ(storage[1], 1u);
 }
 
+TEST(DecoderTest, DecodeFrameRejectsReservedMultiSliceErrorStatus)
+{
+    const auto stream = make_two_slice_ec_stream();
+    auto decoder = create_two_slice_ec_decoder();
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+
+    const auto frame_payload = make_reserved_error_status_two_slice_ec_payload();
+
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage.data(), stream.width, stream.height, 2);
+    mffv1::MutableFrameView output{&plane, 1};
+
+    const auto status = decoder.decoder->decode_frame(frame_payload, output);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer error_status is reserved");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 7u);
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0xee);
+}
+
 TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
 {
     auto decoder = create_two_slice_ec_decoder();
@@ -1050,6 +1087,27 @@ TEST(DecoderTest, InspectFrameRejectsMultiSliceCrcMismatchThroughPublicApi)
     EXPECT_TRUE(status.location.has_slice_index);
     EXPECT_EQ(status.location.slice_index, 0u);
     EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(info.slice_count, 0u);
+}
+
+TEST(DecoderTest, InspectFrameRejectsReservedMultiSliceErrorStatus)
+{
+    auto decoder = create_two_slice_ec_decoder();
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+
+    const auto frame_payload = make_reserved_error_status_two_slice_ec_payload();
+
+    mffv1::FrameInfo info;
+    const auto status = decoder.decoder->inspect_frame(frame_payload, info);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice footer error_status is reserved");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 0u);
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 7u);
     EXPECT_EQ(info.slice_count, 0u);
 }
 

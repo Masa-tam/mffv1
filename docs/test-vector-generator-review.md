@@ -79,10 +79,12 @@ ffmpeg -hide_banner -loglevel error -y -f lavfi -i "smptebars=size=320x240:rate=
   deliverables. The mffv1 library must not link to FFmpeg or the generator.
 - Broader plane mapping should still be verified with more source formats
   before generated vectors are treated as accepted conformance data.
-- Generated vector data still needs a provenance entry for each input source.
+- Generated vector data needs a provenance entry only when it is committed to
+  the repository. Local test-only generated headers remain outside the
+  registry.
 
 ## Current Recommendation
 
 The generator archive is close to acceptable as a separate GPL-licensed local
 tool. Commit `createVector.zip` only in a dedicated generator-only change, and
-keep generated vector data separate unless its provenance entry is complete.
+keep generated vector data local unless its provenance entry is complete.

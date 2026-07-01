@@ -14,8 +14,10 @@ Unit tests use this macro to skip external-vector checks when vectors have not
 been generated.
 
 Generated preview headers such as `test_vector_data_sample.hpp` are local
-scratch artifacts and are ignored by Git. Commit an actual generated
-`test_vector_data.hpp` only after its provenance entry is reviewed.
+scratch artifacts and are ignored by Git. A generated `test_vector_data.hpp`
+is also a local test artifact by default: use it to run interoperability tests,
+then restore the placeholder before committing normal library changes. Commit
+generated vector data only after its provenance entry is reviewed.
 `createVector.zip` is intentionally not ignored so it can be reviewed and
 committed separately if the generator code is accepted.
 
@@ -113,6 +115,9 @@ FFmpeg libraries must remain confined to the generator tool.
    ```
 
 8. Reconfigure, rebuild, and run the mffv1 tests.
+9. Restore the placeholder `test_vector_data.hpp` before committing ordinary
+   mffv1 library changes unless the generated vectors are intentionally being
+   added as reviewed repository fixtures.
 
 ## Generated Header Contract
 
@@ -162,8 +167,15 @@ reference state produced by earlier payloads in the same vector.
 
 ## Provenance Rules
 
-- Generated vector data should come from media files and FFmpeg's public
-  demuxing/codec-private output, not from FFmpeg source code.
+- Locally generated vector headers are optional user/developer test artifacts
+  and are not committed by default.
+- Users are responsible for ensuring they may use the media inputs they choose
+  for local vector generation.
+- Local vector generation does not change the mffv1 library license because
+  the library does not depend on FFmpeg, the generator, or generated vectors.
+- Generated vector data committed to the repository must come from media files
+  and FFmpeg's public demuxing/codec-private output, not from FFmpeg source
+  code.
 - Do not commit FFmpeg binaries, FFmpeg headers, generated media files, or local
   generator build products unless their license and provenance have been
   reviewed separately.

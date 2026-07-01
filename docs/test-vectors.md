@@ -6,8 +6,9 @@ new vectors.
 
 The optional local workspace under `testvectors/` is not itself a registry.
 Local FFmpeg binaries, FFmpeg headers, MKV samples, generated C++ headers, and
-generator build products must not be committed unless the entries below are
-completed and reviewed.
+generator build products are local test artifacts by default. They may be used
+to validate the library locally without being recorded here. They must not be
+committed unless the entries below are completed and reviewed.
 
 ## Current Committed External Vectors
 
@@ -45,6 +46,17 @@ Each committed external vector must have an entry with:
 Generated C++ headers used by the unit tests must follow the local test-only
 schema documented in `testvectors/README.md`.
 
+## Local-Only Vector Use
+
+Developers and users may generate `testvectors/test_vector_data.hpp` locally,
+run the skip-aware tests, and then restore the placeholder header. This local
+workflow is intentionally outside the registry and does not make the mffv1
+library depend on FFmpeg, the GPL-licensed generator, or the generated vector
+data.
+
+Only generated vector data that is committed to the repository needs a registry
+entry with full provenance and license review.
+
 ## Entry Template
 
 ```markdown
@@ -71,5 +83,5 @@ schema documented in `testvectors/README.md`.
 - Vectors may be generated from media files and public container/codec metadata.
 - Do not copy or translate FFmpeg source code into generated vector files.
 - Do not commit FFmpeg binaries, headers, or local build outputs as vectors.
-- Keep generated data mechanically reproducible from the recorded inputs and
-  commands whenever possible.
+- Keep committed generated data mechanically reproducible from the recorded
+  inputs and commands whenever possible.

@@ -74,6 +74,13 @@ interoperability vectors. The committed placeholder header defines
 `NO_DEFINE_TEST_VECTOR_DATA` so the related tests are skipped until a local
 generated header replaces it.
 
+Locally generated vector headers are not part of the distributed library by
+default. Users and developers may generate them from media they are allowed to
+use, run the interoperability tests, and restore the placeholder header before
+committing ordinary changes. This local workflow does not change the mffv1
+library license because the library builds and runs without FFmpeg, the
+generator, or generated vectors.
+
 The intended external-vector workflow is:
 
 - Use FFmpeg only as a locally installed binary/header provider or black-box
@@ -83,5 +90,6 @@ The intended external-vector workflow is:
 - Do not commit downloaded FFmpeg binaries, FFmpeg headers, generated media
   files, or local generator build products unless their license and provenance
   have been reviewed separately.
-- Generated C++ vector data must be traceable to input media files and public
-  container/codec metadata extraction, not to FFmpeg source code.
+- Generated C++ vector data committed to the repository must be traceable to
+  input media files and public container/codec metadata extraction, not to
+  FFmpeg source code.

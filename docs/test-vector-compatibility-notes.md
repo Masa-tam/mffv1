@@ -17,23 +17,17 @@ The local `testvectors/test_vector_data.hpp` set currently contains:
 - `smptebars_intra_yuva.mkv`
 
 With the current decoder, 8-bit Golomb-Rice vectors parse their slice footers
-and CRC correctly, but slice 0 reaches a Golomb-Rice payload end mismatch:
+and CRC correctly, but slice 0 reaches a Golomb-Rice run-state mismatch:
 
 - `smptebars_inter_420p.mkv` and `smptebars_intra_420p.mkv` report
-  non-zero Golomb-Rice alignment padding at slice-local bit offset 1207 with
-  `plane_end_bits=0:411,1:807,2:1207` and
-  `run_states=0:24/61,1:22/112,2:22/32`.
-- `smptebars_intra_444p.mkv` reports trailing Golomb-Rice bytes at
-  slice-local bit offset 1736 with
-  `plane_end_bits=0:411,1:1110,2:1736` and
-  `run_states=0:24/61,1:24/0,2:24/128`.
-- `smptebars_intra_gray.mkv` reports non-zero Golomb-Rice alignment padding
-  at slice-local bit offset 411 with `plane_end_bits=0:411` and
-  `run_states=0:24/61`.
-- `smptebars_intra_yuva.mkv` reports non-zero Golomb-Rice alignment padding
-  at slice-local bit offset 1838 with
-  `plane_end_bits=0:411,1:1110,2:1736,3:1838` and
-  `run_states=0:24/61,1:24/0,2:24/128,3:24/156`.
+  `Golomb-Rice run extends beyond plane end at bit offset 411 plane=0` with
+  `plane_end_bits=0:411,1:0,2:0` and `run_states=0:24/61,1:0/0,2:0/0`.
+- `smptebars_intra_444p.mkv` reports the same plane-0 overrun at bit offset
+  411 with `plane_end_bits=0:411,1:0,2:0`.
+- `smptebars_intra_gray.mkv` reports the same plane-0 overrun at bit offset
+  411 with `plane_end_bits=0:411` and `run_states=0:24/61`.
+- `smptebars_intra_yuva.mkv` reports the same plane-0 overrun at bit offset
+  411 with `plane_end_bits=0:411,1:0,2:0,3:0`.
 - The second frame of `smptebars_inter_420p.mkv` depends on the first frame
   succeeding before reference slice state can be available.
 
@@ -67,6 +61,12 @@ slice 0 to continue, but later top-row slices still fail with bitstream
 underflow near rows 3 to 5. This suggests the current mismatch is not only an
 overly strict end-padding check; sample or run-code consumption is already
 diverging before the end of at least some slices.
+
+The decoder now rejects a nonzero Golomb-Rice run `pending_count` at plane end
+before byte-alignment validation. This converts the earlier padding or trailing
+byte failures into a direct plane-0 run overrun at bit 411. The changed
+diagnostic does not fix compatibility; it narrows the next investigation to why
+the current plane-0 decode enters or stays in run mode too long.
 
 ## Rejected Hypotheses
 
@@ -110,9 +110,8 @@ bit offset and plane end offsets in Golomb-Rice padding and trailing-byte
 errors. The single-plane gray vector reaches the same first-plane endpoint
 (`0:411`) and then sees non-zero padding, so the next target should be
 Golomb-Rice symbol or run-code consumption rather than only chroma plane order
-or inter-plane boundaries. The final run-state diagnostics show nonzero
-`pending_count` at plane end for these vectors, so any next run-mode
-experiment should preserve the behavior needed by multi-plane streams while
-explaining why the last full-run segment leaves unread non-padding bits. Avoid
-relaxing padding or trailing-byte validation as a fix; doing so only hides the
-bitstream-position mismatch.
+or inter-plane boundaries. The final run-state diagnostics show
+`run_states=0:24/61` at plane 0 end for these vectors, so any next run-mode
+experiment should explain why the last full-run segment leaves 61 samples of
+pending run after the plane's last row. Avoid relaxing padding or trailing-byte
+validation as a fix; doing so only hides the bitstream-position mismatch.

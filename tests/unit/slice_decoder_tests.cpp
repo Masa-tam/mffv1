@@ -1462,6 +1462,43 @@ TEST(SliceDecoderTest, DecodesGolombRiceZeroRun)
     }
 }
 
+TEST(SliceDecoderTest, RejectsGolombRiceRunBeyondPlaneEnd)
+{
+    auto stream = make_stream();
+    stream.width = 5;
+    stream.height = 1;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    std::array<std::uint8_t, 5> storage{};
+    storage.fill(0xee);
+    mffv1::MutablePlaneView plane{
+        storage.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 5, 1, 5}};
+    mffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 1> payload{std::byte{0xf8}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 5;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "Golomb-Rice run extends beyond plane end at bit offset 5 "
+              "plane=0 plane_end_bits=0:5 run_states=0:4/1");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 0u);
+}
+
 TEST(SliceDecoderTest, DecodesGolombRiceChromaPlanesInOrder)
 {
     auto stream = make_stream();

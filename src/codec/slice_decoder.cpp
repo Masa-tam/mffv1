@@ -290,6 +290,27 @@ std::string format_golomb_rice_run_states(SliceState& state,
     return out.str();
 }
 
+Status reject_golomb_rice_pending_run_if_any(SliceState& state,
+                                             std::size_t plane_count,
+                                             std::span<const std::uint64_t> plane_end_bits,
+                                             std::uint64_t payload_offset,
+                                             const bitstream::BitReader& bit_reader)
+{
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        if (state.golomb_rice_run_state(plane).pending_count != 0) {
+            return make_byte_error(
+                ErrorCode::SyntaxError,
+                "Golomb-Rice run extends beyond plane end at bit offset "
+                    + std::to_string(bit_reader.bit_position())
+                    + " plane=" + std::to_string(plane)
+                    + format_golomb_rice_plane_end_bits(plane_end_bits)
+                    + format_golomb_rice_run_states(state, plane_count),
+                payload_offset + bit_reader.byte_position());
+        }
+    }
+    return ok_status();
+}
+
 Status store_rgb_line(const syntax::StreamParameters& stream,
                       const simd::CodecKernels& kernels,
                       SliceOutputWindow& output,
@@ -443,6 +464,11 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         for (auto& end_bit : plane_end_bits) {
             end_bit = bit_reader.bit_position();
         }
+        status = reject_golomb_rice_pending_run_if_any(
+            state, output.plane_count(), plane_end_bits, payload_offset, bit_reader);
+        if (!status.ok()) {
+            return status;
+        }
     } else {
         for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
             auto& line = state.line_state(plane);
@@ -470,6 +496,10 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                 }
             }
             plane_end_bits[plane] = bit_reader.bit_position();
+            if (state.golomb_rice_run_state(plane).pending_count != 0) {
+                return reject_golomb_rice_pending_run_if_any(
+                    state, output.plane_count(), plane_end_bits, payload_offset, bit_reader);
+            }
         }
     }
 

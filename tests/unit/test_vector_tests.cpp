@@ -1,5 +1,7 @@
 #include "test_vector_data.hpp"
 
+#include "codec/configuration_record_parser.hpp"
+#include "codec/frame_parser.hpp"
 #include "mffv1/codec.hpp"
 
 #include <cstddef>
@@ -24,6 +26,65 @@ std::string describe_status(const mffv1::Status& status)
     }
     if (status.location.has_slice_index) {
         out << " slice=" << status.location.slice_index;
+    }
+    return out.str();
+}
+
+std::string describe_frame_parse(
+    const mffv1_testvectors::DecodeVector& vector,
+    std::span<const std::byte> frame_payload)
+{
+    mffv1::syntax::StreamParameters stream;
+    mffv1::codec::ConfigurationRecordParser config_parser;
+    auto status = config_parser.parse(vector.configuration_record, stream);
+    if (!status.ok()) {
+        return std::string{"config parse: "} + describe_status(status);
+    }
+    stream.width = vector.frame_width;
+    stream.height = vector.frame_height;
+
+    mffv1::codec::FrameParser frame_parser(stream, true);
+    mffv1::codec::FrameDecodeContext frame;
+    status = frame_parser.parse(frame_payload, frame);
+    if (!status.ok()) {
+        return std::string{"frame parse: "} + describe_status(status);
+    }
+
+    std::ostringstream out;
+    out << "stream entropy="
+        << (stream.entropy_mode == mffv1::EntropyMode::GolombRice ? "gr" : "range")
+        << " version=" << stream.version
+        << "." << stream.micro_version
+        << " colorspace=" << stream.colorspace_type
+        << " bits=" << static_cast<int>(stream.bits_per_raw_sample)
+        << " chroma=" << stream.chroma_planes
+        << " subsample=" << static_cast<int>(stream.log2_h_chroma_subsample)
+        << "," << static_cast<int>(stream.log2_v_chroma_subsample)
+        << " extra=" << stream.extra_plane
+        << " grid=" << stream.num_h_slices << "x" << stream.num_v_slices
+        << " qsets=" << stream.quant_table_sets.size();
+    for (std::size_t i = 0; i < stream.quant_table_sets.size(); ++i) {
+        out << " q" << i << "=" << stream.quant_table_sets[i].context_count;
+    }
+    out
+        << " slices=" << frame.slices.size();
+    for (const auto& slice : frame.slices) {
+        out << " [#" << slice.index
+            << " x=" << slice.x
+            << " y=" << slice.y
+            << " w=" << slice.width
+            << " h=" << slice.height
+            << " raster=" << slice.raster_x << "," << slice.raster_y
+            << "+" << slice.raster_width << "x" << slice.raster_height
+            << " payload=" << slice.payload_byte_offset
+            << " content=" << slice.content_byte_offset
+            << " footer=" << slice.footer_byte_offset
+            << " size=" << slice.slice_size
+            << " qidx=";
+        for (const auto index : slice.quant_table_set_indexes) {
+            out << index << ",";
+        }
+        out << "]";
     }
     return out.str();
 }
@@ -95,7 +156,8 @@ void expect_decodes_frame(
 
     mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
     const auto status = decoder.decode_frame(frame_payload, output);
-    ASSERT_TRUE(status.ok()) << describe_status(status);
+    ASSERT_TRUE(status.ok()) << describe_status(status) << "\n"
+                             << describe_frame_parse(vector, frame_payload);
 
     for (std::size_t index = 0; index < expected_planes.size(); ++index) {
         const auto& expected = expected_planes[index];

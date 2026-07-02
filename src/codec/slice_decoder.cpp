@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <vector>
 
 namespace mffv1::syntax {
@@ -184,23 +185,28 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
         }
 
         if (context.context == 0) {
-            entropy::GolombRiceRunSegment segment;
-            status = entropy::read_golomb_rice_run_segment(
-                bit_reader, run_state, x, width, segment);
-            if (!status.ok()) {
-                set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
-                return status;
+            bool interrupted = false;
+            while (x < width && !interrupted) {
+                entropy::GolombRiceRunSegment segment;
+                status = entropy::read_golomb_rice_run_segment(
+                    bit_reader, run_state, x, width, segment);
+                if (!status.ok()) {
+                    set_reader_byte_offset(
+                        status, payload_offset, bit_reader.byte_position());
+                    return status;
+                }
+                const auto run_end = std::min<std::uint64_t>(
+                    static_cast<std::uint64_t>(width),
+                    static_cast<std::uint64_t>(x) + segment.count);
+                while (x < run_end) {
+                    const auto run_neighbors = line.neighbors(x);
+                    line.mutable_current()[x] = syntax::Predictor::median_predict(
+                        run_neighbors.left, run_neighbors.top, run_neighbors.top_left);
+                    ++x;
+                }
+                interrupted = segment.interrupted;
             }
-            const auto run_end = std::min<std::uint64_t>(
-                static_cast<std::uint64_t>(width),
-                static_cast<std::uint64_t>(x) + segment.count);
-            while (x < run_end) {
-                const auto run_neighbors = line.neighbors(x);
-                line.mutable_current()[x] = syntax::Predictor::median_predict(
-                    run_neighbors.left, run_neighbors.top, run_neighbors.top_left);
-                ++x;
-            }
-            if (!segment.interrupted || x == width) {
+            if (!interrupted || x == width) {
                 continue;
             }
 
@@ -379,6 +385,10 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  reconstruction_bits,
                                                  state);
                 if (!status.ok()) {
+                    status.message += " at GR plane "
+                        + std::to_string(plane)
+                        + " y "
+                        + std::to_string(y);
                     return status;
                 }
             }
@@ -402,6 +412,10 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  stream.bits_per_raw_sample,
                                                  state);
                 if (!status.ok()) {
+                    status.message += " at GR plane "
+                        + std::to_string(plane)
+                        + " y "
+                        + std::to_string(y);
                     return status;
                 }
                 status = store_planar_line(stream, output, plane, y, line);

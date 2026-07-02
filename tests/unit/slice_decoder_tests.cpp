@@ -1494,7 +1494,8 @@ TEST(SliceDecoderTest, RejectsGolombRiceRunBeyondPlaneEnd)
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(status.message,
               "Golomb-Rice run extends beyond plane end at bit offset 5 "
-              "plane=0 plane_end_bits=0:5 run_states=0:4/1");
+              "plane=0 plane_end_bits=0:5 run_states=0:4/1 "
+              "pending_runs=0:y0x4+2b4-5r4>4p1");
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 0u);
 }

@@ -21,13 +21,15 @@ and CRC correctly, but slice 0 reaches a Golomb-Rice run-state mismatch:
 
 - `smptebars_inter_420p.mkv` and `smptebars_intra_420p.mkv` report
   `Golomb-Rice run extends beyond plane end at bit offset 411 plane=0` with
-  `plane_end_bits=0:411,1:0,2:0` and `run_states=0:24/61,1:0/0,2:0/0`.
+  `plane_end_bits=0:411,1:0,2:0`, `run_states=0:24/61,1:0/0,2:0/0`, and
+  `pending_runs=0:y118x125+256b410-411r24>24p221`.
 - `smptebars_intra_444p.mkv` reports the same plane-0 overrun at bit offset
-  411 with `plane_end_bits=0:411,1:0,2:0`.
+  411 with `pending_runs=0:y118x125+256b410-411r24>24p221`.
 - `smptebars_intra_gray.mkv` reports the same plane-0 overrun at bit offset
-  411 with `plane_end_bits=0:411` and `run_states=0:24/61`.
+  411 with `plane_end_bits=0:411`, `run_states=0:24/61`, and
+  `pending_runs=0:y118x125+256b410-411r24>24p221`.
 - `smptebars_intra_yuva.mkv` reports the same plane-0 overrun at bit offset
-  411 with `plane_end_bits=0:411,1:0,2:0,3:0`.
+  411 with `pending_runs=0:y118x125+256b410-411r24>24p221`.
 - The second frame of `smptebars_inter_420p.mkv` depends on the first frame
   succeeding before reference slice state can be available.
 
@@ -64,9 +66,12 @@ diverging before the end of at least some slices.
 
 The decoder now rejects a nonzero Golomb-Rice run `pending_count` at plane end
 before byte-alignment validation. This converts the earlier padding or trailing
-byte failures into a direct plane-0 run overrun at bit 411. The changed
-diagnostic does not fix compatibility; it narrows the next investigation to why
-the current plane-0 decode enters or stays in run mode too long.
+byte failures into a direct plane-0 run overrun at bit 411. The pending-run
+trace is identical across the 8-bit vectors: a full run of 256 samples starts
+at plane 0, row 118, x 125, encoded by bit range 410..411 with run index 24.
+The changed diagnostic does not fix compatibility; it narrows the next
+investigation to why the current plane-0 decode enters run mode at that
+position and accepts the one-bit full-run segment.
 
 ## Rejected Hypotheses
 
@@ -113,5 +118,8 @@ Golomb-Rice symbol or run-code consumption rather than only chroma plane order
 or inter-plane boundaries. The final run-state diagnostics show
 `run_states=0:24/61` at plane 0 end for these vectors, so any next run-mode
 experiment should explain why the last full-run segment leaves 61 samples of
-pending run after the plane's last row. Avoid relaxing padding or trailing-byte
-validation as a fix; doing so only hides the bitstream-position mismatch.
+pending run after the plane's last row. The pending-run origin is now known:
+`y118x125+256b410-411r24>24p221`. Prefer investigating the context decision
+and reconstructed neighborhood at that coordinate before changing generic
+run-count carry behavior. Avoid relaxing padding or trailing-byte validation as
+a fix; doing so only hides the bitstream-position mismatch.

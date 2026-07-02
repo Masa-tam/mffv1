@@ -164,15 +164,30 @@ Status decode_range_line(entropy::RangeCoder& reader,
     return ok_status();
 }
 
+struct GolombRicePendingRunTrace {
+    bool valid = false;
+    std::size_t plane = 0;
+    std::uint32_t y = 0;
+    std::uint32_t x = 0;
+    std::uint32_t count = 0;
+    std::uint64_t start_bit = 0;
+    std::uint64_t end_bit = 0;
+    std::uint8_t run_index_before = 0;
+    std::uint8_t run_index_after = 0;
+    std::uint32_t pending_count = 0;
+};
+
 Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                entropy::GolombRiceReader& reader,
                                std::uint64_t payload_offset,
                                const syntax::ContextModel& context_model,
                                std::size_t plane,
+                               std::uint32_t y,
                                std::size_t context_bank,
                                std::uint32_t width,
                                std::uint8_t reconstruction_bits,
-                               SliceState& state)
+                               SliceState& state,
+                               std::span<GolombRicePendingRunTrace> pending_run_traces)
 {
     auto& line = state.line_state(plane);
     auto& run_state = state.golomb_rice_run_state(plane);
@@ -191,12 +206,31 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
             bool interrupted = false;
             while (x < width && !interrupted) {
                 entropy::GolombRiceRunSegment segment;
+                const auto run_start_x = x;
+                const auto run_start_bit = bit_reader.bit_position();
+                const auto run_index_before = run_state.run_index;
+                const auto pending_before = run_state.pending_count;
                 status = entropy::read_golomb_rice_run_segment(
                     bit_reader, run_state, x, width, segment);
                 if (!status.ok()) {
                     set_reader_byte_offset(
                         status, payload_offset, bit_reader.byte_position());
                     return status;
+                }
+                if (pending_before == 0 && run_state.pending_count != 0
+                    && plane < pending_run_traces.size()) {
+                    pending_run_traces[plane] = {
+                        true,
+                        plane,
+                        y,
+                        run_start_x,
+                        segment.count + run_state.pending_count,
+                        run_start_bit,
+                        bit_reader.bit_position(),
+                        run_index_before,
+                        run_state.run_index,
+                        run_state.pending_count,
+                    };
                 }
                 const auto run_end = std::min<std::uint64_t>(
                     static_cast<std::uint64_t>(width),
@@ -290,9 +324,37 @@ std::string format_golomb_rice_run_states(SliceState& state,
     return out.str();
 }
 
+std::string format_golomb_rice_pending_run_traces(
+    std::span<const GolombRicePendingRunTrace> pending_run_traces)
+{
+    std::ostringstream out;
+    bool any = false;
+    for (const auto& trace : pending_run_traces) {
+        if (!trace.valid) {
+            continue;
+        }
+        if (!any) {
+            out << " pending_runs=";
+            any = true;
+        } else {
+            out << ",";
+        }
+        out << trace.plane << ":y" << trace.y
+            << "x" << trace.x
+            << "+" << trace.count
+            << "b" << trace.start_bit
+            << "-" << trace.end_bit
+            << "r" << static_cast<int>(trace.run_index_before)
+            << ">" << static_cast<int>(trace.run_index_after)
+            << "p" << trace.pending_count;
+    }
+    return out.str();
+}
+
 Status reject_golomb_rice_pending_run_if_any(SliceState& state,
                                              std::size_t plane_count,
                                              std::span<const std::uint64_t> plane_end_bits,
+                                             std::span<const GolombRicePendingRunTrace> pending_run_traces,
                                              std::uint64_t payload_offset,
                                              const bitstream::BitReader& bit_reader)
 {
@@ -304,7 +366,8 @@ Status reject_golomb_rice_pending_run_if_any(SliceState& state,
                     + std::to_string(bit_reader.bit_position())
                     + " plane=" + std::to_string(plane)
                     + format_golomb_rice_plane_end_bits(plane_end_bits)
-                    + format_golomb_rice_run_states(state, plane_count),
+                    + format_golomb_rice_run_states(state, plane_count)
+                    + format_golomb_rice_pending_run_traces(pending_run_traces),
                 payload_offset + bit_reader.byte_position());
         }
     }
@@ -418,6 +481,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         return status;
     }
     std::vector<std::uint64_t> plane_end_bits(output.plane_count(), 0);
+    std::vector<GolombRicePendingRunTrace> pending_run_traces(output.plane_count());
 
     bitstream::BitReader bit_reader(payload);
     status = bit_reader.skip_bits(content_bit_offset);
@@ -443,10 +507,12 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  payload_offset,
                                                  context_models[plane],
                                                  plane,
+                                                 y,
                                                  context_bank_indexes[plane],
                                                  width,
                                                  reconstruction_bits,
-                                                 state);
+                                                 state,
+                                                 pending_run_traces);
                 if (!status.ok()) {
                     status.message += " at GR plane "
                         + std::to_string(plane)
@@ -465,7 +531,12 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
             end_bit = bit_reader.bit_position();
         }
         status = reject_golomb_rice_pending_run_if_any(
-            state, output.plane_count(), plane_end_bits, payload_offset, bit_reader);
+            state,
+            output.plane_count(),
+            plane_end_bits,
+            pending_run_traces,
+            payload_offset,
+            bit_reader);
         if (!status.ok()) {
             return status;
         }
@@ -479,10 +550,12 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  payload_offset,
                                                  context_models[plane],
                                                  plane,
+                                                 y,
                                                  context_bank_indexes[plane],
                                                  width,
                                                  stream.bits_per_raw_sample,
-                                                 state);
+                                                 state,
+                                                 pending_run_traces);
                 if (!status.ok()) {
                     status.message += " at GR plane "
                         + std::to_string(plane)
@@ -498,7 +571,12 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
             plane_end_bits[plane] = bit_reader.bit_position();
             if (state.golomb_rice_run_state(plane).pending_count != 0) {
                 return reject_golomb_rice_pending_run_if_any(
-                    state, output.plane_count(), plane_end_bits, payload_offset, bit_reader);
+                    state,
+                    output.plane_count(),
+                    plane_end_bits,
+                    pending_run_traces,
+                    payload_offset,
+                    bit_reader);
             }
         }
     }

@@ -19,8 +19,14 @@ The local `testvectors/test_vector_data.hpp` set currently contains:
 With the current decoder, 8-bit Golomb-Rice vectors parse their slice footers
 and CRC correctly, but slice 0 reaches a Golomb-Rice payload end mismatch:
 
-- Most 8-bit vectors report non-zero Golomb-Rice alignment padding.
-- `smptebars_intra_444p.mkv` reports trailing Golomb-Rice bytes.
+- `smptebars_inter_420p.mkv` and `smptebars_intra_420p.mkv` report
+  non-zero Golomb-Rice alignment padding at slice-local bit offset 1207.
+- `smptebars_intra_444p.mkv` reports trailing Golomb-Rice bytes at
+  slice-local bit offset 1736.
+- `smptebars_intra_gray.mkv` reports non-zero Golomb-Rice alignment padding
+  at slice-local bit offset 411.
+- `smptebars_intra_yuva.mkv` reports non-zero Golomb-Rice alignment padding
+  at slice-local bit offset 1838.
 - The second frame of `smptebars_inter_420p.mkv` depends on the first frame
   succeeding before reference slice state can be available.
 
@@ -81,5 +87,7 @@ The remaining 8-bit Golomb-Rice mismatch is most likely in one of these areas:
   byte-alignment padding is checked.
 
 When investigating, prefer small experiments that report the byte/bit position
-at the end of each plane in slice 0. Avoid relaxing padding or trailing-byte
-validation as a fix; doing so only hides the bitstream-position mismatch.
+at the end of each plane in slice 0. The decoder now includes the slice-local
+bit offset in Golomb-Rice padding and trailing-byte errors. Avoid relaxing
+padding or trailing-byte validation as a fix; doing so only hides the
+bitstream-position mismatch.

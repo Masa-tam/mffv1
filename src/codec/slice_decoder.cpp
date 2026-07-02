@@ -433,6 +433,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
 
     while ((bit_reader.bit_position() % 8) != 0) {
         const auto padding_byte_offset = bit_reader.byte_position();
+        const auto padding_bit_offset = bit_reader.bit_position();
         std::uint8_t padding = 0;
         status = bit_reader.read_bit(padding);
         if (!status.ok()) {
@@ -441,13 +442,15 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         }
         if (padding != 0) {
             return make_byte_error(ErrorCode::SyntaxError,
-                                   "Golomb-Rice alignment padding must be zero",
+                                   "Golomb-Rice alignment padding must be zero at bit offset "
+                                       + std::to_string(padding_bit_offset),
                                    payload_offset + padding_byte_offset);
         }
     }
     if (bit_reader.remaining_bits() != 0) {
         return make_byte_error(ErrorCode::SyntaxError,
-                               "Golomb-Rice payload contains trailing bytes",
+                               "Golomb-Rice payload contains trailing bytes at bit offset "
+                                   + std::to_string(bit_reader.bit_position()),
                                payload_offset + bit_reader.byte_position());
     }
     return ok_status();

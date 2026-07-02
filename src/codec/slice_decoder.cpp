@@ -169,6 +169,10 @@ struct GolombRicePendingRunTrace {
     std::size_t plane = 0;
     std::uint32_t y = 0;
     std::uint32_t x = 0;
+    syntax::NeighborSamples neighbors;
+    std::int32_t prediction = 0;
+    std::uint32_t context = 0;
+    bool invert_difference = false;
     std::uint32_t count = 0;
     std::uint64_t start_bit = 0;
     std::uint64_t end_bit = 0;
@@ -224,6 +228,10 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                         plane,
                         y,
                         run_start_x,
+                        neighbors,
+                        prediction,
+                        context.context,
+                        context.invert_difference,
                         segment.count + run_state.pending_count,
                         run_start_bit,
                         bit_reader.bit_position(),
@@ -341,12 +349,22 @@ std::string format_golomb_rice_pending_run_traces(
         }
         out << trace.plane << ":y" << trace.y
             << "x" << trace.x
+            << "c" << trace.context
+            << (trace.invert_difference ? "i1" : "i0")
+            << "n("
+            << trace.neighbors.left << "/"
+            << trace.neighbors.top << "/"
+            << trace.neighbors.top_left << "/"
+            << trace.neighbors.top_right << "/"
+            << trace.neighbors.far_left << "/"
+            << trace.neighbors.top_top << ")"
+            << "p" << trace.prediction
             << "+" << trace.count
             << "b" << trace.start_bit
             << "-" << trace.end_bit
             << "r" << static_cast<int>(trace.run_index_before)
             << ">" << static_cast<int>(trace.run_index_after)
-            << "p" << trace.pending_count;
+            << "q" << trace.pending_count;
     }
     return out.str();
 }

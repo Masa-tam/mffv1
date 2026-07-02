@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <sstream>
 #include <span>
 #include <string>
 #include <vector>
@@ -253,6 +254,23 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
     return ok_status();
 }
 
+std::string format_golomb_rice_plane_end_bits(
+    std::span<const std::uint64_t> plane_end_bits)
+{
+    if (plane_end_bits.empty()) {
+        return {};
+    }
+    std::ostringstream out;
+    out << " plane_end_bits=";
+    for (std::size_t i = 0; i < plane_end_bits.size(); ++i) {
+        if (i != 0) {
+            out << ",";
+        }
+        out << i << ":" << plane_end_bits[i];
+    }
+    return out.str();
+}
+
 Status store_rgb_line(const syntax::StreamParameters& stream,
                       const simd::CodecKernels& kernels,
                       SliceOutputWindow& output,
@@ -359,6 +377,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
     if (!status.ok()) {
         return status;
     }
+    std::vector<std::uint64_t> plane_end_bits(output.plane_count(), 0);
 
     bitstream::BitReader bit_reader(payload);
     status = bit_reader.skip_bits(content_bit_offset);
@@ -402,6 +421,9 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                 return status;
             }
         }
+        for (auto& end_bit : plane_end_bits) {
+            end_bit = bit_reader.bit_position();
+        }
     } else {
         for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
             auto& line = state.line_state(plane);
@@ -428,6 +450,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                     return status;
                 }
             }
+            plane_end_bits[plane] = bit_reader.bit_position();
         }
     }
 
@@ -443,14 +466,16 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         if (padding != 0) {
             return make_byte_error(ErrorCode::SyntaxError,
                                    "Golomb-Rice alignment padding must be zero at bit offset "
-                                       + std::to_string(padding_bit_offset),
+                                       + std::to_string(padding_bit_offset)
+                                       + format_golomb_rice_plane_end_bits(plane_end_bits),
                                    payload_offset + padding_byte_offset);
         }
     }
     if (bit_reader.remaining_bits() != 0) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "Golomb-Rice payload contains trailing bytes at bit offset "
-                                   + std::to_string(bit_reader.bit_position()),
+                                   + std::to_string(bit_reader.bit_position())
+                                   + format_golomb_rice_plane_end_bits(plane_end_bits),
                                payload_offset + bit_reader.byte_position());
     }
     return ok_status();

@@ -1760,7 +1760,8 @@ TEST(DecoderTest, FailedGolombRiceSliceDecodePreservesReferenceState)
     ASSERT_FALSE(failed_status.ok());
     EXPECT_EQ(failed_status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(failed_status.message,
-              "Golomb-Rice alignment padding must be zero at bit offset 7");
+              "Golomb-Rice alignment padding must be zero at bit offset 7 "
+              "plane_end_bits=0:7");
     EXPECT_TRUE(failed_status.location.has_byte_offset);
     EXPECT_EQ(failed_status.location.byte_offset, 0u);
 

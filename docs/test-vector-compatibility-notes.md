@@ -20,13 +20,15 @@ With the current decoder, 8-bit Golomb-Rice vectors parse their slice footers
 and CRC correctly, but slice 0 reaches a Golomb-Rice payload end mismatch:
 
 - `smptebars_inter_420p.mkv` and `smptebars_intra_420p.mkv` report
-  non-zero Golomb-Rice alignment padding at slice-local bit offset 1207.
+  non-zero Golomb-Rice alignment padding at slice-local bit offset 1207 with
+  `plane_end_bits=0:411,1:807,2:1207`.
 - `smptebars_intra_444p.mkv` reports trailing Golomb-Rice bytes at
-  slice-local bit offset 1736.
+  slice-local bit offset 1736 with `plane_end_bits=0:411,1:1110,2:1736`.
 - `smptebars_intra_gray.mkv` reports non-zero Golomb-Rice alignment padding
-  at slice-local bit offset 411.
+  at slice-local bit offset 411 with `plane_end_bits=0:411`.
 - `smptebars_intra_yuva.mkv` reports non-zero Golomb-Rice alignment padding
-  at slice-local bit offset 1838.
+  at slice-local bit offset 1838 with
+  `plane_end_bits=0:411,1:1110,2:1736,3:1838`.
 - The second frame of `smptebars_inter_420p.mkv` depends on the first frame
   succeeding before reference slice state can be available.
 
@@ -52,6 +54,14 @@ vectors.
 Golomb-Rice context state sharing by quantization-table-set bank improved the
 external vector failure mode from early underflow to slice-end mismatch. Keep
 this as the current baseline unless later evidence proves otherwise.
+
+### Slice-End Validation Probe
+
+Temporarily bypassing Golomb-Rice padding and trailing-byte validation allows
+slice 0 to continue, but later top-row slices still fail with bitstream
+underflow near rows 3 to 5. This suggests the current mismatch is not only an
+overly strict end-padding check; sample or run-code consumption is already
+diverging before the end of at least some slices.
 
 ## Rejected Hypotheses
 
@@ -88,6 +98,9 @@ The remaining 8-bit Golomb-Rice mismatch is most likely in one of these areas:
 
 When investigating, prefer small experiments that report the byte/bit position
 at the end of each plane in slice 0. The decoder now includes the slice-local
-bit offset in Golomb-Rice padding and trailing-byte errors. Avoid relaxing
-padding or trailing-byte validation as a fix; doing so only hides the
-bitstream-position mismatch.
+bit offset and plane end offsets in Golomb-Rice padding and trailing-byte
+errors. The single-plane gray vector reaches the same first-plane endpoint
+(`0:411`) and then sees non-zero padding, so the next target should be
+Golomb-Rice symbol or run-code consumption rather than only chroma plane order
+or inter-plane boundaries. Avoid relaxing padding or trailing-byte validation
+as a fix; doing so only hides the bitstream-position mismatch.

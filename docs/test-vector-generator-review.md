@@ -1,8 +1,9 @@
 # Test Vector Generator Review
 
-This note records reviews of `testvectors/createVector.zip`. The archive is
-intentionally not committed until the generator source, license status, and
-provenance handling are accepted.
+This note records reviews of the local `createVector.zip` candidate that was
+previously evaluated under `testvectors/`. The current project direction is to
+keep generator projects outside the mffv1 repository and let mffv1 consume only
+the generated `test_vector_data.hpp` contract when users provide one locally.
 
 ## Archive Snapshot
 
@@ -85,6 +86,8 @@ ffmpeg -hide_banner -loglevel error -y -f lavfi -i "smptebars=size=320x240:rate=
 
 ## Current Recommendation
 
-The generator archive is close to acceptable as a separate GPL-licensed local
-tool. Commit `createVector.zip` only in a dedicated generator-only change, and
-keep generated vector data local unless its provenance entry is complete.
+Keep the generator as a separate GPL-licensed project or local tool outside the
+mffv1 tree. Do not commit `createVector.zip` or generated vector data to this
+repository by default. If a generator or vectors are ever promoted into the
+repository, do so through a dedicated reviewed change with explicit provenance
+and license records.

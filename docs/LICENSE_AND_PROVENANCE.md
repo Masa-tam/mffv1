@@ -70,15 +70,15 @@ information. Record committed external vectors in:
 - [Test Vector Registry](test-vectors.md)
 
 The `testvectors/` directory is an optional local workspace for black-box
-interoperability vectors. The committed placeholder header defines
-`NO_DEFINE_TEST_VECTOR_DATA` so the related tests are skipped until a local
-generated header replaces it.
+interoperability vectors. When no local `testvectors/test_vector_data.hpp`
+exists, CMake generates a build-tree placeholder defining
+`NO_DEFINE_TEST_VECTOR_DATA` so the related tests are skipped.
 
 Locally generated vector headers are not part of the distributed library by
 default. Users and developers may generate them from media they are allowed to
-use, run the interoperability tests, and restore the placeholder header before
+use, run the interoperability tests, and remove the local header before
 committing ordinary changes. This local workflow does not change the mffv1
-library license because the library builds and runs without FFmpeg, the
+library license because the library builds and runs without FFmpeg, any
 generator, or generated vectors.
 
 The intended external-vector workflow is:

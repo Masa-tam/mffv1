@@ -16,14 +16,16 @@ No external FFV1 test vectors are currently committed.
 
 The repository contains only:
 
-- `testvectors/README.md`: local generation instructions.
-- `testvectors/test_vector_data.hpp`: placeholder header defining
-  `NO_DEFINE_TEST_VECTOR_DATA`.
+- `testvectors/README.md`: local drop-point instructions and generated header
+  contract.
+- `testvectors/.gitignore`: keeps local vector artifacts out of commits.
+- CMake-generated fallback `test_vector_data.hpp` in the build tree, defining
+  `NO_DEFINE_TEST_VECTOR_DATA` when no local source-tree vector header exists.
 - `tests/unit/test_vector_tests.cpp`: skip-aware test hook.
 
-Generator archives should be reviewed before commit. See
-`docs/test-vector-generator-review.md` for the current review notes for the
-local `createVector.zip` candidate.
+Generator projects should live outside this repository unless they are added in
+a dedicated reviewed change. The mffv1 tree only requires the generated header
+contract documented in `testvectors/README.md`.
 
 ## Required Record For Each Added Vector
 
@@ -48,10 +50,11 @@ schema documented in `testvectors/README.md`.
 
 ## Local-Only Vector Use
 
-Developers and users may generate `testvectors/test_vector_data.hpp` locally,
-run the skip-aware tests, and then restore the placeholder header. This local
-workflow is intentionally outside the registry and does not make the mffv1
-library depend on FFmpeg, the GPL-licensed generator, or the generated vector
+Developers and users may provide `testvectors/test_vector_data.hpp` locally,
+run the skip-aware tests, and then remove the local header. If the header is
+absent, CMake generates a build-tree placeholder that skips external-vector
+checks. This local workflow is intentionally outside the registry and does not
+make the mffv1 library depend on FFmpeg, any generator, or generated vector
 data.
 
 Only generated vector data that is committed to the repository needs a registry

@@ -64,6 +64,21 @@ add_executable(mffv1_unit_tests
     unit/version3_constraints_tests.cpp
 )
 
+set(mffv1_test_vector_include_dir "${PROJECT_SOURCE_DIR}/testvectors")
+set(mffv1_test_vector_header
+    "${mffv1_test_vector_include_dir}/test_vector_data.hpp"
+)
+if(NOT EXISTS "${mffv1_test_vector_header}")
+    set(mffv1_test_vector_include_dir
+        "${PROJECT_BINARY_DIR}/generated/testvectors"
+    )
+    file(MAKE_DIRECTORY "${mffv1_test_vector_include_dir}")
+    file(WRITE
+        "${mffv1_test_vector_include_dir}/test_vector_data.hpp"
+        "#pragma once\n\n#define NO_DEFINE_TEST_VECTOR_DATA 1\n"
+    )
+endif()
+
 target_link_libraries(mffv1_unit_tests
     PRIVATE
         mffv1::mffv1
@@ -73,7 +88,7 @@ target_link_libraries(mffv1_unit_tests
 target_include_directories(mffv1_unit_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src"
-        "${PROJECT_SOURCE_DIR}/testvectors"
+        "${mffv1_test_vector_include_dir}"
 )
 
 mffv1_apply_common_options(mffv1_unit_tests)

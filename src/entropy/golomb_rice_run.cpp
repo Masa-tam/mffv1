@@ -2,6 +2,7 @@
 
 #include "util/status.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
@@ -23,6 +24,7 @@ constexpr std::array<std::uint8_t, 41> kLog2Run{
 void GolombRiceRunState::reset() noexcept
 {
     run_index = 0;
+    pending_count = 0;
 }
 
 Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
@@ -36,6 +38,14 @@ Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
     }
     if (x > width) {
         return make_error(ErrorCode::InvalidArgument, "Golomb-Rice run position is outside the row");
+    }
+    if (state.pending_count != 0) {
+        const auto row_remaining = width - x;
+        GolombRiceRunSegment segment;
+        segment.count = std::min(state.pending_count, row_remaining);
+        state.pending_count -= segment.count;
+        out_segment = segment;
+        return ok_status();
     }
 
     const auto log2_run = kLog2Run[state.run_index];
@@ -55,6 +65,9 @@ Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
                                   "Golomb-Rice run index exceeds the supported table");
             }
             ++next_run_index;
+        } else {
+            state.pending_count = segment.count - (width - x);
+            segment.count = width - x;
         }
     } else {
         std::uint64_t remainder = 0;

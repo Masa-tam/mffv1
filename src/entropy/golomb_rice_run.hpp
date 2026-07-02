@@ -9,6 +9,7 @@ namespace mffv1::entropy {
 
 struct GolombRiceRunState {
     std::uint8_t run_index = 0;
+    std::uint32_t pending_count = 0;
 
     void reset() noexcept;
 };

@@ -508,9 +508,10 @@ TEST(ConfigurationParserTest, RejectsOutOfRangeQuantTableSetCount)
         EXPECT_FALSE(status.ok()) << "quant_table_set_count=" << quant_table_set_count;
         EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError)
             << "quant_table_set_count=" << quant_table_set_count;
-        EXPECT_EQ(status.message,
-                  "quant_table_set_count must be in the range 1..8: "
-                      + std::to_string(quant_table_set_count))
+        const auto expected_prefix =
+            "quant_table_set_count must be in the range 1..8: "
+            + std::to_string(quant_table_set_count);
+        EXPECT_EQ(status.message.find(expected_prefix), 0u)
             << "quant_table_set_count=" << quant_table_set_count;
         EXPECT_TRUE(status.location.has_byte_offset)
             << "quant_table_set_count=" << quant_table_set_count;

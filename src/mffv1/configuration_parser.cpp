@@ -210,7 +210,22 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         if (quant_table_set_count == 0 || quant_table_set_count > kMaxQuantTableSetCount) {
             std::ostringstream message;
             message << "quant_table_set_count must be in the range 1..8: "
-                    << quant_table_set_count;
+                    << quant_table_set_count
+                    << " (version=" << stream.version
+                    << "." << stream.micro_version
+                    << " entropy="
+                    << (stream.entropy_mode == EntropyMode::GolombRice ? "gr" : "range")
+                    << " colorspace=" << stream.colorspace_type
+                    << " bits=" << static_cast<int>(stream.bits_per_raw_sample)
+                    << " chroma=" << stream.chroma_planes
+                    << " subsample="
+                    << static_cast<int>(stream.log2_h_chroma_subsample)
+                    << ","
+                    << static_cast<int>(stream.log2_v_chroma_subsample)
+                    << " extra=" << stream.extra_plane
+                    << " slices=" << stream.num_h_slices
+                    << "x" << stream.num_v_slices
+                    << ")";
             return make_byte_error(ErrorCode::SyntaxError,
                                    message.str(),
                                    quant_table_set_count_byte_offset);

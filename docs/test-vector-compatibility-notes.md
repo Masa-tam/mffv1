@@ -37,7 +37,15 @@ and CRC correctly, but slice 0 reaches a Golomb-Rice run-state mismatch:
 
 The 10-bit vector currently fails during configuration parsing:
 
-- `quant_table_set_count must be in the range 1..8: 0 byte=155`
+- `quant_table_set_count must be in the range 1..8: 0 (version=3.4
+  entropy=range colorspace=0 bits=8 chroma=1 subsample=28,0 extra=0
+  slices=2x61) byte=155`
+
+The parser has already decoded the 10-bit vector incorrectly before the
+quantization-table-set count. A 420p10 stream should not report 8-bit samples,
+horizontal subsampling 28, or a 2x61 slice grid. The remaining 10-bit issue is
+therefore earlier than quantization-table parsing, most likely in range-coded
+nonbinary symbol state progression for the Parameter section.
 
 ## Confirmed Behaviors
 
@@ -120,6 +128,8 @@ should not be repeated without new evidence:
 - Accepting `quant_table_set_count == 0` as if it were 1.
 - Incrementally applying `state_transition_delta` while reading the custom
   state transition table.
+- Feeding the full Configuration Record, including the CRC parity bytes, to the
+  range decoder instead of only the pre-CRC parameter payload.
 
 ## Next Investigation Targets
 
@@ -149,3 +159,8 @@ including the flat neighborhood and prediction value. Prefer investigating the
 range-coded header/content boundary before changing generic run-count carry
 behavior. Avoid relaxing padding or trailing-byte validation as a fix; doing so
 only hides the bitstream-position mismatch.
+
+The 10-bit range-coded configuration mismatch should be investigated by
+tracing the Parameter section one scalar at a time. The first obviously wrong
+decoded field is `bits_per_raw_sample`, which currently decodes as the
+compatibility value 0 and becomes 8 instead of decoding as 10.

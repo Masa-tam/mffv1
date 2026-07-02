@@ -604,7 +604,7 @@ TEST(EncoderTest, EncodeFrameProducesCompleteFrame)
         (static_cast<std::uint32_t>(frame.bytes[encoded_size - 3]) << 16)
             | (static_cast<std::uint32_t>(frame.bytes[encoded_size - 2]) << 8)
             | static_cast<std::uint32_t>(frame.bytes[encoded_size - 1]),
-        static_cast<std::uint32_t>(encoded_size));
+        static_cast<std::uint32_t>(encoded_size - 3u));
 }
 
 TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)

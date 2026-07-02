@@ -8,6 +8,22 @@
 
 namespace {
 
+TEST(GolombRiceContextTest, ResetRestoresInitialAdaptiveState)
+{
+    mffv1::entropy::GolombRiceContextState state;
+    state.drift = -9;
+    state.error_sum = 17;
+    state.bias = 3;
+    state.count = 12;
+
+    state.reset();
+
+    EXPECT_EQ(state.drift, 0);
+    EXPECT_EQ(state.error_sum, 4);
+    EXPECT_EQ(state.bias, 0);
+    EXPECT_EQ(state.count, 1);
+}
+
 TEST(GolombRiceContextTest, DecodesWithInitialKAndUpdatesState)
 {
     const std::array bytes{std::byte{0x80}}; // k=2: 1 00
@@ -111,7 +127,7 @@ TEST(GolombRiceContextTest, RejectsInvalidStateWithoutReading)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
-    EXPECT_EQ(status.message, "Golomb-Rice context state is invalid");
+    EXPECT_EQ(status.message, "Golomb-Rice context count is invalid");
     EXPECT_EQ(bits.bit_position(), 0u);
 }
 

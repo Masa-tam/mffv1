@@ -996,14 +996,14 @@ TEST(DecoderTest, DecodesMultiSliceRangeFrameThroughPublicApi)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
         std::byte{0x3d},
         std::byte{0x34},
         std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
     };
 
     mffv1::FrameInfo info;
@@ -1301,7 +1301,7 @@ TEST(DecoderTest, DecodesMinimalVersionThreeFrameThroughPublicApi)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
 
     mffv1::FrameInfo info;

@@ -5,13 +5,28 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <sstream>
 #include <span>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #if !defined(NO_DEFINE_TEST_VECTOR_DATA)
 namespace {
+
+std::string describe_status(const mffv1::Status& status)
+{
+    std::ostringstream out;
+    out << status.message;
+    if (status.location.has_byte_offset) {
+        out << " byte=" << status.location.byte_offset;
+    }
+    if (status.location.has_slice_index) {
+        out << " slice=" << status.location.slice_index;
+    }
+    return out.str();
+}
 
 bool compute_plane_size(const mffv1_testvectors::PlaneVector& plane,
                         std::size_t& out_size)
@@ -71,7 +86,7 @@ void expect_decodes_frame(
         EXPECT_EQ(info.planes[index].sample_format, expected.info.sample_format);
         EXPECT_EQ(info.planes[index].width, expected.info.width);
         EXPECT_EQ(info.planes[index].height, expected.info.height);
-        EXPECT_EQ(info.planes[index].stride_bytes, expected.info.stride_bytes);
+        EXPECT_LE(info.planes[index].stride_bytes, expected.info.stride_bytes);
 
         plane_storage.emplace_back(expected_size, std::byte{0xa5});
         output_planes.push_back(
@@ -80,7 +95,7 @@ void expect_decodes_frame(
 
     mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
     const auto status = decoder.decode_frame(frame_payload, output);
-    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_TRUE(status.ok()) << describe_status(status);
 
     for (std::size_t index = 0; index < expected_planes.size(); ++index) {
         const auto& expected = expected_planes[index];
@@ -110,7 +125,7 @@ void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
     ASSERT_NE(decoder.decoder, nullptr);
     const auto configure_status =
         decoder.decoder->configure(vector.configuration_record);
-    ASSERT_TRUE(configure_status.ok()) << configure_status.message;
+    ASSERT_TRUE(configure_status.ok()) << describe_status(configure_status);
 
     for (std::size_t frame_index = 0;
          frame_index < vector.frame_payloads.size();

@@ -304,6 +304,10 @@ Status SliceEncoder::encode_slice(
 
     if (stream_.entropy_mode == EntropyMode::GolombRice) {
         std::vector<std::byte> payload;
+        status = writer.write_termination_sentinel();
+        if (!status.ok()) {
+            return status;
+        }
         status = writer.finalize(payload);
         if (!status.ok()) {
             return status;

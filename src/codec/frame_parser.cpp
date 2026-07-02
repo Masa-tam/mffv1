@@ -275,6 +275,15 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
             set_slice_location_if_missing(status, located_slice.index);
             return status;
         }
+        if (stream_.entropy_mode == EntropyMode::GolombRice) {
+            status = header_reader.read_termination_sentinel();
+            if (!status.ok()) {
+                add_byte_offset(status, located_slice.payload_byte_offset);
+                set_slice_location_if_missing(status, located_slice.index);
+                return status;
+            }
+            parsed_slice.content_byte_offset = header_reader.byte_position();
+        }
         if (parsed_slice.content_byte_offset > located_slice.payload.size()) {
             status = make_byte_error(ErrorCode::SyntaxError,
                                      "slice header consumes more bytes than the slice payload contains",

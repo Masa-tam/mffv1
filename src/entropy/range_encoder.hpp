@@ -40,6 +40,7 @@ public:
     Status copy_contexts(ContextStateBanks& out_context_banks) const;
 
     Status write_bool(bool value) override;
+    Status write_termination_sentinel();
     Status write_unsigned(std::uint64_t value) override;
     Status write_signed(std::int64_t value) override;
     Status write_unsigned(ContextId context, std::uint64_t value);

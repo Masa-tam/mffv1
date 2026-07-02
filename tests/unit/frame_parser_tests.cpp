@@ -650,7 +650,7 @@ TEST(FrameParserTest, RejectsUnknownDimensionsWithoutChangingFrame)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -673,7 +673,7 @@ TEST(FrameParserTest, RejectsZeroSliceGridWithoutChangingFrame)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -713,7 +713,7 @@ TEST(FrameParserTest, RejectsRangeCodedNonKeyframeForIntraOnlyStream)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -740,7 +740,7 @@ TEST(FrameParserTest, AcceptsRangeCodedNonKeyframeForNonIntraStream)
         std::byte{0x7f},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -780,7 +780,7 @@ TEST(FrameParserTest, ParsesAndDecodesRangeCodedNonKeyframeAfterKeyframe)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x06},
+        std::byte{0x03},
     };
     mffv1::codec::FrameDecodeContext keyframe;
     ASSERT_TRUE(parser.parse_with_range_header(keyframe_payload, keyframe).ok());
@@ -794,7 +794,7 @@ TEST(FrameParserTest, ParsesAndDecodesRangeCodedNonKeyframeAfterKeyframe)
         std::byte{0xbf},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x06},
+        std::byte{0x03},
     };
     mffv1::codec::FrameDecodeContext non_keyframe;
     ASSERT_TRUE(parser.parse_with_range_header(non_keyframe_payload, non_keyframe).ok());
@@ -818,7 +818,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -836,7 +836,7 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
-    EXPECT_EQ(frame.slices[0].slice_size, payload.size());
+    EXPECT_EQ(frame.slices[0].slice_size, payload.size() - 3u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
     EXPECT_TRUE(frame.keyframe);
     ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 2u);
@@ -852,7 +852,7 @@ TEST(FrameParserTest, VerifiesSingleSliceCrc)
     mffv1::codec::FrameDecodeContext frame;
     std::array<std::byte, 12> payload{
         std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0x00},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x0c}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x04}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
         std::byte{0x00},
     };
@@ -864,7 +864,7 @@ TEST(FrameParserTest, VerifiesSingleSliceCrc)
     ASSERT_EQ(frame.slices.size(), 1u);
     EXPECT_TRUE(frame.slices[0].has_crc);
     EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
-    EXPECT_EQ(frame.slices[0].slice_size, payload.size());
+    EXPECT_EQ(frame.slices[0].slice_size, payload.size() - 8u);
 }
 
 TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
@@ -875,7 +875,7 @@ TEST(FrameParserTest, RejectsSingleSliceCrcMismatch)
     auto frame = make_existing_frame();
     std::array<std::byte, 12> payload{
         std::byte{0xff}, std::byte{0x00}, std::byte{0xff}, std::byte{0x00},
-        std::byte{0x00}, std::byte{0x00}, std::byte{0x0c}, std::byte{0x00},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x04}, std::byte{0x00},
         std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
         std::byte{0x00},
     };
@@ -950,14 +950,14 @@ TEST(FrameParserTest, ParsesVersionThreeMultiSliceThroughDefaultParse)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
         std::byte{0x3d},
         std::byte{0x34},
         std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
     };
 
     const auto status = parser.parse(payload, frame);
@@ -967,10 +967,10 @@ TEST(FrameParserTest, ParsesVersionThreeMultiSliceThroughDefaultParse)
     ASSERT_EQ(frame.slices.size(), 2u);
     EXPECT_EQ(frame.slices[0].index, 0u);
     EXPECT_EQ(frame.slices[0].payload_byte_offset, 0u);
-    EXPECT_EQ(frame.slices[0].slice_size, 7u);
+    EXPECT_EQ(frame.slices[0].slice_size, 4u);
     EXPECT_EQ(frame.slices[1].index, 1u);
     EXPECT_EQ(frame.slices[1].payload_byte_offset, 7u);
-    EXPECT_EQ(frame.slices[1].slice_size, 7u);
+    EXPECT_EQ(frame.slices[1].slice_size, 4u);
     EXPECT_EQ(frame.frame_info.slice_count, 2u);
 }
 
@@ -1059,7 +1059,7 @@ TEST(FrameParserTest, RejectsMalformedSingleSliceInMultiCellRaster)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -1084,14 +1084,14 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
         std::byte{0x3d},
         std::byte{0x34},
         std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -1112,7 +1112,7 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     EXPECT_EQ(frame.slices[0].header_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
-    EXPECT_EQ(frame.slices[0].slice_size, 7u);
+    EXPECT_EQ(frame.slices[0].slice_size, 4u);
     EXPECT_EQ(frame.slices[0].payload.size(), 7u);
 
     EXPECT_EQ(frame.slices[1].index, 1u);
@@ -1128,7 +1128,7 @@ TEST(FrameParserTest, CreatesMultiSliceDescriptorsFromLocatedRangeHeaders)
     EXPECT_EQ(frame.slices[1].header_byte_offset, 9u);
     EXPECT_EQ(frame.slices[1].content_byte_offset, 10u);
     EXPECT_EQ(frame.slices[1].footer_byte_offset, 11u);
-    EXPECT_EQ(frame.slices[1].slice_size, 7u);
+    EXPECT_EQ(frame.slices[1].slice_size, 4u);
     EXPECT_EQ(frame.slices[1].payload.size(), 7u);
 }
 
@@ -1164,11 +1164,11 @@ TEST(FrameParserTest, PreservesMultiSliceErrorStatusFromLocatedRangeHeaders)
     EXPECT_TRUE(frame.slices[0].has_crc);
     EXPECT_EQ(frame.slices[0].error_status, 1u);
     EXPECT_EQ(frame.slices[0].expected_crc, read_trailing_crc(first_slice));
-    EXPECT_EQ(frame.slices[0].slice_size, first_slice.size());
+    EXPECT_EQ(frame.slices[0].slice_size, first_slice.size() - 8u);
     EXPECT_TRUE(frame.slices[1].has_crc);
     EXPECT_EQ(frame.slices[1].error_status, 2u);
     EXPECT_EQ(frame.slices[1].expected_crc, read_trailing_crc(second_slice));
-    EXPECT_EQ(frame.slices[1].slice_size, second_slice.size());
+    EXPECT_EQ(frame.slices[1].slice_size, second_slice.size() - 8u);
 }
 
 TEST(FrameParserTest, AcceptsSingleSliceCoveringMultipleRasterCells)
@@ -1183,7 +1183,7 @@ TEST(FrameParserTest, AcceptsSingleSliceCoveringMultipleRasterCells)
         std::byte{0xcd},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x06},
+        std::byte{0x03},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);
@@ -1238,10 +1238,10 @@ TEST(FrameParserTest, DoesNotExposeParsedPrefixWhenLaterSliceHeaderFails)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x03},
+        std::byte{0x00},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);

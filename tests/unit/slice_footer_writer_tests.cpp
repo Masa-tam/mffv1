@@ -10,7 +10,7 @@
 
 namespace {
 
-TEST(SliceFooterWriterTest, AppendsCompleteSliceSize)
+TEST(SliceFooterWriterTest, AppendsPayloadSliceSize)
 {
     mffv1::syntax::StreamParameters stream;
     std::vector<std::byte> payload{
@@ -29,7 +29,7 @@ TEST(SliceFooterWriterTest, AppendsCompleteSliceSize)
             std::byte{0xbb},
             std::byte{0x00},
             std::byte{0x00},
-            std::byte{0x05},
+            std::byte{0x02},
         }));
     mffv1::syntax::SliceDescriptor descriptor;
     const mffv1::codec::SliceFooterParser parser;
@@ -52,7 +52,7 @@ TEST(SliceFooterWriterTest, AppendsErrorStatusAndCrcParity)
     ASSERT_EQ(payload.size(), 10u);
     EXPECT_EQ(payload[2], std::byte{0x00});
     EXPECT_EQ(payload[3], std::byte{0x00});
-    EXPECT_EQ(payload[4], std::byte{0x0a});
+    EXPECT_EQ(payload[4], std::byte{0x02});
     EXPECT_EQ(payload[5], std::byte{0x02});
     EXPECT_EQ(mffv1::util::crc32_ieee_msb(payload), 0u);
 
@@ -68,14 +68,13 @@ TEST(SliceFooterWriterTest, AppendsMaximumRepresentableSliceSize)
     mffv1::syntax::StreamParameters stream;
     constexpr std::size_t maximum_slice_size = 0x00ffffffu;
     constexpr std::size_t footer_size = 3;
-    std::vector<std::byte> payload(maximum_slice_size - footer_size,
-                                   std::byte{0xaa});
+    std::vector<std::byte> payload(maximum_slice_size, std::byte{0xaa});
     const mffv1::codec::SliceFooterWriter writer;
 
     const auto status = writer.append(stream, 0, payload);
 
     ASSERT_TRUE(status.ok()) << status.message;
-    ASSERT_EQ(payload.size(), maximum_slice_size);
+    ASSERT_EQ(payload.size(), maximum_slice_size + footer_size);
     EXPECT_EQ(payload[payload.size() - 3], std::byte{0xff});
     EXPECT_EQ(payload[payload.size() - 2], std::byte{0xff});
     EXPECT_EQ(payload[payload.size() - 1], std::byte{0xff});
@@ -121,9 +120,7 @@ TEST(SliceFooterWriterTest, RejectsSliceSizeOverflowWithoutChangingPayload)
 {
     mffv1::syntax::StreamParameters stream;
     constexpr std::size_t maximum_slice_size = 0x00ffffffu;
-    constexpr std::size_t footer_size = 3;
-    std::vector<std::byte> payload(maximum_slice_size - footer_size + 1,
-                                   std::byte{0xaa});
+    std::vector<std::byte> payload(maximum_slice_size + 1, std::byte{0xaa});
     const auto original_size = payload.size();
     const auto first_byte = payload.front();
     const auto last_byte = payload.back();

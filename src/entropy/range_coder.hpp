@@ -49,6 +49,7 @@ public:
     [[nodiscard]] std::uint64_t byte_position() const noexcept override;
 
     Status read_bool(bool& out_value) override;
+    Status read_termination_sentinel();
     Status read_unsigned(std::uint64_t& out_value) override;
     Status read_signed(std::int64_t& out_value) override;
 

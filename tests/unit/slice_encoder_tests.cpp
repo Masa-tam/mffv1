@@ -141,7 +141,7 @@ TEST(SliceEncoderTest, AssemblesVersionThreeSliceAcceptedByFrameParser)
     ASSERT_TRUE(parser.parse_with_range_header(payload, frame).ok());
     ASSERT_TRUE(frame.keyframe);
     ASSERT_EQ(frame.slices.size(), 1u);
-    EXPECT_EQ(frame.slices[0].slice_size, payload.size());
+    EXPECT_EQ(frame.slices[0].slice_size, payload.size() - 3u);
     EXPECT_EQ(frame.slices[0].raster_x, 0u);
     EXPECT_EQ(frame.slices[0].raster_y, 0u);
     EXPECT_EQ(frame.slices[0].raster_width, 1u);
@@ -179,6 +179,7 @@ TEST(SliceEncoderTest, LocatesGolombRiceContentAfterRangeHeader)
     values.quant_table_set_indexes = {0, 0};
     const mffv1::codec::SliceHeaderWriter header_writer;
     ASSERT_TRUE(header_writer.write(header, stream, values).ok());
+    ASSERT_TRUE(header.write_termination_sentinel().ok());
     std::vector<std::byte> payload;
     ASSERT_TRUE(header.finalize(payload).ok());
     const auto expected_content_offset = payload.size();

@@ -234,6 +234,19 @@ Status RangeEncoder::write_bool(bool value)
     return write_rac(states[0], value);
 }
 
+Status RangeEncoder::write_termination_sentinel()
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range encoder is not initialized");
+    }
+    if (finalized_) {
+        return make_error(ErrorCode::InvalidState, "range encoder is finalized");
+    }
+
+    std::uint8_t state = 129;
+    return write_rac(state, false);
+}
+
 Status RangeEncoder::write_rac(std::uint8_t& state, bool value)
 {
     const std::uint32_t range_offset = (range_ * state) >> 8;

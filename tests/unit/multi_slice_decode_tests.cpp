@@ -43,14 +43,14 @@ TEST(MultiSliceDecodeTest, ContinuesRangeStateFromEachSliceHeader)
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
         std::byte{0x3d},
         std::byte{0x34},
         std::byte{0xff},
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x04},
     };
 
     mffv1::codec::FrameParser parser(stream);
@@ -86,7 +86,7 @@ TEST(MultiSliceDecodeTest, DecodesBufferedSymbolWhenHeaderConsumesAllEntropyByte
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
 
     mffv1::codec::FrameParser parser(stream);

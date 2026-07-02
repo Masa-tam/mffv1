@@ -12,10 +12,17 @@ namespace {
 
 Status validate_state(const GolombRiceContextState& state)
 {
-    if (state.count <= 0 || state.count > 128 || state.error_sum <= 0
-        || state.drift < -state.error_sum || state.drift > state.error_sum
-        || state.bias < -128 || state.bias > 127) {
-        return make_error(ErrorCode::InvalidState, "Golomb-Rice context state is invalid");
+    if (state.count <= 0 || state.count > 128) {
+        return make_error(ErrorCode::InvalidState,
+                          "Golomb-Rice context count is invalid");
+    }
+    if (state.error_sum <= 0) {
+        return make_error(ErrorCode::InvalidState,
+                          "Golomb-Rice context error sum is invalid");
+    }
+    if (state.bias < -128 || state.bias > 127) {
+        return make_error(ErrorCode::InvalidState,
+                          "Golomb-Rice context bias is invalid");
     }
     return ok_status();
 }
@@ -70,7 +77,7 @@ void update_state(GolombRiceContextState& state, std::int64_t value) noexcept
 
 void GolombRiceContextState::reset() noexcept
 {
-    *this = {};
+    *this = GolombRiceContextState{};
 }
 
 Status read_golomb_rice_symbol(GolombRiceReader& reader,

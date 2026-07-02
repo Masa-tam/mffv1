@@ -93,7 +93,8 @@ Status SliceFooterParser::read_from_end(ByteSpan slice_payload,
         return status;
     }
 
-    if (next.slice_size != slice_payload.size()) {
+    if (static_cast<std::uint64_t>(next.slice_size) + required_footer_size
+        != slice_payload.size()) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice footer size does not match slice payload size",
                                next.footer_byte_offset);

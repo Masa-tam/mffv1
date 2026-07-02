@@ -222,6 +222,13 @@ Status RangeCoder::read_bool(bool& out_value)
     return read_rac(states[0], out_value);
 }
 
+Status RangeCoder::read_termination_sentinel()
+{
+    std::uint8_t state = 129;
+    bool discarded = false;
+    return read_rac(state, discarded);
+}
+
 Status RangeCoder::read_unsigned(std::uint64_t& out_value)
 {
     std::int64_t value = 0;

@@ -56,16 +56,7 @@ TrailingSliceResult locate_trailing_slice_candidate(ByteSpan frame_payload,
         return {std::move(status), {}, false};
     }
 
-    if (next.slice_size < footer_size) {
-        return {
-            make_byte_error(ErrorCode::SyntaxError,
-                            "slice footer size is smaller than the footer",
-                            footer_offset),
-            {},
-            false,
-        };
-    }
-    if (next.slice_size > frame_payload.size()) {
+    if (next.slice_size > frame_payload.size() - footer_size) {
         return {
             make_byte_error(ErrorCode::SyntaxError,
                             "slice footer size is larger than the frame payload",
@@ -75,10 +66,12 @@ TrailingSliceResult locate_trailing_slice_candidate(ByteSpan frame_payload,
         };
     }
 
-    next.payload_byte_offset = frame_payload.size() - next.slice_size;
+    const auto total_slice_size =
+        static_cast<std::size_t>(next.slice_size) + footer_size;
+    next.payload_byte_offset = frame_payload.size() - total_slice_size;
     next.payload = frame_payload.subspan(static_cast<std::size_t>(next.payload_byte_offset),
-                                         next.slice_size);
-    next.footer_byte_offset = next.payload_byte_offset + next.slice_size - footer_size;
+                                         total_slice_size);
+    next.footer_byte_offset = next.payload_byte_offset + next.slice_size;
     if (verify_crc && next.has_crc && util::crc32_ieee_msb(next.payload) != 0) {
         return {
             make_byte_error(ErrorCode::CrcMismatch,

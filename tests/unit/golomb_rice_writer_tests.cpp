@@ -169,7 +169,7 @@ TEST(GolombRiceWriterTest, InvalidContextLeavesStateUnchanged)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
-    EXPECT_EQ(status.message, "Golomb-Rice context state is invalid");
+    EXPECT_EQ(status.message, "Golomb-Rice context count is invalid");
     EXPECT_EQ(bits.bit_position(), 0u);
     EXPECT_EQ(state.drift, original.drift);
     EXPECT_EQ(state.error_sum, original.error_sum);

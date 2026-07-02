@@ -34,7 +34,7 @@ TEST(SliceFooterParserTest, ReadsFooterFromSliceEnd)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x02},
     };
     mffv1::syntax::StreamParameters stream;
     mffv1::syntax::SliceDescriptor descriptor;
@@ -44,7 +44,7 @@ TEST(SliceFooterParserTest, ReadsFooterFromSliceEnd)
     const auto status = parser.read_from_end(payload, stream, descriptor);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(descriptor.slice_size, payload.size());
+    EXPECT_EQ(descriptor.slice_size, 2u);
     EXPECT_EQ(descriptor.footer_byte_offset, 102u);
     EXPECT_FALSE(descriptor.has_crc);
 }
@@ -84,12 +84,12 @@ TEST(SliceFooterParserTest, ReadsEcFooterFromSliceEnd)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
         std::byte{0x02},
-        std::byte{0x12},
+        std::byte{0x02},
+        std::byte{0x9c},
         std::byte{0x34},
-        std::byte{0x56},
-        std::byte{0x78},
+        std::byte{0xc1},
+        std::byte{0xd5},
     };
     mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
@@ -100,10 +100,10 @@ TEST(SliceFooterParserTest, ReadsEcFooterFromSliceEnd)
     const auto status = parser.read_from_end(payload, stream, descriptor);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(descriptor.slice_size, payload.size());
+    EXPECT_EQ(descriptor.slice_size, 2u);
     EXPECT_EQ(descriptor.error_status, 2u);
     EXPECT_TRUE(descriptor.has_crc);
-    EXPECT_EQ(descriptor.expected_crc, 0x12345678u);
+    EXPECT_EQ(descriptor.expected_crc, 0x9c34c1d5u);
     EXPECT_EQ(descriptor.footer_byte_offset, 52u);
 }
 
@@ -114,12 +114,12 @@ TEST(SliceFooterParserTest, VerifiesCrcFromSliceEnd)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x02},
         std::byte{0x00},
-        std::byte{0x1f},
-        std::byte{0xfe},
-        std::byte{0xb9},
-        std::byte{0xe9},
+        std::byte{0x95},
+        std::byte{0xb6},
+        std::byte{0xfa},
+        std::byte{0xbb},
     };
     mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
@@ -131,7 +131,7 @@ TEST(SliceFooterParserTest, VerifiesCrcFromSliceEnd)
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_TRUE(descriptor.has_crc);
-    EXPECT_EQ(descriptor.expected_crc, 0x1ffeb9e9u);
+    EXPECT_EQ(descriptor.expected_crc, 0x95b6fabbu);
 }
 
 TEST(SliceFooterParserTest, RejectsCrcMismatchFromSliceEnd)
@@ -141,12 +141,12 @@ TEST(SliceFooterParserTest, RejectsCrcMismatchFromSliceEnd)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x02},
         std::byte{0x00},
-        std::byte{0x1f},
-        std::byte{0xfe},
-        std::byte{0xb9},
-        std::byte{0xe8},
+        std::byte{0x95},
+        std::byte{0xb6},
+        std::byte{0xfa},
+        std::byte{0xba},
     };
     mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
@@ -182,12 +182,12 @@ TEST(SliceFooterParserTest, CanIgnoreCrcMismatchFromSliceEnd)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x02},
         std::byte{0x00},
-        std::byte{0x1f},
-        std::byte{0xfe},
-        std::byte{0xb9},
-        std::byte{0xe8},
+        std::byte{0x95},
+        std::byte{0xb6},
+        std::byte{0xfa},
+        std::byte{0xba},
     };
     mffv1::syntax::StreamParameters stream;
     stream.error_status_enabled = true;
@@ -199,10 +199,10 @@ TEST(SliceFooterParserTest, CanIgnoreCrcMismatchFromSliceEnd)
 
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(descriptor.footer_byte_offset, 52u);
-    EXPECT_EQ(descriptor.slice_size, payload.size());
+    EXPECT_EQ(descriptor.slice_size, 2u);
     EXPECT_EQ(descriptor.error_status, 0u);
     EXPECT_TRUE(descriptor.has_crc);
-    EXPECT_EQ(descriptor.expected_crc, 0x1ffeb9e8u);
+    EXPECT_EQ(descriptor.expected_crc, 0x95b6fabau);
 }
 
 TEST(SliceFooterParserTest, RejectsReservedErrorStatus)
@@ -248,7 +248,7 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatusFromSliceEnd)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x02},
         std::byte{0x03},
         std::byte{0x12},
         std::byte{0x34},
@@ -289,7 +289,7 @@ TEST(SliceFooterParserTest, RejectsReservedErrorStatusBeforeCrcVerification)
         std::byte{0xbb},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x0a},
+        std::byte{0x02},
         std::byte{0x03},
         std::byte{0x12},
         std::byte{0x34},

@@ -1,6 +1,5 @@
 #include "codec/slice_footer_writer.hpp"
 
-#include "codec/slice_footer_parser.hpp"
 #include "util/crc32.hpp"
 
 #include <cstddef>
@@ -25,10 +24,8 @@ Status SliceFooterWriter::append(
             "slice error status uses a reserved value");
     }
 
-    const SliceFooterParser parser;
-    const auto footer_size = parser.footer_size(stream);
     constexpr std::size_t maximum_slice_size = 0x00ffffffu;
-    if (slice_payload.size() > maximum_slice_size - footer_size) {
+    if (slice_payload.size() > maximum_slice_size) {
         return make_error(
             ErrorCode::ResourceExhausted,
             "slice payload exceeds the 24-bit slice size limit");
@@ -36,7 +33,7 @@ Status SliceFooterWriter::append(
 
     auto completed = slice_payload;
     const auto slice_size =
-        static_cast<std::uint32_t>(completed.size() + footer_size);
+        static_cast<std::uint32_t>(completed.size());
     completed.push_back(
         static_cast<std::byte>((slice_size >> 16) & 0xffu));
     completed.push_back(

@@ -53,7 +53,7 @@ TEST(GolombRiceReaderTest, DecodesRfcEscapeExample)
     EXPECT_EQ(bits.bit_position(), 20u);
 }
 
-TEST(GolombRiceReaderTest, RejectsNonCanonicalEscape)
+TEST(GolombRiceReaderTest, AcceptsNonCanonicalEscapeForCompatibility)
 {
     const std::array bytes{
         std::byte{0x00},
@@ -66,12 +66,9 @@ TEST(GolombRiceReaderTest, RejectsNonCanonicalEscape)
 
     const auto status = reader.read_signed(0, 8, value);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
-    EXPECT_EQ(status.message,
-              "Golomb-Rice escape encodes a value representable without escape");
-    EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(value, -6);
+    EXPECT_EQ(bits.bit_position(), 20u);
 }
 
 TEST(GolombRiceReaderTest, ReportsTruncatedCodeAtCodeStart)

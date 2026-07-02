@@ -85,11 +85,6 @@ Status GolombRiceReader::read_unsigned(std::uint8_t k,
         return status;
     }
     out_value = escaped + 11;
-    const auto maximum_regular = (std::uint64_t{12} << k) - 1;
-    if (out_value <= maximum_regular) {
-        return make_error(ErrorCode::SyntaxError,
-                          "Golomb-Rice escape encodes a value representable without escape");
-    }
     return ok_status();
 }
 

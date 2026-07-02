@@ -50,6 +50,8 @@ public:
     Status write_signed(std::size_t context_bank,
                         ContextId context,
                         std::int64_t value);
+    Status begin_independent_scalar_contexts(std::size_t scalar_context_count) override;
+    Status end_independent_scalar_contexts() override;
 
     Status finalize(std::vector<std::byte>& out_bytes);
 
@@ -58,6 +60,12 @@ public:
     [[nodiscard]] std::size_t byte_count() const noexcept;
 
 private:
+    struct ScalarContextSnapshot {
+        std::vector<std::size_t> bank_offsets;
+        std::vector<std::size_t> bank_sizes;
+        std::vector<ScalarContextStates> contexts;
+    };
+
     Status reset_impl(
         std::span<const std::size_t> scalar_context_counts,
         std::span<const std::span<const ScalarContextStates>> initial_state_banks,
@@ -77,11 +85,11 @@ private:
 
     std::vector<std::byte> low_bytes_;
     std::uint32_t range_ = 0;
-    std::uint8_t bool_state_ = kDefaultInitialState;
     syntax::StateTransitionTable state_transition_ = syntax::kDefaultStateTransition;
     std::vector<std::size_t> scalar_context_bank_offsets_;
     std::vector<std::size_t> scalar_context_bank_sizes_;
     std::vector<ScalarContextStates> scalar_contexts_;
+    std::vector<ScalarContextSnapshot> scalar_context_snapshots_;
     bool initialized_ = false;
     bool finalized_ = false;
 };

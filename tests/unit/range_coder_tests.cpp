@@ -298,6 +298,66 @@ TEST(RangeCoderTest, ReconfiguresContextsWithoutResettingArithmeticPosition)
     EXPECT_TRUE(coder.read_signed(1, 1, value).ok());
 }
 
+TEST(RangeCoderTest, BinarySymbolsShareScalarContextZero)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0x7f},
+        std::byte{0x80},
+    };
+    mffv1::entropy::RangeCoder bool_coder;
+    mffv1::entropy::RangeCoder scalar_coder;
+    ASSERT_TRUE(bool_coder.reset(payload).ok());
+    ASSERT_TRUE(scalar_coder.reset(payload).ok());
+
+    bool bool_value = false;
+    std::uint64_t scalar_value = 0;
+    ASSERT_TRUE(bool_coder.read_bool(bool_value).ok());
+    ASSERT_TRUE(scalar_coder.read_unsigned(scalar_value).ok());
+
+    EXPECT_TRUE(bool_value);
+    EXPECT_EQ(scalar_value, 0u);
+    mffv1::entropy::RangeCoder::ContextStateBanks bool_contexts;
+    mffv1::entropy::RangeCoder::ContextStateBanks scalar_contexts;
+    ASSERT_TRUE(bool_coder.copy_contexts(bool_contexts).ok());
+    ASSERT_TRUE(scalar_coder.copy_contexts(scalar_contexts).ok());
+    ASSERT_EQ(bool_contexts.size(), 1u);
+    ASSERT_EQ(scalar_contexts.size(), 1u);
+    EXPECT_EQ(bool_contexts[0][0], scalar_contexts[0][0]);
+}
+
+TEST(RangeCoderTest, IndependentScalarContextScopeRestoresOuterContexts)
+{
+    const std::array<std::byte, 4> payload{
+        std::byte{0x7f},
+        std::byte{0x80},
+        std::byte{0x00},
+        std::byte{0x00},
+    };
+    mffv1::entropy::RangeCoder scoped;
+    mffv1::entropy::RangeCoder reference;
+    ASSERT_TRUE(scoped.reset(payload).ok());
+    ASSERT_TRUE(reference.reset(payload).ok());
+
+    bool scoped_value = false;
+    bool reference_value = false;
+    ASSERT_TRUE(scoped.read_bool(scoped_value).ok());
+    ASSERT_TRUE(reference.read_bool(reference_value).ok());
+    ASSERT_TRUE(scoped.begin_independent_scalar_contexts(1).ok());
+    bool ignored = false;
+    ASSERT_TRUE(scoped.read_bool(ignored).ok());
+    ASSERT_TRUE(scoped.end_independent_scalar_contexts().ok());
+    ASSERT_TRUE(reference.begin_independent_scalar_contexts(1).ok());
+    ASSERT_TRUE(reference.read_bool(ignored).ok());
+    ASSERT_TRUE(reference.end_independent_scalar_contexts().ok());
+
+    mffv1::entropy::RangeCoder::ContextStateBanks scoped_contexts;
+    mffv1::entropy::RangeCoder::ContextStateBanks reference_contexts;
+    ASSERT_TRUE(scoped.copy_contexts(scoped_contexts).ok());
+    ASSERT_TRUE(reference.copy_contexts(reference_contexts).ok());
+    EXPECT_EQ(scoped_contexts, reference_contexts);
+    EXPECT_EQ(scoped.byte_position(), reference.byte_position());
+}
+
 TEST(RangeCoderTest, RejectsContextReconfigurationBeforeReset)
 {
     mffv1::entropy::RangeCoder coder;

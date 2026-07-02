@@ -330,6 +330,66 @@ TEST(RangeEncoderTest, ReconfiguresContextsWithoutResettingArithmeticState)
     EXPECT_EQ(value, -9);
 }
 
+TEST(RangeEncoderTest, BinarySymbolsShareScalarContextZero)
+{
+    mffv1::entropy::RangeEncoder bool_encoder;
+    mffv1::entropy::RangeEncoder scalar_encoder;
+    ASSERT_TRUE(bool_encoder.reset().ok());
+    ASSERT_TRUE(scalar_encoder.reset().ok());
+
+    ASSERT_TRUE(bool_encoder.write_bool(true).ok());
+    ASSERT_TRUE(scalar_encoder.write_unsigned(0).ok());
+
+    mffv1::entropy::RangeEncoder::ContextStateBanks bool_contexts;
+    mffv1::entropy::RangeEncoder::ContextStateBanks scalar_contexts;
+    ASSERT_TRUE(bool_encoder.copy_contexts(bool_contexts).ok());
+    ASSERT_TRUE(scalar_encoder.copy_contexts(scalar_contexts).ok());
+    ASSERT_EQ(bool_contexts.size(), 1u);
+    ASSERT_EQ(scalar_contexts.size(), 1u);
+    EXPECT_EQ(bool_contexts[0][0], scalar_contexts[0][0]);
+
+    std::vector<std::byte> bool_payload;
+    std::vector<std::byte> scalar_payload;
+    ASSERT_TRUE(bool_encoder.finalize(bool_payload).ok());
+    ASSERT_TRUE(scalar_encoder.finalize(scalar_payload).ok());
+    EXPECT_EQ(bool_payload, scalar_payload);
+}
+
+TEST(RangeEncoderTest, IndependentScalarContextScopeRestoresOuterContexts)
+{
+    mffv1::entropy::RangeEncoder encoder;
+    ASSERT_TRUE(encoder.reset().ok());
+    ASSERT_TRUE(encoder.write_bool(true).ok());
+    mffv1::entropy::RangeEncoder::ContextStateBanks outer_contexts;
+    ASSERT_TRUE(encoder.copy_contexts(outer_contexts).ok());
+    const auto outer_byte_count = encoder.byte_count();
+
+    ASSERT_TRUE(encoder.begin_independent_scalar_contexts(1).ok());
+    ASSERT_TRUE(encoder.write_bool(false).ok());
+    ASSERT_TRUE(encoder.end_independent_scalar_contexts().ok());
+
+    mffv1::entropy::RangeEncoder::ContextStateBanks restored_contexts;
+    ASSERT_TRUE(encoder.copy_contexts(restored_contexts).ok());
+    EXPECT_EQ(restored_contexts, outer_contexts);
+    EXPECT_GE(encoder.byte_count(), outer_byte_count);
+
+    ASSERT_TRUE(encoder.write_bool(false).ok());
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(encoder.finalize(payload).ok());
+
+    mffv1::entropy::RangeCoder decoder;
+    ASSERT_TRUE(decoder.reset(payload).ok());
+    bool value = false;
+    ASSERT_TRUE(decoder.read_bool(value).ok());
+    EXPECT_TRUE(value);
+    ASSERT_TRUE(decoder.begin_independent_scalar_contexts(1).ok());
+    ASSERT_TRUE(decoder.read_bool(value).ok());
+    EXPECT_FALSE(value);
+    ASSERT_TRUE(decoder.end_independent_scalar_contexts().ok());
+    ASSERT_TRUE(decoder.read_bool(value).ok());
+    EXPECT_FALSE(value);
+}
+
 TEST(RangeEncoderTest, CopiesUpdatedContextBanks)
 {
     const std::array<std::size_t, 2> context_counts{1, 2};

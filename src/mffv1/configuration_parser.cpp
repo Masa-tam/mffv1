@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -97,6 +98,10 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
                                   "custom range coder state transition is outside 0..255");
             }
             stream.state_transition[state] = static_cast<std::uint8_t>(transition);
+        }
+        status = reader.set_state_transition(stream.state_transition);
+        if (!status.ok()) {
+            return status;
         }
     } else {
         return make_error(ErrorCode::UnsupportedFeature, "unsupported range coder type");
@@ -272,12 +277,22 @@ Status ConfigurationParser::parse_quant_table_set(entropy::SymbolReader& reader,
                                                   QuantTableSet& out_set) const
 {
     std::int64_t scale = 1;
+    std::array<std::int64_t, QuantTableSet::kContextInputs> len_counts{};
     for (std::size_t table_index = 0; table_index < QuantTableSet::kContextInputs; ++table_index) {
         std::int64_t len_count = 0;
-        const Status status = parse_quant_table(reader, out_set, table_index, scale, len_count);
+        Status status = reader.begin_independent_scalar_contexts(1);
         if (!status.ok()) {
             return status;
         }
+        status = parse_quant_table(reader, out_set, table_index, scale, len_count);
+        const Status end_status = reader.end_independent_scalar_contexts();
+        if (!status.ok()) {
+            return status;
+        }
+        if (!end_status.ok()) {
+            return end_status;
+        }
+        len_counts[table_index] = len_count;
 
         const std::int64_t multiplier = 2 * len_count - 1;
         if (multiplier <= 0 || scale > (std::numeric_limits<std::int64_t>::max() / multiplier)) {
@@ -288,7 +303,13 @@ Status ConfigurationParser::parse_quant_table_set(entropy::SymbolReader& reader,
 
     const std::int64_t context_count = (scale + 1) / 2;
     if (context_count <= 0 || context_count > static_cast<std::int64_t>(kMaxContextCount)) {
-        return make_error(ErrorCode::SyntaxError, "context_count is outside the supported range");
+        std::ostringstream message;
+        message << "context_count is outside the supported range: "
+                << context_count << " (len_counts="
+                << len_counts[0] << ',' << len_counts[1] << ','
+                << len_counts[2] << ',' << len_counts[3] << ','
+                << len_counts[4] << ')';
+        return make_error(ErrorCode::SyntaxError, message.str());
     }
     out_set.context_count = static_cast<std::uint32_t>(context_count);
     return ok_status();
@@ -309,12 +330,16 @@ Status ConfigurationParser::parse_quant_table(entropy::SymbolReader& reader,
             return status;
         }
         const auto remaining = static_cast<std::uint64_t>(128 - k);
-        if (len_minus_one >= remaining) {
+        if (len_minus_one >= remaining && k == 0) {
             return make_error(ErrorCode::SyntaxError, "quantization table run exceeds table boundary");
         }
-        const std::uint64_t len = len_minus_one + 1;
+        const std::uint64_t len = std::min<std::uint64_t>(len_minus_one + 1, remaining);
         if (value > std::numeric_limits<std::int32_t>::max() / std::max<std::int64_t>(scale, 1)) {
-            return make_error(ErrorCode::SyntaxError, "quantization table value overflow");
+            std::ostringstream message;
+            message << "quantization table value overflow at table "
+                    << table_index << ": value=" << value
+                    << ", scale=" << scale;
+            return make_error(ErrorCode::SyntaxError, message.str());
         }
 
         const auto stored = static_cast<std::int32_t>(scale * value);

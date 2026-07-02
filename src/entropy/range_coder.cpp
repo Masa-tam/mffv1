@@ -113,7 +113,6 @@ Status RangeCoder::reset_impl(
         end_ = true;
     }
 
-    bool_state_ = initial_state;
     state_transition_ = state_transition;
     initialized_ = true;
     return ok_status();
@@ -215,7 +214,12 @@ std::uint64_t RangeCoder::byte_position() const noexcept
 
 Status RangeCoder::read_bool(bool& out_value)
 {
-    return read_rac(bool_state_, out_value);
+    if (scalar_context_bank_sizes_.empty() || scalar_context_bank_sizes_[0] == 0) {
+        return make_error(ErrorCode::InvalidState,
+                          "range coder has no scalar context for binary symbols");
+    }
+    auto& states = scalar_contexts_[scalar_context_bank_offsets_[0]];
+    return read_rac(states[0], out_value);
 }
 
 Status RangeCoder::read_unsigned(std::uint64_t& out_value)
@@ -268,6 +272,57 @@ Status RangeCoder::read_signed(std::size_t context_bank,
                                std::int64_t& out_value)
 {
     return read_symbol(context_bank, context, true, out_value);
+}
+
+Status RangeCoder::set_state_transition(
+    const syntax::StateTransitionTable& state_transition)
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range coder is not initialized");
+    }
+    state_transition_ = state_transition;
+    return ok_status();
+}
+
+Status RangeCoder::begin_independent_scalar_contexts(std::size_t scalar_context_count)
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range coder is not initialized");
+    }
+
+    scalar_context_snapshots_.push_back({
+        scalar_context_bank_offsets_,
+        scalar_context_bank_sizes_,
+        scalar_contexts_,
+    });
+    const std::array context_counts{scalar_context_count};
+    Status status = initialize_contexts(context_counts, {}, kDefaultInitialState);
+    if (!status.ok()) {
+        const auto snapshot = std::move(scalar_context_snapshots_.back());
+        scalar_context_snapshots_.pop_back();
+        scalar_context_bank_offsets_ = std::move(snapshot.bank_offsets);
+        scalar_context_bank_sizes_ = std::move(snapshot.bank_sizes);
+        scalar_contexts_ = std::move(snapshot.contexts);
+        return status;
+    }
+    return ok_status();
+}
+
+Status RangeCoder::end_independent_scalar_contexts()
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range coder is not initialized");
+    }
+    if (scalar_context_snapshots_.empty()) {
+        return make_error(ErrorCode::InvalidState, "range coder scalar context snapshot stack is empty");
+    }
+
+    auto snapshot = std::move(scalar_context_snapshots_.back());
+    scalar_context_snapshots_.pop_back();
+    scalar_context_bank_offsets_ = std::move(snapshot.bank_offsets);
+    scalar_context_bank_sizes_ = std::move(snapshot.bank_sizes);
+    scalar_contexts_ = std::move(snapshot.contexts);
+    return ok_status();
 }
 
 Status RangeCoder::read_rac(std::uint8_t& state, bool& out_bit)

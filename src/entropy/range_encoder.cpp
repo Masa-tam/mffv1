@@ -54,7 +54,6 @@ Status RangeEncoder::reset_impl(
     }
     next.low_bytes_.assign(2, std::byte{0});
     next.range_ = 0xff00;
-    next.bool_state_ = initial_state;
     next.state_transition_ = state_transition;
     next.initialized_ = true;
     *this = std::move(next);
@@ -171,6 +170,53 @@ Status RangeEncoder::copy_contexts(ContextStateBanks& out_context_banks) const
     return ok_status();
 }
 
+Status RangeEncoder::begin_independent_scalar_contexts(std::size_t scalar_context_count)
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range encoder is not initialized");
+    }
+    if (finalized_) {
+        return make_error(ErrorCode::InvalidState, "range encoder is finalized");
+    }
+
+    scalar_context_snapshots_.push_back({
+        scalar_context_bank_offsets_,
+        scalar_context_bank_sizes_,
+        scalar_contexts_,
+    });
+    const std::array context_counts{scalar_context_count};
+    Status status = initialize_contexts(context_counts, {}, kDefaultInitialState);
+    if (!status.ok()) {
+        auto snapshot = std::move(scalar_context_snapshots_.back());
+        scalar_context_snapshots_.pop_back();
+        scalar_context_bank_offsets_ = std::move(snapshot.bank_offsets);
+        scalar_context_bank_sizes_ = std::move(snapshot.bank_sizes);
+        scalar_contexts_ = std::move(snapshot.contexts);
+        return status;
+    }
+    return ok_status();
+}
+
+Status RangeEncoder::end_independent_scalar_contexts()
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range encoder is not initialized");
+    }
+    if (finalized_) {
+        return make_error(ErrorCode::InvalidState, "range encoder is finalized");
+    }
+    if (scalar_context_snapshots_.empty()) {
+        return make_error(ErrorCode::InvalidState, "range encoder scalar context snapshot stack is empty");
+    }
+
+    auto snapshot = std::move(scalar_context_snapshots_.back());
+    scalar_context_snapshots_.pop_back();
+    scalar_context_bank_offsets_ = std::move(snapshot.bank_offsets);
+    scalar_context_bank_sizes_ = std::move(snapshot.bank_sizes);
+    scalar_contexts_ = std::move(snapshot.contexts);
+    return ok_status();
+}
+
 Status RangeEncoder::write_bool(bool value)
 {
     if (!initialized_) {
@@ -180,7 +226,12 @@ Status RangeEncoder::write_bool(bool value)
         return make_error(ErrorCode::InvalidState, "range encoder is finalized");
     }
 
-    return write_rac(bool_state_, value);
+    if (scalar_context_bank_sizes_.empty() || scalar_context_bank_sizes_[0] == 0) {
+        return make_error(ErrorCode::InvalidState,
+                          "range encoder has no scalar context for binary symbols");
+    }
+    auto& states = scalar_contexts_[scalar_context_bank_offsets_[0]];
+    return write_rac(states[0], value);
 }
 
 Status RangeEncoder::write_rac(std::uint8_t& state, bool value)

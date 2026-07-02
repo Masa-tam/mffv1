@@ -774,12 +774,13 @@ TEST(FrameParserTest, ParsesAndDecodesRangeCodedNonKeyframeAfterKeyframe)
     plane.info.stride_bytes = 1;
     mffv1::MutableFrameView output{&plane, 1};
 
-    const std::array<std::byte, 5> keyframe_payload{
-        std::byte{0xff},
+    const std::array<std::byte, 6> keyframe_payload{
+        std::byte{0xfe},
+        std::byte{0x01},
         std::byte{0x00},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x06},
     };
     mffv1::codec::FrameDecodeContext keyframe;
     ASSERT_TRUE(parser.parse_with_range_header(keyframe_payload, keyframe).ok());
@@ -787,12 +788,13 @@ TEST(FrameParserTest, ParsesAndDecodesRangeCodedNonKeyframeAfterKeyframe)
     ASSERT_TRUE(executor.decode(output, keyframe.slices, keyframe.keyframe).ok());
     ASSERT_TRUE(executor.has_reference_state());
 
-    const std::array<std::byte, 5> non_keyframe_payload{
-        std::byte{0x7f},
-        std::byte{0x7f},
+    const std::array<std::byte, 6> non_keyframe_payload{
+        std::byte{0x7e},
+        std::byte{0xfd},
+        std::byte{0xbf},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x05},
+        std::byte{0x06},
     };
     mffv1::codec::FrameDecodeContext non_keyframe;
     ASSERT_TRUE(parser.parse_with_range_header(non_keyframe_payload, non_keyframe).ok());
@@ -1176,13 +1178,12 @@ TEST(FrameParserTest, AcceptsSingleSliceCoveringMultipleRasterCells)
     mffv1::codec::FrameParser parser(stream);
     mffv1::codec::FrameDecodeContext frame;
     const std::array payload{
-        std::byte{0xe3},
-        std::byte{0xfe},
-        std::byte{0xff},
+        std::byte{0xe2},
+        std::byte{0x1c},
+        std::byte{0xcd},
         std::byte{0x00},
         std::byte{0x00},
-        std::byte{0x00},
-        std::byte{0x07},
+        std::byte{0x06},
     };
 
     const auto status = parser.parse_with_range_header(payload, frame);

@@ -15,45 +15,46 @@ namespace {
 std::array<std::byte, 3> minimal_v0_y_only_configuration_record()
 {
     return {
-        std::byte{0x95},
-        std::byte{0x36},
-        std::byte{0xe9},
+        std::byte{0x94},
+        std::byte{0x35},
+        std::byte{0x00},
     };
 }
 
-std::array<std::byte, 3> minimal_v0_golomb_rice_y_only_configuration_record()
+std::array<std::byte, 2> minimal_v0_golomb_rice_y_only_configuration_record()
 {
     return {
-        std::byte{0xe7},
-        std::byte{0x7a},
-        std::byte{0xe2},
+        std::byte{0xe5},
+        std::byte{0x5e},
     };
 }
 
-std::array<std::byte, 2> minimal_v0_rgb_configuration_record()
+std::array<std::byte, 3> minimal_v0_rgb_configuration_record()
 {
     return {
         std::byte{0x86},
-        std::byte{0x92},
+        std::byte{0x87},
+        std::byte{0x00},
     };
 }
 
-std::array<std::byte, 2> minimal_v0_golomb_rice_rgb_configuration_record()
+std::array<std::byte, 3> minimal_v0_golomb_rice_rgb_configuration_record()
 {
     return {
-        std::byte{0xc9},
-        std::byte{0x41},
+        std::byte{0xc8},
+        std::byte{0xf9},
+        std::byte{0x00},
     };
 }
 
 std::array<std::byte, 18> minimal_v3_y_only_configuration_record()
 {
     return {
-        std::byte{0x56}, std::byte{0x00}, std::byte{0x2f}, std::byte{0xa3},
-        std::byte{0x67}, std::byte{0x6a}, std::byte{0x28}, std::byte{0x5e},
-        std::byte{0x8f}, std::byte{0x6f}, std::byte{0x2b}, std::byte{0x13},
-        std::byte{0x3d}, std::byte{0x00}, std::byte{0x6a}, std::byte{0x49},
-        std::byte{0x41}, std::byte{0xa4},
+        std::byte{0x56}, std::byte{0x00}, std::byte{0x30}, std::byte{0x28},
+        std::byte{0x49}, std::byte{0xcd}, std::byte{0x9b}, std::byte{0x36},
+        std::byte{0x6c}, std::byte{0xd9}, std::byte{0xb3}, std::byte{0x66},
+        std::byte{0xc9}, std::byte{0x48}, std::byte{0x9c}, std::byte{0xd9},
+        std::byte{0x86}, std::byte{0x8d},
     };
 }
 

@@ -51,7 +51,8 @@ void expect_decodes_frame(
     ASSERT_FALSE(expected_planes.empty());
 
     mffv1::FrameInfo info;
-    ASSERT_TRUE(decoder.inspect_frame(frame_payload, info).ok());
+    const auto inspect_status = decoder.inspect_frame(frame_payload, info);
+    ASSERT_TRUE(inspect_status.ok()) << inspect_status.message;
     EXPECT_EQ(info.width, vector.frame_width);
     EXPECT_EQ(info.height, vector.frame_height);
     ASSERT_EQ(info.plane_count, expected_planes.size());
@@ -107,7 +108,9 @@ void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
     auto decoder = mffv1::create_decoder(options);
     ASSERT_TRUE(decoder.status.ok()) << decoder.status.message;
     ASSERT_NE(decoder.decoder, nullptr);
-    ASSERT_TRUE(decoder.decoder->configure(vector.configuration_record).ok());
+    const auto configure_status =
+        decoder.decoder->configure(vector.configuration_record);
+    ASSERT_TRUE(configure_status.ok()) << configure_status.message;
 
     for (std::size_t frame_index = 0;
          frame_index < vector.frame_payloads.size();

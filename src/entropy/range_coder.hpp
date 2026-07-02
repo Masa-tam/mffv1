@@ -56,8 +56,17 @@ public:
     Status read_signed(ContextId context, std::int64_t& out_value) override;
     Status read_unsigned(std::size_t context_bank, ContextId context, std::uint64_t& out_value);
     Status read_signed(std::size_t context_bank, ContextId context, std::int64_t& out_value);
+    Status begin_independent_scalar_contexts(std::size_t scalar_context_count) override;
+    Status end_independent_scalar_contexts() override;
+    Status set_state_transition(const syntax::StateTransitionTable& state_transition) override;
 
 private:
+    struct ScalarContextSnapshot {
+        std::vector<std::size_t> bank_offsets;
+        std::vector<std::size_t> bank_sizes;
+        std::vector<ScalarContextStates> contexts;
+    };
+
     Status reset_impl(ByteSpan payload,
                       std::span<const std::size_t> scalar_context_counts,
                       std::span<const std::span<const ScalarContextStates>> initial_state_banks,
@@ -80,11 +89,11 @@ private:
     std::uint64_t byte_position_ = 0;
     bool end_ = false;
     bool initialized_ = false;
-    std::uint8_t bool_state_ = kDefaultInitialState;
     syntax::StateTransitionTable state_transition_ = syntax::kDefaultStateTransition;
     std::vector<std::size_t> scalar_context_bank_offsets_;
     std::vector<std::size_t> scalar_context_bank_sizes_;
     std::vector<ScalarContextStates> scalar_contexts_;
+    std::vector<ScalarContextSnapshot> scalar_context_snapshots_;
 };
 
 } // namespace mffv1::entropy

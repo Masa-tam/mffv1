@@ -84,6 +84,18 @@ Keep `slice_size` as excluding the footer; the current open question is whether
 the v3 range-coded slice header termination/finalization leaves additional
 bytes before the Golomb-Rice payload begins.
 
+Two direct content-offset probes were tried and rejected:
+
+- Adding six bytes to the parsed content offset moves the 8-bit vectors to a
+  later plane-0 overrun with all-zero neighborhoods and does not decode. This
+  is not a valid interpretation of the six-byte gap observed in the gray
+  vector.
+- Subtracting one byte from the parsed content offset to model Sentinel mode's
+  "one byte beyond" wording makes the 8-bit vectors fail much earlier with
+  bitstream underflow. With the current `RangeCoder::byte_position()` contract,
+  the value returned after reading the termination sentinel remains the best
+  local content offset.
+
 ## Rejected Hypotheses
 
 The following experiments did not improve external-vector compatibility and
@@ -95,7 +107,8 @@ should not be repeated without new evidence:
 - Dropping full-run pending carry across row boundaries.
   Rechecking this with final run-state diagnostics lets the gray slice 0
   advance, but makes multi-plane vectors underflow early in plane 1 and is not
-  a valid fix.
+  a valid fix. RFC 9043's run-mode pseudo-code also supports carrying a
+  remaining `run_count` across the row when a full run reaches the row end.
 - Resetting Golomb-Rice run state on every `prepare_golomb_rice` call; this
   breaks existing legacy non-keyframe reference-state tests.
 - For the 10-bit range-coded configuration, forcing the alternative state

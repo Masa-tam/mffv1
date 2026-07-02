@@ -1,6 +1,7 @@
 #include "mffv1/configuration_parser.hpp"
 
 #include "mffv1/profile_constraints.hpp"
+#include "util/status.hpp"
 
 #include <algorithm>
 #include <array>
@@ -201,12 +202,18 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
             return status;
         }
 
+        const auto quant_table_set_count_byte_offset = reader.byte_position();
         status = read_u(reader, quant_table_set_count);
         if (!status.ok()) {
             return status;
         }
         if (quant_table_set_count == 0 || quant_table_set_count > kMaxQuantTableSetCount) {
-            return make_error(ErrorCode::SyntaxError, "quant_table_set_count must be in the range 1..8");
+            std::ostringstream message;
+            message << "quant_table_set_count must be in the range 1..8: "
+                    << quant_table_set_count;
+            return make_byte_error(ErrorCode::SyntaxError,
+                                   message.str(),
+                                   quant_table_set_count_byte_offset);
         }
     }
 

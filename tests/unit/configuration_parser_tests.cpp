@@ -79,6 +79,24 @@ public:
         return read_signed(out_value);
     }
 
+    mffv1::Status set_state_transition(
+        const mffv1::syntax::StateTransitionTable& state_transition) override
+    {
+        ++state_transition_update_count_;
+        last_state_transition_ = state_transition;
+        return mffv1::ok_status();
+    }
+
+    [[nodiscard]] std::size_t state_transition_update_count() const noexcept
+    {
+        return state_transition_update_count_;
+    }
+
+    [[nodiscard]] const mffv1::syntax::StateTransitionTable& last_state_transition() const noexcept
+    {
+        return last_state_transition_;
+    }
+
 private:
     mffv1::Status pop(SymbolKind expected, Symbol& out_symbol)
     {
@@ -95,6 +113,8 @@ private:
 
     std::deque<Symbol> symbols_;
     mffv1::entropy::ContextId signed_read_count_ = 0;
+    std::size_t state_transition_update_count_ = 0;
+    mffv1::syntax::StateTransitionTable last_state_transition_{};
 };
 
 Symbol b(bool value)
@@ -329,6 +349,8 @@ TEST(ConfigurationParserTest, ParsesCustomRangeCoderStateTransitions)
     EXPECT_EQ(stream.state_transition[0], 0u);
     EXPECT_EQ(stream.state_transition[8], 25u);
     EXPECT_EQ(stream.state_transition[255], 0u);
+    EXPECT_EQ(reader.state_transition_update_count(), 1u);
+    EXPECT_EQ(reader.last_state_transition(), stream.state_transition);
 }
 
 TEST(ConfigurationParserTest, RejectsOutOfRangeCustomStateTransition)
@@ -486,7 +508,13 @@ TEST(ConfigurationParserTest, RejectsOutOfRangeQuantTableSetCount)
         EXPECT_FALSE(status.ok()) << "quant_table_set_count=" << quant_table_set_count;
         EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError)
             << "quant_table_set_count=" << quant_table_set_count;
-        EXPECT_EQ(status.message, "quant_table_set_count must be in the range 1..8")
+        EXPECT_EQ(status.message,
+                  "quant_table_set_count must be in the range 1..8: "
+                      + std::to_string(quant_table_set_count))
+            << "quant_table_set_count=" << quant_table_set_count;
+        EXPECT_TRUE(status.location.has_byte_offset)
+            << "quant_table_set_count=" << quant_table_set_count;
+        EXPECT_EQ(status.location.byte_offset, 0u)
             << "quant_table_set_count=" << quant_table_set_count;
     }
 }

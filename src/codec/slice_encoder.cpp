@@ -605,9 +605,8 @@ Status SliceEncoder::encode_golomb_rice_samples(
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream_));
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
-    std::vector<std::size_t> context_counts(
-        plane_count, context_model.context_count());
-    Status prepare_status = state.prepare_golomb_rice(context_counts);
+    const std::array<std::size_t, 1> context_counts{context_model.context_count()};
+    Status prepare_status = state.prepare_golomb_rice(context_counts, plane_count);
     if (!prepare_status.ok()) {
         return prepare_status;
     }
@@ -643,7 +642,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
 
     const auto encode_line = [&](std::span<const std::int32_t> samples,
                                  std::uint8_t reconstruction_bits,
-                                 std::size_t plane_index,
+                                 std::size_t context_bank,
                                  syntax::LineState& line,
                                  entropy::GolombRiceRunState& run_state)
         -> Status {
@@ -700,7 +699,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
                     reconstruction_bits);
                 status = entropy::write_golomb_rice_run_interruption(
                     writer,
-                    state.golomb_rice_context(plane_index, 0),
+                    state.golomb_rice_context(context_bank, 0),
                     reconstruction_bits,
                     difference);
                 if (!status.ok()) {
@@ -719,7 +718,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
             status = entropy::write_golomb_rice_symbol(
                 writer,
                 state.golomb_rice_context(
-                    plane_index, context.context),
+                    context_bank, context.context),
                 reconstruction_bits,
                 difference);
             if (!status.ok()) {
@@ -794,7 +793,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
                 Status status = encode_line(
                     rows[plane_index],
                     reconstruction_bits,
-                    plane_index,
+                    0,
                     state.line_state(plane_index),
                     state.golomb_rice_run_state(plane_index));
                 if (!status.ok()) {
@@ -828,7 +827,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
             Status status = encode_line(
                 samples,
                 stream_.bits_per_raw_sample,
-                plane_index,
+                0,
                 line,
                 run_state);
             if (!status.ok()) {

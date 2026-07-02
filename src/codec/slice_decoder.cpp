@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -167,6 +168,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                std::uint64_t payload_offset,
                                const syntax::ContextModel& context_model,
                                std::size_t plane,
+                               std::size_t context_bank,
                                std::uint32_t width,
                                std::uint8_t reconstruction_bits,
                                SliceState& state)
@@ -213,7 +215,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
             std::int32_t difference = 0;
             status = entropy::read_golomb_rice_run_interruption(
                 reader,
-                state.golomb_rice_context(plane, 0),
+                state.golomb_rice_context(context_bank, 0),
                 reconstruction_bits,
                 difference);
             if (!status.ok()) {
@@ -234,7 +236,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
         std::int32_t difference = 0;
         status = entropy::read_golomb_rice_symbol(
             reader,
-            state.golomb_rice_context(plane, context.context),
+            state.golomb_rice_context(context_bank, context.context),
             reconstruction_bits,
             difference);
         if (!status.ok()) {
@@ -344,15 +346,16 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                 std::uint64_t payload_offset,
                                 std::uint8_t content_bit_offset,
                                 const std::vector<syntax::ContextModel>& context_models,
+                                std::span<const std::size_t> context_bank_indexes,
+                                std::span<const std::size_t> context_bank_counts,
                                 SliceOutputWindow& output,
                                 SliceState& state)
 {
-    std::vector<std::size_t> context_counts;
-    context_counts.reserve(context_models.size());
-    for (const auto& model : context_models) {
-        context_counts.push_back(model.context_count());
+    if (context_bank_indexes.size() != context_models.size()) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "Golomb-Rice context bank index count does not match plane count");
     }
-    Status status = state.prepare_golomb_rice(context_counts);
+    Status status = state.prepare_golomb_rice(context_bank_counts, output.plane_count());
     if (!status.ok()) {
         return status;
     }
@@ -381,6 +384,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  payload_offset,
                                                  context_models[plane],
                                                  plane,
+                                                 context_bank_indexes[plane],
                                                  width,
                                                  reconstruction_bits,
                                                  state);
@@ -408,6 +412,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  payload_offset,
                                                  context_models[plane],
                                                  plane,
+                                                 context_bank_indexes[plane],
                                                  width,
                                                  stream.bits_per_raw_sample,
                                                  state);
@@ -537,9 +542,15 @@ const syntax::LineState& SliceState::line_state(std::size_t plane_index) const n
 
 Status SliceState::prepare_golomb_rice(std::span<const std::size_t> context_counts)
 {
-    if (context_counts.size() != line_states_.size()) {
+    return prepare_golomb_rice(context_counts, context_counts.size());
+}
+
+Status SliceState::prepare_golomb_rice(std::span<const std::size_t> context_counts,
+                                       std::size_t run_state_count)
+{
+    if (run_state_count != line_states_.size()) {
         return make_error(ErrorCode::InvalidArgument,
-                          "Golomb-Rice context bank count does not match slice plane count");
+                          "Golomb-Rice run-state bank count does not match slice plane count");
     }
     for (std::size_t plane = 0; plane < context_counts.size(); ++plane) {
         if (context_counts[plane] == 0) {
@@ -550,16 +561,16 @@ Status SliceState::prepare_golomb_rice(std::span<const std::size_t> context_coun
 
     if (golomb_rice_contexts_.empty() && golomb_rice_run_states_.empty()) {
         golomb_rice_contexts_.resize(context_counts.size());
-        golomb_rice_run_states_.resize(context_counts.size());
+        golomb_rice_run_states_.resize(run_state_count);
         for (std::size_t plane = 0; plane < context_counts.size(); ++plane) {
             golomb_rice_contexts_[plane].resize(context_counts[plane]);
         }
         return ok_status();
     }
     if (golomb_rice_contexts_.size() != context_counts.size()
-        || golomb_rice_run_states_.size() != context_counts.size()) {
+        || golomb_rice_run_states_.size() != run_state_count) {
         return make_error(ErrorCode::InvalidState,
-                          "saved Golomb-Rice context bank count does not match slice plane count");
+                          "saved Golomb-Rice state bank count does not match current stream");
     }
     for (std::size_t plane = 0; plane < context_counts.size(); ++plane) {
         if (golomb_rice_contexts_[plane].size() != context_counts[plane]) {
@@ -721,15 +732,24 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     }
     std::vector<syntax::ContextModel> context_models;
     std::vector<std::size_t> context_counts;
+    std::vector<std::size_t> golomb_rice_context_bank_indexes;
+    std::vector<std::size_t> golomb_rice_context_bank_counts;
     std::vector<std::span<const entropy::RangeCoder::ScalarContextStates>> initial_state_banks;
     context_models.reserve(output.plane_count());
     context_counts.reserve(output.plane_count());
+    golomb_rice_context_bank_indexes.reserve(output.plane_count());
     initial_state_banks.reserve(output.plane_count());
+    golomb_rice_context_bank_counts.reserve(stream_.quant_table_sets.size());
+    for (const auto& table_set : stream_.quant_table_sets) {
+        golomb_rice_context_bank_counts.push_back(table_set.context_count);
+    }
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
         const auto index_slot = stream_.version >= 3
             ? syntax::plane_quant_table_set_index_slot(stream_, plane_index)
             : std::size_t{0};
         const auto quant_table_set_index = slice.quant_table_set_indexes[index_slot];
+        golomb_rice_context_bank_indexes.push_back(
+            static_cast<std::size_t>(quant_table_set_index));
         context_models.emplace_back(stream_.quant_table_sets[quant_table_set_index]);
         context_counts.push_back(context_models.back().context_count());
         if (stream_.initial_states.empty()) {
@@ -762,6 +782,8 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                         slice.content_byte_offset,
                                         slice.content_bit_offset,
                                         context_models,
+                                        golomb_rice_context_bank_indexes,
+                                        golomb_rice_context_bank_counts,
                                         output,
                                         state);
     }

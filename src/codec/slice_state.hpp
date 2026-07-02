@@ -32,6 +32,8 @@ public:
     Status reset(const SliceInputWindow& input);
     Status reset(const SliceOutputWindow& output);
     Status prepare_golomb_rice(std::span<const std::size_t> context_counts);
+    Status prepare_golomb_rice(std::span<const std::size_t> context_counts,
+                               std::size_t run_state_count);
     Status capture_range_contexts(const entropy::RangeCoder& reader);
     Status capture_range_contexts(const entropy::RangeEncoder& writer);
     void clear_range_contexts() noexcept;

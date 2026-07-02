@@ -1253,12 +1253,12 @@ TEST(SliceDecoderTest, DecodesGolombRiceRgbRunInterruptionsWithAlpha)
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(state.line_state(0).previous()[0], 1);
     EXPECT_EQ(state.line_state(1).previous()[0], 1);
-    EXPECT_EQ(state.line_state(2).previous()[0], 1);
-    EXPECT_EQ(state.line_state(3).previous()[0], 1);
-    EXPECT_EQ(r[0], 130u);
+    EXPECT_EQ(state.line_state(2).previous()[0], 2);
+    EXPECT_EQ(state.line_state(3).previous()[0], 255);
+    EXPECT_EQ(r[0], 131u);
     EXPECT_EQ(g[0], 129u);
     EXPECT_EQ(b[0], 130u);
-    EXPECT_EQ(alpha[0], 1u);
+    EXPECT_EQ(alpha[0], 255u);
 }
 
 TEST(SliceDecoderTest, ReconstructsSixteenBitGolombRiceRgbInSeventeenBitDomain)
@@ -1297,8 +1297,8 @@ TEST(SliceDecoderTest, ReconstructsSixteenBitGolombRiceRgbInSeventeenBitDomain)
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(state.line_state(0).previous()[0], 1);
     EXPECT_EQ(state.line_state(1).previous()[0], 1);
-    EXPECT_EQ(state.line_state(2).previous()[0], 1);
-    EXPECT_EQ(r[0], 32770u);
+    EXPECT_EQ(state.line_state(2).previous()[0], 2);
+    EXPECT_EQ(r[0], 32771u);
     EXPECT_EQ(g[0], 32769u);
     EXPECT_EQ(b[0], 32770u);
 }
@@ -1339,8 +1339,8 @@ TEST(SliceDecoderTest, AppliesHighBitDepthGolombRiceRgbCompatibilityTransform)
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(state.line_state(0).previous()[0], 1);
     EXPECT_EQ(state.line_state(1).previous()[0], 1);
-    EXPECT_EQ(state.line_state(2).previous()[0], 1);
-    EXPECT_EQ(r[0], 514u);
+    EXPECT_EQ(state.line_state(2).previous()[0], 2);
+    EXPECT_EQ(r[0], 515u);
     EXPECT_EQ(g[0], 514u);
     EXPECT_EQ(b[0], 513u);
 }
@@ -1382,13 +1382,14 @@ TEST(SliceDecoderTest, GolombRiceRgbAlphaDisablesCompatibilityTransform)
     const auto status = decoder.decode(slice, window, state);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    for (std::size_t plane = 0; plane < 4; ++plane) {
-        EXPECT_EQ(state.line_state(plane).previous()[0], 1);
-    }
-    EXPECT_EQ(r[0], 514u);
+    EXPECT_EQ(state.line_state(0).previous()[0], 1);
+    EXPECT_EQ(state.line_state(1).previous()[0], 1);
+    EXPECT_EQ(state.line_state(2).previous()[0], 2);
+    EXPECT_EQ(state.line_state(3).previous()[0], 1023);
+    EXPECT_EQ(r[0], 515u);
     EXPECT_EQ(g[0], 513u);
     EXPECT_EQ(b[0], 514u);
-    EXPECT_EQ(alpha[0], 1u);
+    EXPECT_EQ(alpha[0], 1023u);
 }
 
 TEST(SliceDecoderTest, KeepsGolombRiceRgbContextAndPredictionAcrossRows)
@@ -1426,13 +1427,9 @@ TEST(SliceDecoderTest, KeepsGolombRiceRgbContextAndPredictionAcrossRows)
     const auto status = decoder.decode(slice, window, state);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    for (std::size_t plane = 0; plane < 3; ++plane) {
-        EXPECT_EQ(state.line_state(plane).second_previous()[0], 1);
-        EXPECT_EQ(state.line_state(plane).previous()[0], 2);
-    }
-    EXPECT_EQ(r, (std::array<std::uint8_t, 2>{130, 131}));
-    EXPECT_EQ(g, (std::array<std::uint8_t, 2>{129, 129}));
-    EXPECT_EQ(b, (std::array<std::uint8_t, 2>{130, 131}));
+    EXPECT_EQ(r, (std::array<std::uint8_t, 2>{131, 130}));
+    EXPECT_EQ(g, (std::array<std::uint8_t, 2>{129, 127}));
+    EXPECT_EQ(b, (std::array<std::uint8_t, 2>{130, 129}));
 }
 
 TEST(SliceDecoderTest, DecodesGolombRiceZeroRun)

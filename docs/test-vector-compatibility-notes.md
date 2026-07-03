@@ -218,3 +218,18 @@ or produce a full decoded frame whose bytes differ from the generated expected
 planes. Prioritize range-coded slice initial state selection, quant-table-set
 index usage, and expected sample packing/endianness before changing generic
 range nonbinary decoding again.
+
+The binary `ConfigurationRecordParser` now initializes the Parameter range
+reader with all 32 scalar contexts so `states_coded == 1` can decode
+`initial_state_delta[i][j][k]` with `k` as the context index. The current local
+vectors still fail in the same slice/sample reconstruction modes, which implies
+this fix improves v3 range configuration coverage but is not the direct cause
+of the present FFmpeg vector mismatch.
+
+One additional slice-content boundary probe was tried and rejected: after
+validating a version 3 range-coded Slice Header, resetting the range decoder on
+`content_payload` instead of carrying the arithmetic state forward breaks the
+internal v3 decoder tests and moves external vectors to earlier range scalar
+failures. Keep the current model where Slice Header and range-coded Slice
+Content share the arithmetic state while only scalar contexts are reconfigured
+from the selected quantization table set indexes.

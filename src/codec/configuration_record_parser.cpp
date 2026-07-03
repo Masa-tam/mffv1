@@ -47,7 +47,7 @@ Status ConfigurationRecordParser::parse(ByteSpan record,
     }
 
     entropy::RangeCoder parameter_reader;
-    status = parameter_reader.reset(parameter_payload);
+    status = parameter_reader.reset(parameter_payload, syntax::InitialState{}.size());
     if (!status.ok()) {
         return status;
     }

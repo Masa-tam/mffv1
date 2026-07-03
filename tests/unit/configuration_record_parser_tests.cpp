@@ -1,9 +1,11 @@
 #include "codec/configuration_record_parser.hpp"
 
 #include "codec/configuration_record_writer.hpp"
+#include "entropy/range_encoder.hpp"
 #include "util/crc32.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -38,6 +40,56 @@ std::vector<std::byte> make_configuration_record()
     const auto status = writer.write(make_initial_profile(), record);
     EXPECT_TRUE(status.ok()) << status.message;
     return record;
+}
+
+void append_crc_parity(std::vector<std::byte>& bytes)
+{
+    const auto crc = mffv1::util::crc32_ieee_msb(bytes);
+    bytes.push_back(static_cast<std::byte>((crc >> 24) & 0xffu));
+    bytes.push_back(static_cast<std::byte>((crc >> 16) & 0xffu));
+    bytes.push_back(static_cast<std::byte>((crc >> 8) & 0xffu));
+    bytes.push_back(static_cast<std::byte>(crc & 0xffu));
+}
+
+void make_configuration_record_with_initial_states(std::vector<std::byte>& record)
+{
+    mffv1::entropy::RangeEncoder writer;
+    ASSERT_TRUE(writer.reset(mffv1::syntax::InitialState{}.size()).ok());
+
+    ASSERT_TRUE(writer.write_unsigned(3).ok()); // version
+    ASSERT_TRUE(writer.write_unsigned(4).ok()); // micro_version
+    ASSERT_TRUE(writer.write_unsigned(1).ok()); // range coder
+    ASSERT_TRUE(writer.write_unsigned(0).ok()); // YCbCr
+    ASSERT_TRUE(writer.write_unsigned(8).ok()); // bits_per_raw_sample
+    ASSERT_TRUE(writer.write_bool(false).ok()); // chroma_planes
+    ASSERT_TRUE(writer.write_unsigned(0).ok()); // log2_h_chroma_subsample
+    ASSERT_TRUE(writer.write_unsigned(0).ok()); // log2_v_chroma_subsample
+    ASSERT_TRUE(writer.write_bool(false).ok()); // extra_plane
+    ASSERT_TRUE(writer.write_unsigned(0).ok()); // num_h_slices - 1
+    ASSERT_TRUE(writer.write_unsigned(0).ok()); // num_v_slices - 1
+    ASSERT_TRUE(writer.write_unsigned(1).ok()); // quant_table_set_count
+
+    for (std::size_t table = 0;
+         table < mffv1::syntax::QuantTableSet::kContextInputs;
+         ++table) {
+        ASSERT_TRUE(writer.begin_independent_scalar_contexts(1).ok());
+        ASSERT_TRUE(writer.write_unsigned(127).ok());
+        ASSERT_TRUE(writer.end_independent_scalar_contexts().ok());
+    }
+
+    ASSERT_TRUE(writer.write_bool(true).ok()); // states_coded
+    for (std::size_t state_index = 0;
+         state_index < mffv1::syntax::InitialState{}.size();
+         ++state_index) {
+        const auto delta = state_index == 31 ? std::int64_t{5} : std::int64_t{0};
+        ASSERT_TRUE(writer.write_signed(
+            0, static_cast<mffv1::entropy::ContextId>(state_index), delta).ok());
+    }
+    ASSERT_TRUE(writer.write_unsigned(0).ok()); // ec
+    ASSERT_TRUE(writer.write_unsigned(1).ok()); // intra
+
+    ASSERT_TRUE(writer.finalize(record).ok());
+    append_crc_parity(record);
 }
 
 } // namespace
@@ -118,6 +170,24 @@ TEST(ConfigurationRecordParserTest, AcceptsVersionThreeRecordAndStripsCrcParity)
     EXPECT_EQ(stream.quant_table_sets[0].context_count, 1u);
     EXPECT_EQ(stream.quant_table_sets[0].tables,
               expected.quant_table_sets[0].tables);
+}
+
+TEST(ConfigurationRecordParserTest, ParsesRangeCodedInitialStatesWithAllStateContexts)
+{
+    std::vector<std::byte> record;
+    make_configuration_record_with_initial_states(record);
+    ASSERT_EQ(mffv1::util::crc32_ieee_msb(record), 0u);
+    const mffv1::codec::ConfigurationRecordParser parser;
+    mffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(record, stream);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(stream.initial_states.size(), 1u);
+    ASSERT_EQ(stream.initial_states[0].contexts.size(), 1u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][0], 128u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][30], 128u);
+    EXPECT_EQ(stream.initial_states[0].contexts[0][31], 133u);
 }
 
 TEST(ConfigurationRecordParserTest, RejectsVersionThreeRecordTooSmallForCrc)

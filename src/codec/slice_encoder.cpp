@@ -171,11 +171,14 @@ Status SliceEncoder::encode_content(
     entropy::RangeEncoder writer;
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream_));
+    const auto range_context_bank_count = stream_.version >= 3
+        ? syntax::quant_table_set_index_count(stream_)
+        : plane_count;
     const auto context_count =
         static_cast<std::size_t>(stream_.quant_table_sets[0].context_count);
-    std::vector<std::size_t> context_counts(plane_count, context_count);
+    std::vector<std::size_t> context_counts(range_context_bank_count, context_count);
     std::vector<std::span<const entropy::RangeEncoder::ScalarContextStates>>
-        initial_state_banks(plane_count);
+        initial_state_banks(range_context_bank_count);
     if (!stream_.initial_states.empty()) {
         for (auto& bank : initial_state_banks) {
             bank = stream_.initial_states[0].contexts;
@@ -350,14 +353,25 @@ Status SliceEncoder::encode_slice(
 
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream_));
-    const auto context_count =
-        static_cast<std::size_t>(stream_.quant_table_sets[0].context_count);
-    std::vector<std::size_t> context_counts(plane_count, context_count);
+    const auto range_context_bank_count = stream_.version >= 3
+        ? syntax::quant_table_set_index_count(stream_)
+        : plane_count;
+    std::vector<std::size_t> context_counts;
+    context_counts.reserve(range_context_bank_count);
     std::vector<std::span<const entropy::RangeEncoder::ScalarContextStates>>
-        initial_state_banks(plane_count);
-    if (!stream_.initial_states.empty()) {
-        for (auto& bank : initial_state_banks) {
-            bank = stream_.initial_states[0].contexts;
+        initial_state_banks;
+    initial_state_banks.reserve(range_context_bank_count);
+    for (std::size_t bank = 0; bank < range_context_bank_count; ++bank) {
+        const auto quant_table_set_index = stream_.version >= 3
+            ? header.quant_table_set_indexes[bank]
+            : std::size_t{0};
+        context_counts.push_back(
+            stream_.quant_table_sets[quant_table_set_index].context_count);
+        if (stream_.initial_states.empty()) {
+            initial_state_banks.emplace_back();
+        } else {
+            initial_state_banks.emplace_back(
+                stream_.initial_states[quant_table_set_index].contexts);
         }
     }
     if (working_state.has_range_contexts()) {
@@ -419,6 +433,12 @@ Status SliceEncoder::encode_samples(
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
     const bool use_signed_16bit_prediction =
         syntax::uses_signed_16bit_predictor(stream_);
+    std::vector<std::size_t> range_context_bank_indexes(plane_count);
+    for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+        range_context_bank_indexes[plane_index] = stream_.version >= 3
+            ? syntax::plane_quant_table_set_index_slot(stream_, plane_index)
+            : plane_index;
+    }
     const std::uint32_t maximum_sample =
         stream_.bits_per_raw_sample == 16
         ? 0xffffu
@@ -448,7 +468,7 @@ Status SliceEncoder::encode_samples(
         return ok_status();
     };
 
-    const auto encode_sample = [&](std::size_t plane_index,
+    const auto encode_sample = [&](std::size_t context_bank,
                                    std::int32_t sample,
                                    std::uint8_t reconstruction_bits,
                                    bool signed_16bit_prediction,
@@ -475,7 +495,7 @@ Status SliceEncoder::encode_samples(
             difference = -difference;
         }
         status = writer.write_signed(
-            plane_index, context.context, difference);
+            context_bank, context.context, difference);
         if (!status.ok()) {
             return status;
         }
@@ -550,7 +570,7 @@ Status SliceEncoder::encode_samples(
                             stream_.bits_per_raw_sample;
                     }
                     Status status = encode_sample(
-                        plane_index,
+                        range_context_bank_indexes[plane_index],
                         sample,
                         reconstruction_bits,
                         false,
@@ -586,7 +606,7 @@ Status SliceEncoder::encode_samples(
                     return status;
                 }
                 status = encode_sample(
-                    plane_index,
+                    range_context_bank_indexes[plane_index],
                     static_cast<std::int32_t>(sample),
                     stream_.bits_per_raw_sample,
                     use_signed_16bit_prediction,

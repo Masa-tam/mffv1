@@ -121,7 +121,7 @@ void set_reader_byte_offset(Status& status,
 Status decode_range_line(entropy::RangeCoder& reader,
                          std::uint64_t reader_base_offset,
                          const syntax::ContextModel& context_model,
-                         std::size_t plane,
+                         std::size_t context_bank,
                          std::uint32_t width,
                          std::uint8_t reconstruction_bits,
                          bool use_signed_16bit_prediction,
@@ -142,7 +142,7 @@ Status decode_range_line(entropy::RangeCoder& reader,
         }
 
         std::int64_t difference64 = 0;
-        status = reader.read_signed(plane, context.context, difference64);
+        status = reader.read_signed(context_bank, context.context, difference64);
         if (!status.ok()) {
             set_reader_byte_offset(status, reader_base_offset, reader.byte_position());
             return status;
@@ -912,6 +912,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     std::vector<std::size_t> golomb_rice_context_bank_indexes;
     std::vector<std::size_t> golomb_rice_context_bank_counts;
     std::vector<std::span<const entropy::RangeCoder::ScalarContextStates>> initial_state_banks;
+    std::vector<std::size_t> range_context_counts;
+    std::vector<std::size_t> range_context_bank_indexes;
+    std::vector<std::span<const entropy::RangeCoder::ScalarContextStates>> range_initial_state_banks;
     context_models.reserve(output.plane_count());
     context_counts.reserve(output.plane_count());
     golomb_rice_context_bank_indexes.reserve(output.plane_count());
@@ -936,19 +939,49 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         }
     }
 
+    if (stream_.entropy_mode == EntropyMode::Range) {
+        range_context_bank_indexes.resize(output.plane_count());
+        if (stream_.version >= 3) {
+            const auto slot_count = syntax::quant_table_set_index_count(stream_);
+            range_context_counts.reserve(slot_count);
+            range_initial_state_banks.reserve(slot_count);
+            for (std::size_t slot = 0; slot < slot_count; ++slot) {
+                const auto quant_table_set_index = slice.quant_table_set_indexes[slot];
+                range_context_counts.push_back(
+                    stream_.quant_table_sets[quant_table_set_index].context_count);
+                if (stream_.initial_states.empty()) {
+                    range_initial_state_banks.emplace_back();
+                } else {
+                    range_initial_state_banks.emplace_back(
+                        stream_.initial_states[quant_table_set_index].contexts);
+                }
+            }
+            for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
+                range_context_bank_indexes[plane_index] =
+                    syntax::plane_quant_table_set_index_slot(stream_, plane_index);
+            }
+        } else {
+            range_context_counts = context_counts;
+            range_initial_state_banks = initial_state_banks;
+            for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
+                range_context_bank_indexes[plane_index] = plane_index;
+            }
+        }
+    }
+
     if (stream_.entropy_mode == EntropyMode::Range && state.has_range_contexts()) {
         const auto& saved_contexts = state.range_contexts();
-        if (saved_contexts.size() != context_counts.size()) {
+        if (saved_contexts.size() != range_context_counts.size()) {
             return make_error(ErrorCode::InvalidState,
-                              "saved range context bank count does not match slice plane count");
+                              "saved range context bank count does not match slice context bank count");
         }
-        initial_state_banks.clear();
-        for (std::size_t plane_index = 0; plane_index < saved_contexts.size(); ++plane_index) {
-            if (saved_contexts[plane_index].size() != context_counts[plane_index]) {
+        range_initial_state_banks.clear();
+        for (std::size_t bank = 0; bank < saved_contexts.size(); ++bank) {
+            if (saved_contexts[bank].size() != range_context_counts[bank]) {
                 return make_error(ErrorCode::InvalidState,
                                   "saved range context count does not match quantization contexts");
             }
-            initial_state_banks.emplace_back(saved_contexts[plane_index]);
+            range_initial_state_banks.emplace_back(saved_contexts[bank]);
         }
     }
 
@@ -1020,7 +1053,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                    slice.header_byte_offset);
         }
 
-        status = reader.reconfigure_contexts(context_counts, initial_state_banks);
+        status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
         reader_base_offset = slice.payload_byte_offset;
     } else if (continue_from_legacy_frame_header) {
         status = reader.reset(slice.payload, stream_.state_transition);
@@ -1045,12 +1078,12 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                    "slice descriptor does not match the legacy frame header",
                                    slice.header_byte_offset);
         }
-        status = reader.reconfigure_contexts(context_counts, initial_state_banks);
+        status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
         reader_base_offset = slice.payload_byte_offset;
     } else {
         status = reader.reset(content_payload,
-                              context_counts,
-                              initial_state_banks,
+                              range_context_counts,
+                              range_initial_state_banks,
                               stream_.state_transition);
     }
     if (!status.ok()) {
@@ -1075,7 +1108,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 status = decode_range_line(reader,
                                            reader_base_offset,
                                            context_models[plane_index],
-                                           plane_index,
+                                           range_context_bank_indexes[plane_index],
                                            width,
                                            reconstruction_bits,
                                            false,
@@ -1103,7 +1136,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             status = decode_range_line(reader,
                                        reader_base_offset,
                                        context_model,
-                                       plane_index,
+                                       range_context_bank_indexes[plane_index],
                                        width,
                                        stream_.bits_per_raw_sample,
                                        use_signed_16bit_prediction,

@@ -45,15 +45,14 @@ misplaces the content boundary.
 After resetting the range scalar context scope between the first-slice
 `keyframe` symbol and the version 3 Slice Header, the focused vectors moved
 from content offset 2 to content offset 3 and the single-plane range and flat
-Golomb-Rice vectors pass the generated-vector decode test. The remaining local
-failures are the range-coded 4:2:0 vectors:
+Golomb-Rice vectors pass the generated-vector decode test.
 
-- `range_intra_420p10_1slice.mkv` decodes to frame comparison, then plane 2
-  differs at sample 0: `actual_sample=1 expected_sample=512`.
-- `range_intra_420p10_2x2.mkv` decodes to frame comparison, then plane 2
-  differs at sample 0: `actual_sample=1 expected_sample=512`.
-- `range_intra_420p8_1slice.mkv` decodes to frame comparison, then plane 2
-  differs at sample 0: `actual_sample=1 expected_sample=128`.
+The range-coded 4:2:0 vectors then required one additional correction: v3
+range-coded Slice Content uses scalar context banks by Slice Header
+quantization-table index slot, not by coded plane. This means Cb and Cr share
+the chroma slot's range context bank. With that behavior, all vectors in the
+current local set decode through the public API and match the generated output
+planes.
 
 The generated-vector comparison now ignores output stride padding and checks
 only active row bytes. Padding bytes are caller-owned output storage, not a
@@ -159,6 +158,20 @@ the first Slice Header consumes only two bytes and later sample decoding
 diverges earlier. With it, the content offset for the focused v3 range vectors
 is three bytes and single-plane focused vectors pass.
 
+### Version 3 Range Slice Content Context Banks
+
+Version 3 range-coded Slice Content maps scalar context banks by Slice Header
+quantization-table index slot. For YCbCr with chroma planes, luma uses slot 0
+and both chroma planes use slot 1. Extra planes use their own slot according to
+`plane_quant_table_set_index_slot()`. The implementation now allocates range
+context banks from `quant_table_set_index_count(stream)` for v3 and maps each
+plane to the appropriate slot when reading or writing symbols.
+
+This is distinct from mapping banks by the quantization-table-set value itself.
+The focused vectors use `qidx=0,0`; sharing by qset value would make luma and
+chroma share one bank and fails during range scalar decoding. Sharing by slot
+keeps luma separate while sharing Cb/Cr, which matches the current vectors.
+
 ## Rejected Hypotheses
 
 The following experiments did not improve external-vector compatibility and
@@ -192,6 +205,10 @@ should not be repeated without new evidence:
   binary symbols and scalar context 0 to the same range state.
 - Sharing one independent scalar context scope across all five
   QuantizationTables in a QuantizationTableSet.
+- Sharing range-coded Slice Content scalar context banks by
+  quantization-table-set value instead of Slice Header slot. This makes the
+  current 4:2:0 vectors fail during range scalar decoding because their luma
+  and chroma slots both reference qset 0 but must keep separate context banks.
 - Switching v3 slice header/content decoding back to the default state
   transition table. The external vectors then fail while parsing the slice
   header, for example with `slice header rectangle is outside the slice raster
@@ -234,13 +251,10 @@ range-coded header/content boundary before changing generic run-count carry
 behavior. Avoid relaxing padding or trailing-byte validation as a fix; doing so
 only hides the bitstream-position mismatch.
 
-The range-coded configuration mismatch has been narrowed enough that the next
-target should move to range-coded 4:2:0 chroma reconstruction. The current
-focused vectors that still fail all decode a full frame and then diverge at
-the first active sample of plane 2. Prioritize chroma plane order, per-plane
-quant-table-set selection, subsampled plane boundary initialization, and
-expected sample interpretation before changing generic range nonbinary
-decoding again.
+The current focused range-coded vectors now pass. Future range-coded
+compatibility work should add less uniform vectors with nonzero chroma
+gradients, explicit extra planes, and nonzero quantization-table-set indexes
+before changing generic range nonbinary decoding again.
 
 The binary `ConfigurationRecordParser` now initializes the Parameter range
 reader with all 32 scalar contexts so `states_coded == 1` can decode

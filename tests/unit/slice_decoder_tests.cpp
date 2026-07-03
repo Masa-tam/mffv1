@@ -2,6 +2,7 @@
 #include "mffv1/configuration_parser.hpp"
 #include "bitstream/bit_writer.hpp"
 #include "entropy/golomb_rice_run.hpp"
+#include "entropy/range_encoder.hpp"
 
 #include <array>
 #include <cstdint>
@@ -839,6 +840,74 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor8BitChromaSlice)
     for (const auto sample : cr) {
         EXPECT_EQ(sample, 0u);
     }
+}
+
+TEST(SliceDecoderTest, DecodesVersionThreeRangeChromaWithSharedSlotContext)
+{
+    auto stream = make_stream();
+    stream.version = 3;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+    stream.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
+
+    const std::array<std::size_t, 2> context_counts{1, 1};
+    mffv1::entropy::RangeEncoder writer;
+    ASSERT_TRUE(writer.reset(context_counts).ok());
+    for (std::size_t i = 0; i < 8; ++i) {
+        ASSERT_TRUE(writer.write_signed(0, 0, 0).ok());
+    }
+    for (std::size_t i = 0; i < 2; ++i) {
+        ASSERT_TRUE(writer.write_signed(1, 0, 0).ok());
+    }
+    for (std::size_t i = 0; i < 2; ++i) {
+        ASSERT_TRUE(writer.write_signed(1, 0, 0).ok());
+    }
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(writer.finalize(payload).ok());
+
+    std::array<std::uint8_t, 8> y{};
+    std::array<std::uint8_t, 2> cb{};
+    std::array<std::uint8_t, 2> cr{};
+    y.fill(0xa5);
+    cb.fill(0xa5);
+    cr.fill(0xa5);
+    std::array<mffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[1].data = cb.data();
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 2, 1, 2};
+    planes[2].data = cr.data();
+    planes[2].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 2, 1, 2};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.content_byte_offset = 0;
+    slice.quant_table_set_indexes = {0, 1};
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    for (const auto sample : y) {
+        EXPECT_EQ(sample, 0u);
+    }
+    for (const auto sample : cb) {
+        EXPECT_EQ(sample, 0u);
+    }
+    for (const auto sample : cr) {
+        EXPECT_EQ(sample, 0u);
+    }
+    ASSERT_TRUE(state.has_range_contexts());
+    EXPECT_EQ(state.range_contexts().size(), 2u);
 }
 
 TEST(SliceDecoderTest, DecodesZeroDifferencesFor16BitChromaSlice)

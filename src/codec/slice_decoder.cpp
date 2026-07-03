@@ -181,6 +181,35 @@ struct GolombRicePendingRunTrace {
     std::uint32_t pending_count = 0;
 };
 
+std::string format_golomb_rice_context_trace(std::size_t plane,
+                                             std::uint32_t y,
+                                             std::uint32_t x,
+                                             const syntax::NeighborSamples& neighbors,
+                                             std::int32_t prediction,
+                                             const syntax::ContextDecision& context,
+                                             const entropy::GolombRiceRunState& run_state,
+                                             std::uint64_t bit_position)
+{
+    std::ostringstream out;
+    out << " plane=" << plane
+        << " y=" << y
+        << " x=" << x
+        << " bit=" << bit_position
+        << " context=" << context.context
+        << (context.invert_difference ? " invert=1" : " invert=0")
+        << " pred=" << prediction
+        << " neighbors="
+        << neighbors.left << "/"
+        << neighbors.top << "/"
+        << neighbors.top_left << "/"
+        << neighbors.top_right << "/"
+        << neighbors.far_left << "/"
+        << neighbors.top_top
+        << " run=" << static_cast<int>(run_state.run_index)
+        << "/" << run_state.pending_count;
+    return out.str();
+}
+
 Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                entropy::GolombRiceReader& reader,
                                std::uint64_t payload_offset,
@@ -217,6 +246,16 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 status = entropy::read_golomb_rice_run_segment(
                     bit_reader, run_state, x, width, segment);
                 if (!status.ok()) {
+                    status.message += " while reading GR run segment"
+                        + format_golomb_rice_context_trace(
+                            plane,
+                            y,
+                            run_start_x,
+                            neighbors,
+                            prediction,
+                            context,
+                            run_state,
+                            run_start_bit);
                     set_reader_byte_offset(
                         status, payload_offset, bit_reader.byte_position());
                     return status;
@@ -262,6 +301,21 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 reconstruction_bits,
                 difference);
             if (!status.ok()) {
+                const auto failure_neighbors = line.neighbors(x);
+                const auto failure_prediction = syntax::Predictor::median_predict(
+                    failure_neighbors.left,
+                    failure_neighbors.top,
+                    failure_neighbors.top_left);
+                status.message += " while reading GR run interruption"
+                    + format_golomb_rice_context_trace(
+                        plane,
+                        y,
+                        x,
+                        failure_neighbors,
+                        failure_prediction,
+                        context,
+                        run_state,
+                        bit_reader.bit_position());
                 set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
                 return status;
             }
@@ -283,6 +337,16 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
             reconstruction_bits,
             difference);
         if (!status.ok()) {
+            status.message += " while reading GR scalar symbol"
+                + format_golomb_rice_context_trace(
+                    plane,
+                    y,
+                    x,
+                    neighbors,
+                    prediction,
+                    context,
+                    run_state,
+                    bit_reader.bit_position());
             set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
             return status;
         }

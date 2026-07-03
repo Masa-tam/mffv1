@@ -1531,7 +1531,7 @@ TEST(SliceDecoderTest, DecodesGolombRiceZeroRun)
     }
 }
 
-TEST(SliceDecoderTest, RejectsGolombRiceRunBeyondPlaneEnd)
+TEST(SliceDecoderTest, DecodesGolombRiceRunClippedAtPlaneEnd)
 {
     auto stream = make_stream();
     stream.width = 5;
@@ -1559,14 +1559,10 @@ TEST(SliceDecoderTest, RejectsGolombRiceRunBeyondPlaneEnd)
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
-    EXPECT_EQ(status.message,
-              "Golomb-Rice run extends beyond plane end at bit offset 5 "
-              "plane=0 plane_end_bits=0:5 run_states=0:4/1 "
-              "pending_runs=0:y0x4c0i0n(0/0/0/0/0/0)p0+2b4-5r4>4q1");
-    EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0u);
+    }
 }
 
 TEST(SliceDecoderTest, DecodesGolombRiceChromaPlanesInOrder)

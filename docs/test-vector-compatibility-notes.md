@@ -92,23 +92,18 @@ underflow near rows 3 to 5. This suggests the current mismatch is not only an
 overly strict end-padding check; sample or run-code consumption is already
 diverging before the end of at least some slices.
 
-The decoder now rejects a nonzero Golomb-Rice run `pending_count` at plane end
-before byte-alignment validation. This converts the earlier padding or trailing
-byte failures into a direct plane-0 run overrun at bit 411. The pending-run
-trace is identical across the 8-bit vectors: a full run of 256 samples starts
-at plane 0, row 118, x 125, encoded by bit range 410..411 with run index 24.
-The changed diagnostic does not fix compatibility; it narrows the next
-investigation to why the current plane-0 decode enters run mode at that
-position and accepts the one-bit full-run segment.
+The decoder carries a Golomb-Rice full-run remainder across row boundaries but
+now discards any remaining pending run at the end of a plane. This matches the
+useful behavior exposed by the FFmpeg gray ramp vector without treating a final
+plane-edge run as malformed.
 
-The richer pending-run trace shows context 0, no difference inversion, and a
-flat reconstructed neighborhood at the failing coordinate. This makes an
-unexpected prediction-context decision less likely than a slice content
-boundary mismatch. In the gray vector, the failing GR reader byte is absolute
-byte 54 while the located footer starts at byte 60, exactly six bytes later.
-Keep `slice_size` as excluding the footer; the current open question is whether
-the v3 range-coded slice header termination/finalization leaves additional
-bytes before the Golomb-Rice payload begins.
+The v3 Golomb-Rice Slice Header no longer reads or writes an extra range-coded
+termination sentinel before Slice Content. The RFC Slice pseudocode has no
+symbol between `SliceHeader()` and `SliceContent()`, and removing the sentinel
+lets the generated single-plane gray ramp vector decode successfully. The
+parsed content byte offset still includes the range coder's lookahead byte, so
+mffv1's own encoder/decoder round trips continue to agree on the located GR
+content boundary.
 
 Two direct content-offset probes were tried and rejected:
 
@@ -117,10 +112,10 @@ Two direct content-offset probes were tried and rejected:
   is not a valid interpretation of the six-byte gap observed in the gray
   vector.
 - Subtracting one byte from the parsed content offset to model Sentinel mode's
-  "one byte beyond" wording makes the 8-bit vectors fail much earlier with
-  bitstream underflow. With the current `RangeCoder::byte_position()` contract,
-  the value returned after reading the termination sentinel remains the best
-  local content offset.
+  "one byte beyond" wording is no longer the selected model. Removing the
+  extra sentinel read is the useful boundary correction; byte-position
+  subtraction by itself either hides the range coder lookahead or misaligns
+  multi-plane vectors.
 
 ### Parameter Custom Transition Scope
 
@@ -219,37 +214,29 @@ should not be repeated without new evidence:
   not compatible with the current FFmpeg vectors.
 - Reading a range termination sentinel between a v3 Slice Header and
   range-coded Slice Content. This breaks the internal multi-slice range decode
-  test and worsens external vectors. Keep the sentinel only for the documented
-  transition from range-coded Slice Header to Golomb-Rice Slice Content.
+  test and worsens external vectors.
 
 ## Next Investigation Targets
 
-The remaining 8-bit Golomb-Rice mismatch is most likely in one of these areas:
+The remaining 8-bit Golomb-Rice mismatch is now isolated to the generated
+4:2:0 ramp vector. The single-plane gray ramp vector decodes successfully.
+The 4:2:0 vector still underflows in Y plane scalar decoding around row 29, so
+the next investigation should focus on multi-plane GR bit consumption rather
+than the generic v3 Slice Header boundary.
 
-- The v3 range-coded slice header to Golomb-Rice payload boundary, especially
-  termination and range-coder finalization byte accounting.
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context
   changes near a row boundary.
 - A context-model state scope that differs between the RFC description and
   FFmpeg's v3 Golomb-Rice encoder output.
-- A slice-content bit consumption issue after samples decode but before
-  byte-alignment padding is checked.
+- A YCbCr 4:2:0-specific slice-content bit consumption issue before chroma
+  decoding begins.
 
 When investigating, prefer small experiments that report the byte/bit position
 at the end of each plane in slice 0. The decoder now includes the slice-local
 bit offset and plane end offsets in Golomb-Rice padding and trailing-byte
-errors. The single-plane gray vector reaches the same first-plane endpoint
-(`0:411`) and then sees non-zero padding, so the next target should be
-Golomb-Rice symbol or run-code consumption rather than only chroma plane order
-or inter-plane boundaries. The final run-state diagnostics show
-`run_states=0:24/61` at plane 0 end for these vectors, so any next run-mode
-experiment should explain why the last full-run segment leaves 61 samples of
-pending run after the plane's last row. The pending-run origin is now known,
-including the flat neighborhood and prediction value. Prefer investigating the
-range-coded header/content boundary before changing generic run-count carry
-behavior. Avoid relaxing padding or trailing-byte validation as a fix; doing so
-only hides the bitstream-position mismatch.
+errors. Avoid relaxing padding or trailing-byte validation as a fix; doing so
+only hides the bitstream-position mismatch or sample-consumption mismatch.
 
 The current focused range-coded vectors now pass. Future range-coded
 compatibility work should add less uniform vectors with nonzero chroma

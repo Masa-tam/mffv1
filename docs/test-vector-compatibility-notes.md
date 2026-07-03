@@ -42,16 +42,23 @@ parsing:
 - `range_intra_gray10_1slice.mkv` reports
   `context_count is outside the supported range: 1348500920
   (len_counts=9,41,22,95,121)`.
-- `range_intra_420p10_1slice.mkv` and `range_intra_420p10_2x2.mkv` report
+- `range_intra_420p10_1slice.mkv` reports
   `quant_table_set_count must be in the range 1..8: 0 (version=3.4
   entropy=range colorspace=0 bits=8 chroma=1 subsample=50,3 extra=0
   slices=1x1) byte=155`.
+- `range_intra_420p10_2x2.mkv` reports
+  `quant_table_set_count must be in the range 1..8: 0 (version=3.4
+  entropy=range colorspace=0 bits=8 chroma=1 subsample=28,0 extra=0
+  slices=2x61) byte=155`.
 - `range_intra_420p8_1slice.mkv` reports
   `quantization table value overflow at table 4: value=80, scale=26861445`.
-- `gr_intra_gray8_1slice_flat.mkv` and `gr_intra_gray8_2x2_flat.mkv` report
-  the same `context_count is outside the supported range:
-  1348500920 (len_counts=9,41,22,95,121)` failure as the range-coded
-  gray10 one-slice vector.
+- `gr_intra_gray8_1slice_flat.mkv` reports the same `context_count is outside
+  the supported range: 1348500920 (len_counts=9,41,22,95,121)` failure as the
+  range-coded gray10 one-slice vector.
+- `gr_intra_gray8_2x2_flat.mkv` reports
+  `quant_table_set_count must be in the range 1..8: 50 (version=3.4
+  entropy=range colorspace=0 bits=8 chroma=1 subsample=6,0 extra=0
+  slices=4x2) byte=154`.
 
 The 420p10 parser has already decoded the stream incorrectly before the
 quantization-table-set count. A 420p10 stream should not report 8-bit samples

@@ -224,6 +224,23 @@ The 4:2:0 vector still underflows in Y plane scalar decoding around row 29, so
 the next investigation should focus on multi-plane GR bit consumption rather
 than the generic v3 Slice Header boundary.
 
+Additional probing on `gr_intra_420p8_1slice_ramp.mkv` showed that the first
+observable Y-plane mismatch happens before the eventual underflow: row 1,
+x=87 reconstructs as 107 while the generated plane expects 106. At that point
+the decoder is reading a Golomb-Rice run interruption with prediction 145 and
+context-0 state `drift=0,error_sum=19,bias=1,count=2`; the decoded value is
+therefore biased from -39 to -38. The preceding context-0 update is the first
+row's initial +16 run interruption. This makes context-0 VLC bias handling
+during run interruption the current highest-value investigation target.
+
+Two direct probes were rejected during that investigation:
+
+- Resetting Golomb-Rice run state at every line breaks the passing gray ramp
+  vector and is not compatible with current generated vectors.
+- Removing the output effect of context bias from run-interruption decoding
+  fixes the first x=87 mismatch but introduces a later row-1 mismatch around
+  x=233 and does not restore full vector compatibility.
+
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context
   changes near a row boundary.

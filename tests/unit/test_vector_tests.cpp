@@ -245,6 +245,17 @@ void expect_decodes_frame(
     mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
     const auto status = decoder.decode_frame(frame_payload, output);
     const auto frame_description = describe_frame_parse(vector, frame_payload);
+    if (!status.ok()) {
+        for (std::size_t index = 0; index < expected_planes.size(); ++index) {
+            const auto& expected = expected_planes[index];
+            std::size_t expected_size = 0;
+            ASSERT_TRUE(compute_plane_size(expected, expected_size));
+            const std::vector<std::byte> expected_bytes{
+                expected.samples.begin(), expected.samples.begin() + expected_size};
+            expect_plane_matches(
+                plane_storage[index], expected_bytes, index, expected.info, frame_description);
+        }
+    }
     ASSERT_TRUE(status.ok()) << describe_status(status) << "\n"
                              << frame_description;
 

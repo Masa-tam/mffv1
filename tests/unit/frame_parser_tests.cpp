@@ -153,11 +153,13 @@ TEST(FrameParserTest, RejectsEmptyPayload)
 
 TEST(FrameParserTest, CreatesSingleSliceDescriptor)
 {
-    const auto stream = make_stream();
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
     mffv1::codec::FrameParser parser(stream);
     mffv1::codec::FrameDecodeContext frame;
     const std::array<std::byte, 4> payload{
-        std::byte{1},
+        std::byte{0xfe},
         std::byte{2},
         std::byte{3},
         std::byte{4},
@@ -842,6 +844,30 @@ TEST(FrameParserTest, CreatesSingleSliceDescriptorFromRangeHeader)
     ASSERT_EQ(frame.slices[0].quant_table_set_indexes.size(), 2u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[0], 0u);
     EXPECT_EQ(frame.slices[0].quant_table_set_indexes[1], 0u);
+}
+
+TEST(FrameParserTest, DefaultParseUsesRangeHeaderForSingleVersionThreeSlice)
+{
+    const auto stream = make_stream();
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    const std::array<std::byte, 7> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x04},
+    };
+
+    const auto status = parser.parse(payload, frame);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(frame.slices.size(), 1u);
+    EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
+    EXPECT_EQ(frame.slices[0].footer_byte_offset, 4u);
+    EXPECT_EQ(frame.slices[0].slice_size, payload.size() - 3u);
 }
 
 TEST(FrameParserTest, VerifiesSingleSliceCrc)

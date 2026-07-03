@@ -37,20 +37,25 @@ Golomb-Rice run-state mismatch:
   succeeding before reference slice state can be available.
 
 The current requested compatibility vectors now all pass configuration parsing
-and reach frame decode:
+and reach frame decode. Version 3 frames use the range-coded slice
+header/footer path even when the stream has a 1x1 slice grid; treating a v3
+single-slice payload as legacy whole-slice content skips the two-byte slice
+header and misplaces the content boundary.
 
 - `range_intra_gray10_1slice.mkv` configures and decodes a frame, but the
   reconstructed plane differs from the generated expected samples.
 - `range_intra_420p10_1slice.mkv` configures as `bits=10 chroma=1
   subsample=1,1 grid=1x1 qsets=2 q0=365 q1=5063`, then fails slice decode with
-  `range coded scalar exponent is too large byte=218 slice=0`.
+  `range coded scalar exponent is too large byte=218 slice=0`. The single
+  located slice uses `content=2 footer=1282`.
 - `range_intra_420p10_2x2.mkv` configures and decodes, but the reconstructed
   chroma planes differ from the generated expected samples.
 - `range_intra_420p8_1slice.mkv` configures and decodes, but reconstructed
   planes differ from the generated expected samples.
 - `gr_intra_gray8_1slice_flat.mkv` configures as `bits=10 chroma=0
   subsample=0,0 grid=1x1 qsets=2 q0=365 q1=5063`, then fails slice decode with
-  `range coded scalar exponent is too large byte=566 slice=0`.
+  `range coded scalar exponent is too large byte=566 slice=0`. The single
+  located slice uses `content=2 footer=820`.
 - `gr_intra_gray8_2x2_flat.mkv` configures and decodes, but the reconstructed
   plane differs from the generated expected samples.
 
@@ -144,6 +149,8 @@ move every focused vector past configuration parsing.
 The following experiments did not improve external-vector compatibility and
 should not be repeated without new evidence:
 
+- Treating a version 3 1x1 slice grid as a legacy single-slice payload with no
+  range-coded slice header/footer.
 - Treating v3 EC `slice_size` as including the footer.
 - Removing the range-coded termination sentinel before v3 Golomb-Rice content.
 - Sharing Golomb-Rice run state by quantization-table-set bank.
@@ -170,6 +177,10 @@ should not be repeated without new evidence:
   binary symbols and scalar context 0 to the same range state.
 - Sharing one independent scalar context scope across all five
   QuantizationTables in a QuantizationTableSet.
+- Switching v3 slice header/content decoding back to the default state
+  transition table. The external vectors then fail while parsing the slice
+  header, for example with `slice header rectangle is outside the slice raster
+  byte=2`.
 
 ## Next Investigation Targets
 

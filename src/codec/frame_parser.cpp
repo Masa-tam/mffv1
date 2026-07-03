@@ -72,10 +72,10 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         return status;
     }
 
+    if (stream_.version >= 3) {
+        return parse_with_range_header(payload, out_frame);
+    }
     if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
-        if (stream_.version >= 3) {
-            return parse_with_range_header(payload, out_frame);
-        }
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
     }
     entropy::RangeCoder frame_reader;

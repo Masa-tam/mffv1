@@ -36,37 +36,30 @@ Golomb-Rice run-state mismatch:
 - The second frame of `smptebars_inter_420p.mkv` depends on the first frame
   succeeding before reference slice state can be available.
 
-The current requested compatibility vectors all fail during configuration
-parsing:
+The current requested compatibility vectors now all pass configuration parsing
+and reach frame decode:
 
-- `range_intra_gray10_1slice.mkv` reports
-  `context_count is outside the supported range: 1551293
-  (len_counts=9,8,12,12,12)`.
-- `range_intra_420p10_1slice.mkv` reports
-  `quant_table_set_count must be in the range 1..8: 0 (version=3.4
-  entropy=range colorspace=0 bits=8 chroma=1 subsample=50,3 extra=0
-  slices=1x1) byte=155`.
-- `range_intra_420p10_2x2.mkv` reports
-  `quant_table_set_count must be in the range 1..8: 0 (version=3.4
-  entropy=range colorspace=0 bits=8 chroma=1 subsample=28,0 extra=0
-  slices=2x61) byte=155`.
-- `range_intra_420p8_1slice.mkv` reports
-  `context_count is outside the supported range: 92427836
-  (len_counts=26,36,17,46,9)`.
-- `gr_intra_gray8_1slice_flat.mkv` reports the same `context_count is outside
-  the supported range: 1551293 (len_counts=9,8,12,12,12)` failure as the
-  range-coded gray10 one-slice vector.
-- `gr_intra_gray8_2x2_flat.mkv` reports
-  `quant_table_set_count must be in the range 1..8: 50 (version=3.4
-  entropy=range colorspace=0 bits=8 chroma=1 subsample=6,0 extra=0
-  slices=4x2) byte=154`.
+- `range_intra_gray10_1slice.mkv` configures and decodes a frame, but the
+  reconstructed plane differs from the generated expected samples.
+- `range_intra_420p10_1slice.mkv` configures as `bits=10 chroma=1
+  subsample=1,1 grid=1x1 qsets=2 q0=365 q1=5063`, then fails slice decode with
+  `range coded scalar exponent is too large byte=218 slice=0`.
+- `range_intra_420p10_2x2.mkv` configures and decodes, but the reconstructed
+  chroma planes differ from the generated expected samples.
+- `range_intra_420p8_1slice.mkv` configures and decodes, but reconstructed
+  planes differ from the generated expected samples.
+- `gr_intra_gray8_1slice_flat.mkv` configures as `bits=10 chroma=0
+  subsample=0,0 grid=1x1 qsets=2 q0=365 q1=5063`, then fails slice decode with
+  `range coded scalar exponent is too large byte=566 slice=0`.
+- `gr_intra_gray8_2x2_flat.mkv` configures and decodes, but the reconstructed
+  plane differs from the generated expected samples.
 
-The 420p10 parser has already decoded the stream incorrectly before the
-quantization-table-set count. A 420p10 stream should not report 8-bit samples
-or subsampling 50,3. The gray vectors avoid chroma fields but still produce
-impossible quantization table lengths, so the remaining issue is most likely in
-range-coded nonbinary symbol state progression for the Parameter section, not
-in chroma-specific parameter syntax.
+The focused vectors previously failed before or during quantization-table
+parsing. Deferring application of custom `state_transition_delta` until after
+the full Parameter section and using independent scalar states per individual
+QuantizationTable moved all focused vectors past configuration parsing. The
+remaining issue is now in range-coded slice/sample reconstruction and generated
+sample interpretation rather than gross Parameter parsing.
 
 ## Confirmed Behaviors
 
@@ -125,17 +118,26 @@ Two direct content-offset probes were tried and rejected:
   the value returned after reading the termination sentinel remains the best
   local content offset.
 
-### QuantizationTableSet Context Scope
+### Parameter Custom Transition Scope
 
-RFC 9043 defines one independent initial-state scope for the whole
-`QuantizationTableSet`, not one reset per individual `QuantizationTable`.
-Changing the configuration parser and writer to share that scope across all
-five tables improved the focused gray vector failures from
-`len_counts=9,41,22,95,121` to `len_counts=9,8,12,12,12`.
+FFmpeg-generated coder type 2 configuration records encode
+`state_transition_delta` with the default transition table and continue using
+that default transition table for the rest of the Parameter section. Applying
+the decoded custom transition table immediately after the 255 deltas makes
+later Parameter fields diverge, for example by decoding 10-bit 4:2:0 vectors
+as 8-bit streams with impossible subsampling and slice-grid values.
 
-This does not fully fix range-coded Parameter parsing. The focused vectors
-still diverge before or during quantization-table decoding, so the next target
-remains range-coded nonbinary symbol progression inside the Parameter section.
+The parser now applies the custom transition table only after the Parameter
+section has been read successfully. This also avoids mutating the caller's
+range reader when a later Parameter field is malformed.
+
+### QuantizationTable Context Scope
+
+The focused FFmpeg vectors require a fresh independent scalar context scope
+for each individual `QuantizationTable`. Reading all five tables under one
+shared `QuantizationTableSet` scope leaves impossible context counts such as
+`113699822`; per-table scopes produce valid context counts such as `365` and
+move every focused vector past configuration parsing.
 
 ## Rejected Hypotheses
 
@@ -154,6 +156,8 @@ should not be repeated without new evidence:
   breaks existing legacy non-keyframe reference-state tests.
 - For the 10-bit range-coded configuration, forcing the alternative state
   transition table after reading deltas.
+- Applying the custom state transition table immediately after
+  `state_transition_delta` within the Parameter section.
 - Decoding `state_transition_delta` with per-state or 256 independent
   parameter contexts.
 - Accepting `quant_table_set_count == 0` as if it were 1.
@@ -164,6 +168,8 @@ should not be repeated without new evidence:
 - Separating the range coder's binary `br` state from scalar state 0. This
   worsens the focused vector parse and contradicts the unit tests that pin
   binary symbols and scalar context 0 to the same range state.
+- Sharing one independent scalar context scope across all five
+  QuantizationTables in a QuantizationTableSet.
 
 ## Next Investigation Targets
 
@@ -194,10 +200,10 @@ range-coded header/content boundary before changing generic run-count carry
 behavior. Avoid relaxing padding or trailing-byte validation as a fix; doing so
 only hides the bitstream-position mismatch.
 
-The range-coded configuration mismatch should be investigated by tracing the
-Parameter section one scalar at a time. The first obviously wrong decoded field
-in 420p10 vectors is `bits_per_raw_sample`, which currently decodes as the
-compatibility value 0 and becomes 8 instead of decoding as 10. The one-slice
-gray vectors reach quantization-table parsing but decode impossible
-`len_counts=9,8,12,12,12`, which should be used as a smaller repro for
-nonbinary symbol state debugging.
+The range-coded configuration mismatch has been narrowed enough that the next
+target should move to slice/sample reconstruction. The current focused vectors
+either fail with `range coded scalar exponent is too large` inside slice decode
+or produce a full decoded frame whose bytes differ from the generated expected
+planes. Prioritize range-coded slice initial state selection, quant-table-set
+index usage, and expected sample packing/endianness before changing generic
+range nonbinary decoding again.

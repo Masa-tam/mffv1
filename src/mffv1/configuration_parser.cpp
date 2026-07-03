@@ -51,6 +51,7 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
                                   StreamParameters& out_stream) const
 {
     StreamParameters stream;
+    bool apply_custom_state_transition = false;
 
     std::uint64_t value = 0;
     Status status = read_u(reader, value);
@@ -100,10 +101,7 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
             }
             stream.state_transition[state] = static_cast<std::uint8_t>(transition);
         }
-        status = reader.set_state_transition(stream.state_transition);
-        if (!status.ok()) {
-            return status;
-        }
+        apply_custom_state_transition = true;
     } else {
         return make_error(ErrorCode::UnsupportedFeature, "unsupported range coder type");
     }
@@ -291,6 +289,13 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         stream.intra_only = value == 1;
     }
 
+    if (apply_custom_state_transition) {
+        status = reader.set_state_transition(stream.state_transition);
+        if (!status.ok()) {
+            return status;
+        }
+    }
+
     out_stream = std::move(stream);
     return ok_status();
 }
@@ -300,35 +305,28 @@ Status ConfigurationParser::parse_quant_table_set(entropy::SymbolReader& reader,
 {
     std::int64_t scale = 1;
     std::array<std::int64_t, QuantTableSet::kContextInputs> len_counts{};
-    Status status = reader.begin_independent_scalar_contexts(1);
-    if (!status.ok()) {
-        return status;
-    }
+    Status status;
     for (std::size_t table_index = 0; table_index < QuantTableSet::kContextInputs; ++table_index) {
         std::int64_t len_count = 0;
-        status = parse_quant_table(reader, out_set, table_index, scale, len_count);
+        status = reader.begin_independent_scalar_contexts(1);
         if (!status.ok()) {
-            const Status end_status = reader.end_independent_scalar_contexts();
-            if (!end_status.ok()) {
-                return end_status;
-            }
             return status;
+        }
+        status = parse_quant_table(reader, out_set, table_index, scale, len_count);
+        const Status end_status = reader.end_independent_scalar_contexts();
+        if (!status.ok()) {
+            return status;
+        }
+        if (!end_status.ok()) {
+            return end_status;
         }
         len_counts[table_index] = len_count;
 
         const std::int64_t multiplier = 2 * len_count - 1;
         if (multiplier <= 0 || scale > (std::numeric_limits<std::int64_t>::max() / multiplier)) {
-            const Status end_status = reader.end_independent_scalar_contexts();
-            if (!end_status.ok()) {
-                return end_status;
-            }
             return make_error(ErrorCode::SyntaxError, "quantization table scale overflow");
         }
         scale *= multiplier;
-    }
-    status = reader.end_independent_scalar_contexts();
-    if (!status.ok()) {
-        return status;
     }
 
     const std::int64_t context_count = (scale + 1) / 2;

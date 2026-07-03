@@ -156,25 +156,21 @@ Status ConfigurationRecordWriter::write_parameters(
         return status;
     }
 
-    status = writer.begin_independent_scalar_contexts(1);
-    if (!status.ok()) {
-        return status;
-    }
     for (std::size_t table = 0;
          table < syntax::QuantTableSet::kContextInputs;
          ++table) {
-        status = write_unsigned(127); // one run of 128 zero entries
+        status = writer.begin_independent_scalar_contexts(1);
         if (!status.ok()) {
-            const Status end_status = writer.end_independent_scalar_contexts();
-            if (!end_status.ok()) {
-                return end_status;
-            }
             return status;
         }
-    }
-    status = writer.end_independent_scalar_contexts();
-    if (!status.ok()) {
-        return status;
+        status = write_unsigned(127); // one run of 128 zero entries
+        const Status end_status = writer.end_independent_scalar_contexts();
+        if (!status.ok()) {
+            return end_status.ok() ? status : end_status;
+        }
+        if (!end_status.ok()) {
+            return end_status;
+        }
     }
 
     status = write_bool(false); // states_coded

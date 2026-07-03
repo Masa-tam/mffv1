@@ -96,6 +96,7 @@ public:
         const mffv1::syntax::StateTransitionTable& state_transition) override
     {
         ++state_transition_update_count_;
+        last_state_transition_update_symbol_count_ = consumed_symbol_count_;
         last_state_transition_ = state_transition;
         return mffv1::ok_status();
     }
@@ -108,6 +109,16 @@ public:
     [[nodiscard]] const mffv1::syntax::StateTransitionTable& last_state_transition() const noexcept
     {
         return last_state_transition_;
+    }
+
+    [[nodiscard]] std::size_t last_state_transition_update_symbol_count() const noexcept
+    {
+        return last_state_transition_update_symbol_count_;
+    }
+
+    [[nodiscard]] std::size_t consumed_symbol_count() const noexcept
+    {
+        return consumed_symbol_count_;
     }
 
     [[nodiscard]] std::size_t independent_scalar_begin_count() const noexcept
@@ -136,15 +147,18 @@ private:
         if (out_symbol.kind != expected) {
             return mffv1::make_error(mffv1::ErrorCode::InternalError, "scripted symbol kind mismatch");
         }
+        ++consumed_symbol_count_;
         return mffv1::ok_status();
     }
 
     std::deque<Symbol> symbols_;
+    std::size_t consumed_symbol_count_ = 0;
     mffv1::entropy::ContextId signed_read_count_ = 0;
     std::size_t independent_scalar_begin_count_ = 0;
     std::size_t independent_scalar_end_count_ = 0;
     std::size_t last_independent_scalar_context_count_ = 0;
     std::size_t state_transition_update_count_ = 0;
+    std::size_t last_state_transition_update_symbol_count_ = 0;
     mffv1::syntax::StateTransitionTable last_state_transition_{};
 };
 
@@ -221,7 +235,7 @@ TEST(ConfigurationParserTest, ParsesMinimalVersion3YOnlyParameters)
     EXPECT_EQ(stream.quant_table_sets[0].tables[0][128], 0);
 }
 
-TEST(ConfigurationParserTest, QuantTableSetUsesSingleIndependentScalarContextScope)
+TEST(ConfigurationParserTest, QuantTablesUseIndependentScalarContextScopePerTable)
 {
     ScriptedSymbolReader reader(minimal_v3_y_only_symbols());
     mffv1::syntax::ConfigurationParser parser;
@@ -230,8 +244,8 @@ TEST(ConfigurationParserTest, QuantTableSetUsesSingleIndependentScalarContextSco
     const auto status = parser.parse(reader, stream);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(reader.independent_scalar_begin_count(), 1u);
-    EXPECT_EQ(reader.independent_scalar_end_count(), 1u);
+    EXPECT_EQ(reader.independent_scalar_begin_count(), 5u);
+    EXPECT_EQ(reader.independent_scalar_end_count(), 5u);
     EXPECT_EQ(reader.last_independent_scalar_context_count(), 1u);
 }
 
@@ -396,6 +410,8 @@ TEST(ConfigurationParserTest, ParsesCustomRangeCoderStateTransitions)
     EXPECT_EQ(stream.state_transition[255], 0u);
     EXPECT_EQ(reader.state_transition_update_count(), 1u);
     EXPECT_EQ(reader.last_state_transition(), stream.state_transition);
+    EXPECT_EQ(reader.last_state_transition_update_symbol_count(),
+              reader.consumed_symbol_count());
 }
 
 TEST(ConfigurationParserTest, RejectsOutOfRangeCustomStateTransition)
@@ -412,6 +428,26 @@ TEST(ConfigurationParserTest, RejectsOutOfRangeCustomStateTransition)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(status.message, "custom range coder state transition is outside 0..255");
+}
+
+TEST(ConfigurationParserTest, DoesNotApplyCustomStateTransitionBeforeParametersSucceed)
+{
+    auto symbols = minimal_v3_y_only_symbols();
+    symbols[2] = u(2);
+    for (int state = 1; state < 256; ++state) {
+        symbols.insert(symbols.begin() + 2 + state, s(0));
+    }
+    symbols[258] = u(99); // colorspace_type after the inserted transition deltas
+    ScriptedSymbolReader reader(std::move(symbols));
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "unsupported colorspace_type");
+    EXPECT_EQ(reader.state_transition_update_count(), 0u);
 }
 
 TEST(ConfigurationParserTest, RejectsCustomStateTransitionAboveByteRange)

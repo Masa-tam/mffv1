@@ -9,15 +9,16 @@ repository test data.
 
 The local `testvectors/test_vector_data.hpp` set currently contains:
 
-- `smptebars_inter_420p.mkv`
-- `smptebars_intra_420p.mkv`
-- `smptebars_intra_420p10.mkv`
-- `smptebars_intra_444p.mkv`
-- `smptebars_intra_gray.mkv`
-- `smptebars_intra_yuva.mkv`
+- `range_intra_gray10_1slice.mkv`
+- `range_intra_420p10_1slice.mkv`
+- `range_intra_420p10_2x2.mkv`
+- `range_intra_420p8_1slice.mkv`
+- `gr_intra_gray8_1slice_flat.mkv`
+- `gr_intra_gray8_2x2_flat.mkv`
 
-With the current decoder, 8-bit Golomb-Rice vectors parse their slice footers
-and CRC correctly, but slice 0 reaches a Golomb-Rice run-state mismatch:
+The previous `smptebars_*` local set showed that 8-bit Golomb-Rice vectors
+parse their slice footers and CRC correctly, but slice 0 reaches a
+Golomb-Rice run-state mismatch:
 
 - `smptebars_inter_420p.mkv` and `smptebars_intra_420p.mkv` report
   `Golomb-Rice run extends beyond plane end at bit offset 411 plane=0` with
@@ -35,17 +36,29 @@ and CRC correctly, but slice 0 reaches a Golomb-Rice run-state mismatch:
 - The second frame of `smptebars_inter_420p.mkv` depends on the first frame
   succeeding before reference slice state can be available.
 
-The 10-bit vector currently fails during configuration parsing:
+The current requested compatibility vectors all fail during configuration
+parsing:
 
-- `quant_table_set_count must be in the range 1..8: 0 (version=3.4
-  entropy=range colorspace=0 bits=8 chroma=1 subsample=28,0 extra=0
-  slices=2x61) byte=155`
+- `range_intra_gray10_1slice.mkv` reports
+  `context_count is outside the supported range: 1348500920
+  (len_counts=9,41,22,95,121)`.
+- `range_intra_420p10_1slice.mkv` and `range_intra_420p10_2x2.mkv` report
+  `quant_table_set_count must be in the range 1..8: 0 (version=3.4
+  entropy=range colorspace=0 bits=8 chroma=1 subsample=50,3 extra=0
+  slices=1x1) byte=155`.
+- `range_intra_420p8_1slice.mkv` reports
+  `quantization table value overflow at table 4: value=80, scale=26861445`.
+- `gr_intra_gray8_1slice_flat.mkv` and `gr_intra_gray8_2x2_flat.mkv` report
+  the same `context_count is outside the supported range:
+  1348500920 (len_counts=9,41,22,95,121)` failure as the range-coded
+  gray10 one-slice vector.
 
-The parser has already decoded the 10-bit vector incorrectly before the
-quantization-table-set count. A 420p10 stream should not report 8-bit samples,
-horizontal subsampling 28, or a 2x61 slice grid. The remaining 10-bit issue is
-therefore earlier than quantization-table parsing, most likely in range-coded
-nonbinary symbol state progression for the Parameter section.
+The 420p10 parser has already decoded the stream incorrectly before the
+quantization-table-set count. A 420p10 stream should not report 8-bit samples
+or subsampling 50,3. The gray vectors avoid chroma fields but still produce
+impossible quantization table lengths, so the remaining issue is most likely in
+range-coded nonbinary symbol state progression for the Parameter section, not
+in chroma-specific parameter syntax.
 
 ## Confirmed Behaviors
 
@@ -160,7 +173,10 @@ range-coded header/content boundary before changing generic run-count carry
 behavior. Avoid relaxing padding or trailing-byte validation as a fix; doing so
 only hides the bitstream-position mismatch.
 
-The 10-bit range-coded configuration mismatch should be investigated by
-tracing the Parameter section one scalar at a time. The first obviously wrong
-decoded field is `bits_per_raw_sample`, which currently decodes as the
-compatibility value 0 and becomes 8 instead of decoding as 10.
+The range-coded configuration mismatch should be investigated by tracing the
+Parameter section one scalar at a time. The first obviously wrong decoded field
+in 420p10 vectors is `bits_per_raw_sample`, which currently decodes as the
+compatibility value 0 and becomes 8 instead of decoding as 10. The one-slice
+gray vectors reach quantization-table parsing but decode impossible
+`len_counts=9,41,22,95,121`, which should be used as a smaller repro for
+nonbinary symbol state debugging.

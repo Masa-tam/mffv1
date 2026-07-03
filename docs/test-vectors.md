@@ -96,6 +96,10 @@ Recommended naming pattern for local generated headers:
 - `gr_intra_gray8_1slice_flat`
 - `gr_intra_gray8_2x2_flat`
 
+In these names, `flat` means that the source image is spatially flat or nearly
+flat so that Golomb-Rice run mode is exercised heavily. Slice layout is named
+separately as `1slice` or `2x2`.
+
 When possible, keep the frame size modest, for example 32x24 or 64x48. The
 compatibility failures currently happen before large-frame behavior matters,
 and smaller vectors keep diagnostics and generated headers easier to inspect.

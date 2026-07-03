@@ -64,9 +64,15 @@ std::string describe_frame_parse(
         << "," << static_cast<int>(stream.log2_v_chroma_subsample)
         << " extra=" << stream.extra_plane
         << " grid=" << stream.num_h_slices << "x" << stream.num_v_slices
-        << " qsets=" << stream.quant_table_sets.size();
+        << " qsets=" << stream.quant_table_sets.size()
+        << " state8=" << static_cast<int>(stream.state_transition[8])
+        << " state128=" << static_cast<int>(stream.state_transition[128])
+        << " statesets=" << stream.initial_states.size();
     for (std::size_t i = 0; i < stream.quant_table_sets.size(); ++i) {
         out << " q" << i << "=" << stream.quant_table_sets[i].context_count;
+        if (i < stream.initial_states.size()) {
+            out << "/states" << stream.initial_states[i].contexts.size();
+        }
     }
     out
         << " slices=" << frame.slices.size();
@@ -135,7 +141,8 @@ std::uint32_t read_sample(std::span<const std::byte> bytes,
 
 void expect_plane_matches(std::span<const std::byte> actual,
                           std::span<const std::byte> expected,
-                          const mffv1::PlaneInfo& plane)
+                          const mffv1::PlaneInfo& plane,
+                          const std::string& frame_description)
 {
     ASSERT_EQ(actual.size(), expected.size());
     const auto mismatch = std::mismatch(actual.begin(), actual.end(), expected.begin());
@@ -167,7 +174,8 @@ void expect_plane_matches(std::span<const std::byte> actual,
         << " expected_sample=" << expected_sample
         << " width=" << plane.width
         << " height=" << plane.height
-        << " stride=" << plane.stride_bytes;
+        << " stride=" << plane.stride_bytes
+        << "\n" << frame_description;
 }
 
 void expect_decodes_frame(
@@ -211,8 +219,9 @@ void expect_decodes_frame(
 
     mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
     const auto status = decoder.decode_frame(frame_payload, output);
+    const auto frame_description = describe_frame_parse(vector, frame_payload);
     ASSERT_TRUE(status.ok()) << describe_status(status) << "\n"
-                             << describe_frame_parse(vector, frame_payload);
+                             << frame_description;
 
     for (std::size_t index = 0; index < expected_planes.size(); ++index) {
         const auto& expected = expected_planes[index];
@@ -220,7 +229,8 @@ void expect_decodes_frame(
         ASSERT_TRUE(compute_plane_size(expected, expected_size));
         const std::vector<std::byte> expected_bytes{
             expected.samples.begin(), expected.samples.begin() + expected_size};
-        expect_plane_matches(plane_storage[index], expected_bytes, expected.info);
+        expect_plane_matches(
+            plane_storage[index], expected_bytes, expected.info, frame_description);
     }
 }
 

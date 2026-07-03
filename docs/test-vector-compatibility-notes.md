@@ -181,6 +181,14 @@ should not be repeated without new evidence:
   transition table. The external vectors then fail while parsing the slice
   header, for example with `slice header rectangle is outside the slice raster
   byte=2`.
+- Switching only range-coded Slice Content back to the default state transition
+  after parsing the v3 Slice Header. Internal v3 tests still pass, but external
+  vectors move to earlier or more numerous range scalar failures, so this is
+  not compatible with the current FFmpeg vectors.
+- Reading a range termination sentinel between a v3 Slice Header and
+  range-coded Slice Content. This breaks the internal multi-slice range decode
+  test and worsens external vectors. Keep the sentinel only for the documented
+  transition from range-coded Slice Header to Golomb-Rice Slice Content.
 
 ## Next Investigation Targets
 
@@ -227,12 +235,16 @@ this fix improves v3 range configuration coverage but is not the direct cause
 of the present FFmpeg vector mismatch.
 
 The generated-vector test now reports the first byte and sample mismatch per
-plane instead of dumping whole buffers. The currently decoded range-coded
-vectors that reach frame comparison diverge at byte 0 / sample 0, for example
-`actual_sample=4 expected_sample=766` for `range_intra_gray10_1slice.mkv` and
-`actual_sample=4 expected_sample=180` for `range_intra_420p8_1slice.mkv`. This
-points the next investigation at the first range-coded sample decision,
-including initial sample context state, first context derivation, and predictor
+plane instead of dumping whole buffers, and includes stream transition and
+initial-state summaries in mismatch diagnostics. The currently decoded
+range-coded vectors that reach frame comparison diverge at byte 0 / sample 0,
+for example `actual_sample=4 expected_sample=766` for
+`range_intra_gray10_1slice.mkv` and `actual_sample=4 expected_sample=180` for
+`range_intra_420p8_1slice.mkv`. The parsed transition table has
+`state8=28 state128=165`, matching the alternative range transition, and the
+current vectors report no coded initial states (`states0`). This points the
+next investigation at the first range-coded sample decision, including first
+context derivation, arithmetic state after the Slice Header, and predictor
 border initialization.
 
 One additional slice-content boundary probe was tried and rejected: after

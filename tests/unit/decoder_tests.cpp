@@ -47,15 +47,25 @@ std::array<std::byte, 3> minimal_v0_golomb_rice_rgb_configuration_record()
     };
 }
 
-std::array<std::byte, 18> minimal_v3_y_only_configuration_record()
+std::vector<std::byte> minimal_v3_y_only_configuration_record()
 {
-    return {
-        std::byte{0x56}, std::byte{0x00}, std::byte{0x30}, std::byte{0x28},
-        std::byte{0x49}, std::byte{0xcd}, std::byte{0x9b}, std::byte{0x36},
-        std::byte{0x6c}, std::byte{0xd9}, std::byte{0xb3}, std::byte{0x66},
-        std::byte{0xc9}, std::byte{0x48}, std::byte{0x9c}, std::byte{0xd9},
-        std::byte{0x86}, std::byte{0x8d},
-    };
+    mffv1::syntax::StreamParameters stream;
+    stream.version = 3;
+    stream.micro_version = 4;
+    stream.entropy_mode = mffv1::EntropyMode::Range;
+    stream.bits_per_raw_sample = 8;
+    stream.colorspace_type = 0;
+    stream.chroma_planes = false;
+    stream.extra_plane = false;
+    stream.num_h_slices = 1;
+    stream.num_v_slices = 1;
+    stream.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
+    stream.intra_only = true;
+
+    std::vector<std::byte> record;
+    const auto status = mffv1::codec::ConfigurationRecordWriter{}.write(stream, record);
+    EXPECT_TRUE(status.ok()) << status.message;
+    return record;
 }
 
 std::array<std::byte, 2> zero_scalar_payload()
@@ -377,7 +387,7 @@ TEST(DecoderTest, ConfigureRejectsVersionThreeRecordWithCrcMismatch)
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
     EXPECT_EQ(status.message, "configuration record CRC remainder is non-zero");
     EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 14u);
+    EXPECT_EQ(status.location.byte_offset, configuration_record.size() - 4u);
 }
 
 TEST(DecoderTest, ConfigureChecksVersionThreeCrcBeforeParameterSyntax)

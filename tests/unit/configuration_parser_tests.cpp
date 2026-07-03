@@ -79,6 +79,19 @@ public:
         return read_signed(out_value);
     }
 
+    mffv1::Status begin_independent_scalar_contexts(std::size_t scalar_context_count) override
+    {
+        ++independent_scalar_begin_count_;
+        last_independent_scalar_context_count_ = scalar_context_count;
+        return mffv1::ok_status();
+    }
+
+    mffv1::Status end_independent_scalar_contexts() override
+    {
+        ++independent_scalar_end_count_;
+        return mffv1::ok_status();
+    }
+
     mffv1::Status set_state_transition(
         const mffv1::syntax::StateTransitionTable& state_transition) override
     {
@@ -97,6 +110,21 @@ public:
         return last_state_transition_;
     }
 
+    [[nodiscard]] std::size_t independent_scalar_begin_count() const noexcept
+    {
+        return independent_scalar_begin_count_;
+    }
+
+    [[nodiscard]] std::size_t independent_scalar_end_count() const noexcept
+    {
+        return independent_scalar_end_count_;
+    }
+
+    [[nodiscard]] std::size_t last_independent_scalar_context_count() const noexcept
+    {
+        return last_independent_scalar_context_count_;
+    }
+
 private:
     mffv1::Status pop(SymbolKind expected, Symbol& out_symbol)
     {
@@ -113,6 +141,9 @@ private:
 
     std::deque<Symbol> symbols_;
     mffv1::entropy::ContextId signed_read_count_ = 0;
+    std::size_t independent_scalar_begin_count_ = 0;
+    std::size_t independent_scalar_end_count_ = 0;
+    std::size_t last_independent_scalar_context_count_ = 0;
     std::size_t state_transition_update_count_ = 0;
     mffv1::syntax::StateTransitionTable last_state_transition_{};
 };
@@ -188,6 +219,20 @@ TEST(ConfigurationParserTest, ParsesMinimalVersion3YOnlyParameters)
     EXPECT_EQ(stream.quant_table_sets[0].tables[0][0], 0);
     EXPECT_EQ(stream.quant_table_sets[0].tables[0][127], 0);
     EXPECT_EQ(stream.quant_table_sets[0].tables[0][128], 0);
+}
+
+TEST(ConfigurationParserTest, QuantTableSetUsesSingleIndependentScalarContextScope)
+{
+    ScriptedSymbolReader reader(minimal_v3_y_only_symbols());
+    mffv1::syntax::ConfigurationParser parser;
+    mffv1::syntax::StreamParameters stream;
+
+    const auto status = parser.parse(reader, stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(reader.independent_scalar_begin_count(), 1u);
+    EXPECT_EQ(reader.independent_scalar_end_count(), 1u);
+    EXPECT_EQ(reader.last_independent_scalar_context_count(), 1u);
 }
 
 TEST(ConfigurationParserTest, RejectsUnstableVersion3MicroVersions)

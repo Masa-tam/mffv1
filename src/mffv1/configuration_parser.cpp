@@ -300,27 +300,35 @@ Status ConfigurationParser::parse_quant_table_set(entropy::SymbolReader& reader,
 {
     std::int64_t scale = 1;
     std::array<std::int64_t, QuantTableSet::kContextInputs> len_counts{};
+    Status status = reader.begin_independent_scalar_contexts(1);
+    if (!status.ok()) {
+        return status;
+    }
     for (std::size_t table_index = 0; table_index < QuantTableSet::kContextInputs; ++table_index) {
         std::int64_t len_count = 0;
-        Status status = reader.begin_independent_scalar_contexts(1);
-        if (!status.ok()) {
-            return status;
-        }
         status = parse_quant_table(reader, out_set, table_index, scale, len_count);
-        const Status end_status = reader.end_independent_scalar_contexts();
         if (!status.ok()) {
+            const Status end_status = reader.end_independent_scalar_contexts();
+            if (!end_status.ok()) {
+                return end_status;
+            }
             return status;
-        }
-        if (!end_status.ok()) {
-            return end_status;
         }
         len_counts[table_index] = len_count;
 
         const std::int64_t multiplier = 2 * len_count - 1;
         if (multiplier <= 0 || scale > (std::numeric_limits<std::int64_t>::max() / multiplier)) {
+            const Status end_status = reader.end_independent_scalar_contexts();
+            if (!end_status.ok()) {
+                return end_status;
+            }
             return make_error(ErrorCode::SyntaxError, "quantization table scale overflow");
         }
         scale *= multiplier;
+    }
+    status = reader.end_independent_scalar_contexts();
+    if (!status.ok()) {
+        return status;
     }
 
     const std::int64_t context_count = (scale + 1) / 2;

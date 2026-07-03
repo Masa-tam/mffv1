@@ -40,8 +40,8 @@ The current requested compatibility vectors all fail during configuration
 parsing:
 
 - `range_intra_gray10_1slice.mkv` reports
-  `context_count is outside the supported range: 1348500920
-  (len_counts=9,41,22,95,121)`.
+  `context_count is outside the supported range: 1551293
+  (len_counts=9,8,12,12,12)`.
 - `range_intra_420p10_1slice.mkv` reports
   `quant_table_set_count must be in the range 1..8: 0 (version=3.4
   entropy=range colorspace=0 bits=8 chroma=1 subsample=50,3 extra=0
@@ -51,9 +51,10 @@ parsing:
   entropy=range colorspace=0 bits=8 chroma=1 subsample=28,0 extra=0
   slices=2x61) byte=155`.
 - `range_intra_420p8_1slice.mkv` reports
-  `quantization table value overflow at table 4: value=80, scale=26861445`.
+  `context_count is outside the supported range: 92427836
+  (len_counts=26,36,17,46,9)`.
 - `gr_intra_gray8_1slice_flat.mkv` reports the same `context_count is outside
-  the supported range: 1348500920 (len_counts=9,41,22,95,121)` failure as the
+  the supported range: 1551293 (len_counts=9,8,12,12,12)` failure as the
   range-coded gray10 one-slice vector.
 - `gr_intra_gray8_2x2_flat.mkv` reports
   `quant_table_set_count must be in the range 1..8: 50 (version=3.4
@@ -124,6 +125,18 @@ Two direct content-offset probes were tried and rejected:
   the value returned after reading the termination sentinel remains the best
   local content offset.
 
+### QuantizationTableSet Context Scope
+
+RFC 9043 defines one independent initial-state scope for the whole
+`QuantizationTableSet`, not one reset per individual `QuantizationTable`.
+Changing the configuration parser and writer to share that scope across all
+five tables improved the focused gray vector failures from
+`len_counts=9,41,22,95,121` to `len_counts=9,8,12,12,12`.
+
+This does not fully fix range-coded Parameter parsing. The focused vectors
+still diverge before or during quantization-table decoding, so the next target
+remains range-coded nonbinary symbol progression inside the Parameter section.
+
 ## Rejected Hypotheses
 
 The following experiments did not improve external-vector compatibility and
@@ -141,8 +154,6 @@ should not be repeated without new evidence:
   breaks existing legacy non-keyframe reference-state tests.
 - For the 10-bit range-coded configuration, forcing the alternative state
   transition table after reading deltas.
-- Treating a whole quantization table set as sharing one range context while
-  parsing the configuration record.
 - Decoding `state_transition_delta` with per-state or 256 independent
   parameter contexts.
 - Accepting `quant_table_set_count == 0` as if it were 1.
@@ -150,6 +161,9 @@ should not be repeated without new evidence:
   state transition table.
 - Feeding the full Configuration Record, including the CRC parity bytes, to the
   range decoder instead of only the pre-CRC parameter payload.
+- Separating the range coder's binary `br` state from scalar state 0. This
+  worsens the focused vector parse and contradicts the unit tests that pin
+  binary symbols and scalar context 0 to the same range state.
 
 ## Next Investigation Targets
 
@@ -185,5 +199,5 @@ Parameter section one scalar at a time. The first obviously wrong decoded field
 in 420p10 vectors is `bits_per_raw_sample`, which currently decodes as the
 compatibility value 0 and becomes 8 instead of decoding as 10. The one-slice
 gray vectors reach quantization-table parsing but decode impossible
-`len_counts=9,41,22,95,121`, which should be used as a smaller repro for
+`len_counts=9,8,12,12,12`, which should be used as a smaller repro for
 nonbinary symbol state debugging.

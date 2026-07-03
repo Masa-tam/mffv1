@@ -60,6 +60,46 @@ data.
 Only generated vector data that is committed to the repository needs a registry
 entry with full provenance and license review.
 
+## Requested Local Compatibility Vectors
+
+The most useful local vectors are small, isolating cases that narrow one
+decoder subsystem at a time. Prefer single-frame intra files unless the
+scenario explicitly targets reference state.
+
+Current high-value requests:
+
+- Range-coded 10-bit Y-only, one slice, no chroma, no extra plane.
+  This isolates `bits_per_raw_sample` and the early Parameter section before
+  subsampling and multi-plane state are involved.
+- Range-coded 10-bit 420p, one slice.
+  This keeps the same pixel format family as the current failing vector while
+  removing slice-grid parsing and per-slice state interactions.
+- Range-coded 10-bit 420p, 2x2 slices.
+  This should match the current failing shape once the one-slice case parses.
+- Range-coded 8-bit 420p, one slice.
+  This is the closest control case for comparing Parameter-section scalar
+  decoding against the 10-bit vectors.
+- Golomb-Rice 8-bit gray, one slice, with simple flat or ramp input.
+  This reduces the current run-mode mismatch to a single plane without slice
+  grid interactions.
+- Golomb-Rice 8-bit gray, 2x2 slices, with the same source as the one-slice
+  gray vector.
+  This helps separate run-mode coding from slice payload location and footer
+  handling.
+
+Recommended naming pattern for local generated headers:
+
+- `range_intra_gray10_1slice`
+- `range_intra_420p10_1slice`
+- `range_intra_420p10_2x2`
+- `range_intra_420p8_1slice`
+- `gr_intra_gray8_1slice_flat`
+- `gr_intra_gray8_2x2_flat`
+
+When possible, keep the frame size modest, for example 32x24 or 64x48. The
+compatibility failures currently happen before large-frame behavior matters,
+and smaller vectors keep diagnostics and generated headers easier to inspect.
+
 ## Entry Template
 
 ```markdown

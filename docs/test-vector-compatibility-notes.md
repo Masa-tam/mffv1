@@ -62,8 +62,8 @@ The focused vectors previously failed before or during quantization-table
 parsing. Deferring application of custom `state_transition_delta` until after
 the full Parameter section and using independent scalar states per individual
 QuantizationTable moved all focused vectors past configuration parsing. The
-remaining issue is now in range-coded slice/sample reconstruction and generated
-sample interpretation rather than gross Parameter parsing.
+subsequent Slice Header context reset and Slice Content slot-bank fixes moved
+the current range-coded focused vectors to full frame reconstruction.
 
 ## Confirmed Behaviors
 
@@ -258,28 +258,19 @@ before changing generic range nonbinary decoding again.
 
 The binary `ConfigurationRecordParser` now initializes the Parameter range
 reader with all 32 scalar contexts so `states_coded == 1` can decode
-`initial_state_delta[i][j][k]` with `k` as the context index. The current local
-vectors still fail in the same slice/sample reconstruction modes, which implies
-this fix improves v3 range configuration coverage but is not the direct cause
-of the present FFmpeg vector mismatch.
+`initial_state_delta[i][j][k]` with `k` as the context index. This improves v3
+range configuration coverage and is part of the current passing baseline.
 
 The generated-vector test now reports the first byte and sample mismatch per
-plane instead of dumping whole buffers, and includes stream transition and
-initial-state summaries in mismatch diagnostics. The currently decoded
-range-coded vectors that reach frame comparison diverge at byte 0 / sample 0,
-for example `actual_sample=4 expected_sample=766` for
-`range_intra_gray10_1slice.mkv` and `actual_sample=4 expected_sample=180` for
-`range_intra_420p8_1slice.mkv`. The parsed transition table has
-`state8=28 state128=165`, matching the alternative range transition, and the
-current vectors report no coded initial states (`states0`). This points the
-next investigation at the first range-coded sample decision, including first
-context derivation, arithmetic state after the Slice Header, and predictor
-border initialization.
+plane instead of dumping whole buffers, and includes stream transition,
+initial-state summaries, and slice qidx values in mismatch diagnostics. Keep
+these diagnostics available for future vector additions even though the current
+focused range-coded vectors now pass.
 
 One additional slice-content boundary probe was tried and rejected: after
 validating a version 3 range-coded Slice Header, resetting the range decoder on
 `content_payload` instead of carrying the arithmetic state forward breaks the
 internal v3 decoder tests and moves external vectors to earlier range scalar
 failures. Keep the current model where Slice Header and range-coded Slice
-Content share the arithmetic state while only scalar contexts are reconfigured
-from the selected quantization table set indexes.
+Content share the arithmetic state while scalar contexts are reconfigured by
+Slice Header quantization-table index slot.

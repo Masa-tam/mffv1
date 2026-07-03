@@ -350,6 +350,19 @@ if (status.location.has_slice_index) {
 Byte offsets are relative to the frame or Configuration Record supplied to the
 failing public call. Slice indexes are zero-based in payload order.
 
+## Entropy State Notes
+
+For version 3 range-coded frames, the first slice's `keyframe` symbol and the
+Slice Header use separate default-initialized scalar context scopes. After the
+Slice Header has been parsed, Slice Content continues the same arithmetic range
+coder state but reconfigures scalar context banks from the Slice Header
+quantization-table index slots.
+
+Range-coded Slice Content banks are slot-based, not coded-plane-based. For
+YCbCr streams with chroma planes, luma uses slot 0 and both Cb and Cr use slot
+1. An optional extra plane uses its own slot. This behavior is part of the
+current compatibility baseline for generated FFV1 version 3 vectors.
+
 ## Implemented Decoder Coverage
 
 The current decoder implements:

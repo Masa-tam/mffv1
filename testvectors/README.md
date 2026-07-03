@@ -76,8 +76,9 @@ std::span<const DecodeVector> decode_vectors();
 ```
 
 The `samples` span for each plane must contain at least
-`info.stride_bytes * info.height` bytes. The tests compare those bytes exactly
-after decoding through the public decoder API.
+`info.stride_bytes * info.height` bytes. The tests compare only active sample
+bytes in each row, namely `info.width * bytes_per_sample`; stride padding is
+treated as caller-owned storage and is ignored by the comparison.
 
 `frame_payloads[index]` and `expected_planes[index]` describe one decoded
 frame. The tests configure one decoder per `DecodeVector`, then inspect and

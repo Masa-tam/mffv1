@@ -62,47 +62,51 @@ entry with full provenance and license review.
 
 ## Requested Local Compatibility Vectors
 
-The most useful local vectors are small, isolating cases that narrow one
-decoder subsystem at a time. Prefer single-frame intra files unless the
-scenario explicitly targets reference state.
+The first local compatibility set has validated basic v3 range decoding for
+10-bit gray, 8-bit and 10-bit 4:2:0, one-slice and 2x2 slice layouts, plus
+flat 8-bit Golomb-Rice gray controls. The next most useful local vectors should
+exercise less uniform content and syntax combinations that are not yet covered
+by the current local set.
 
 Current high-value requests:
 
-- Range-coded 10-bit Y-only, one slice, no chroma, no extra plane.
-  This isolates `bits_per_raw_sample` and the early Parameter section before
-  subsampling and multi-plane state are involved.
-- Range-coded 10-bit 420p, one slice.
-  This keeps the same pixel format family as the current failing vector while
-  removing slice-grid parsing and per-slice state interactions.
-- Range-coded 10-bit 420p, 2x2 slices.
-  This should match the current failing shape once the one-slice case parses.
-- Range-coded 8-bit 420p, one slice.
-  This is the closest control case for comparing Parameter-section scalar
-  decoding against the 10-bit vectors.
-- Golomb-Rice 8-bit gray, one slice, with simple flat or ramp input.
-  This reduces the current run-mode mismatch to a single plane without slice
-  grid interactions.
-- Golomb-Rice 8-bit gray, 2x2 slices, with the same source as the one-slice
-  gray vector.
-  This helps separate run-mode coding from slice payload location and footer
-  handling.
+- Range-coded 8-bit 4:2:0, one slice, with nonzero chroma gradients.
+  The current passing 4:2:0 controls begin with neutral chroma, so this probes
+  Cb/Cr prediction and shared chroma-slot range contexts beyond the first
+  neutral run.
+- Range-coded 10-bit 4:2:0, 2x2 slices, with nonzero chroma gradients.
+  This combines subsampling, multi-slice payload location, and chroma context
+  sharing under a higher bit depth.
+- Range-coded 8-bit YUVA or gray+alpha, one slice.
+  This verifies the extra-plane quant-table slot and range context bank
+  allocation separately from chroma.
+- Range-coded RGB or RGBA planar vectors that the generator accepts, one
+  slice. If a packed FFmpeg output is rejected by the generator, keep it out of
+  the local header and record that rejection outside the mffv1 tree.
+- A range-coded vector with nonzero quantization-table-set indexes in the Slice
+  Header, if the generator can produce one. This directly validates that range
+  context banks are shared by slot, not by qset value.
+- Golomb-Rice 8-bit gray with a ramp or checkerboard input, one slice.
+  The remaining historical Golomb-Rice failures were run-mode related; a
+  non-flat single-plane control helps isolate run interruption and scalar mode
+  transitions.
+- Golomb-Rice 8-bit 4:2:0, one slice, with modest non-flat content.
+  This probes Golomb-Rice plane ordering and context state after the
+  single-plane case is stable.
 
 Recommended naming pattern for local generated headers:
 
-- `range_intra_gray10_1slice`
-- `range_intra_420p10_1slice`
-- `range_intra_420p10_2x2`
-- `range_intra_420p8_1slice`
-- `gr_intra_gray8_1slice_flat`
-- `gr_intra_gray8_2x2_flat`
+- `range_intra_420p8_1slice_chroma_grad`
+- `range_intra_420p10_2x2_chroma_grad`
+- `range_intra_yuva8_1slice`
+- `range_intra_rgba8_1slice`, only if planar data is generated
+- `range_intra_420p8_1slice_qidx`
+- `gr_intra_gray8_1slice_ramp`
+- `gr_intra_420p8_1slice_ramp`
 
-In these names, `flat` means that the source image is spatially flat or nearly
-flat so that Golomb-Rice run mode is exercised heavily. Slice layout is named
-separately as `1slice` or `2x2`.
-
-When possible, keep the frame size modest, for example 32x24 or 64x48. The
-compatibility failures currently happen before large-frame behavior matters,
-and smaller vectors keep diagnostics and generated headers easier to inspect.
+When possible, keep the frame size modest, for example 32x24 or 64x48. Smaller
+vectors keep diagnostics and generated headers easier to inspect, while still
+covering the syntax and context-state behavior under test.
 
 ## Entry Template
 

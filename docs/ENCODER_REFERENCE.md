@@ -259,6 +259,20 @@ sample storage need to remain valid only until the call returns.
 When multiple slices fail, the reported error is selected by the lowest
 zero-based slice index, independent of worker completion order.
 
+### Range Context Scope
+
+For version 3 range-coded output, the encoder writes the first slice's
+`keyframe` symbol, resets scalar contexts to a fresh Slice Header scope, then
+continues the same arithmetic range coder state into Slice Content while
+reconfiguring scalar context banks from Slice Header quantization-table index
+slots.
+
+Range-coded Slice Content banks are slot-based. For YCbCr streams with chroma
+planes, luma uses slot 0 and both Cb and Cr use slot 1. An optional extra plane
+uses its own slot. The current public encoder writes the default quantization
+table set indexes, but this slot mapping is kept aligned with the decoder so
+custom table support can reuse the same state model later.
+
 ### Input Sample Validation
 
 Samples are unsigned. For bit depths below 16, every stored value must fit the

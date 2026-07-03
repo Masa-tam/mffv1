@@ -4,8 +4,10 @@
 #include "codec/frame_parser.hpp"
 #include "mffv1/codec.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
 #include <sstream>
 #include <span>
@@ -115,6 +117,59 @@ bool compute_plane_size(const mffv1_testvectors::PlaneVector& plane,
     return true;
 }
 
+std::uint8_t byte_value(std::byte value) noexcept
+{
+    return std::to_integer<std::uint8_t>(value);
+}
+
+std::uint32_t read_sample(std::span<const std::byte> bytes,
+                          std::size_t sample_offset,
+                          mffv1::SampleFormat format)
+{
+    if (format == mffv1::SampleFormat::UInt8) {
+        return byte_value(bytes[sample_offset]);
+    }
+    return static_cast<std::uint32_t>(byte_value(bytes[sample_offset]))
+        | (static_cast<std::uint32_t>(byte_value(bytes[sample_offset + 1])) << 8);
+}
+
+void expect_plane_matches(std::span<const std::byte> actual,
+                          std::span<const std::byte> expected,
+                          const mffv1::PlaneInfo& plane)
+{
+    ASSERT_EQ(actual.size(), expected.size());
+    const auto mismatch = std::mismatch(actual.begin(), actual.end(), expected.begin());
+    if (mismatch.first == actual.end()) {
+        return;
+    }
+
+    const auto byte_offset = static_cast<std::size_t>(mismatch.first - actual.begin());
+    const auto bytes_per_sample = plane.sample_format == mffv1::SampleFormat::UInt16
+        ? std::size_t{2}
+        : std::size_t{1};
+    const auto stride = static_cast<std::size_t>(plane.stride_bytes);
+    const auto y = byte_offset / stride;
+    const auto row_byte = byte_offset % stride;
+    const auto x = row_byte / bytes_per_sample;
+    const auto sample_offset = byte_offset - (row_byte % bytes_per_sample);
+    const auto actual_sample = read_sample(actual, sample_offset, plane.sample_format);
+    const auto expected_sample = read_sample(expected, sample_offset, plane.sample_format);
+
+    ADD_FAILURE()
+        << "plane mismatch at byte " << byte_offset
+        << " (x=" << x << " y=" << y << " row_byte=" << row_byte << ")"
+        << " actual_byte=0x" << std::hex << std::setw(2) << std::setfill('0')
+        << static_cast<int>(byte_value(*mismatch.first))
+        << " expected_byte=0x" << std::setw(2)
+        << static_cast<int>(byte_value(*mismatch.second))
+        << std::dec
+        << " actual_sample=" << actual_sample
+        << " expected_sample=" << expected_sample
+        << " width=" << plane.width
+        << " height=" << plane.height
+        << " stride=" << plane.stride_bytes;
+}
+
 void expect_decodes_frame(
     mffv1::IDecoder& decoder,
     const mffv1_testvectors::DecodeVector& vector,
@@ -165,7 +220,7 @@ void expect_decodes_frame(
         ASSERT_TRUE(compute_plane_size(expected, expected_size));
         const std::vector<std::byte> expected_bytes{
             expected.samples.begin(), expected.samples.begin() + expected_size};
-        EXPECT_EQ(plane_storage[index], expected_bytes);
+        expect_plane_matches(plane_storage[index], expected_bytes, expected.info);
     }
 }
 

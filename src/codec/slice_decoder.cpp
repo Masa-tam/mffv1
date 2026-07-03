@@ -990,6 +990,12 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                        "non-keyframe is invalid for an intra-only stream",
                                        slice.payload_byte_offset);
             }
+            const std::array<std::size_t, 1> slice_header_context_counts{1};
+            status = reader.reconfigure_contexts(slice_header_context_counts, {});
+            if (!status.ok()) {
+                add_byte_offset(status, slice.payload_byte_offset);
+                return status;
+            }
         }
 
         syntax::SliceDescriptor encoded_slice;

@@ -8,6 +8,7 @@
 #include "entropy/range_coder.hpp"
 #include "util/status.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -262,6 +263,13 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
             }
             status = validate_keyframe(stream_, keyframe, located_slice.payload_byte_offset);
             if (!status.ok()) {
+                set_slice_location_if_missing(status, located_slice.index);
+                return status;
+            }
+            const std::array<std::size_t, 1> slice_header_context_counts{1};
+            status = header_reader.reconfigure_contexts(slice_header_context_counts, {});
+            if (!status.ok()) {
+                add_byte_offset(status, located_slice.payload_byte_offset);
                 set_slice_location_if_missing(status, located_slice.index);
                 return status;
             }

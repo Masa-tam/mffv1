@@ -294,6 +294,11 @@ Status SliceEncoder::encode_slice(
         if (!status.ok()) {
             return status;
         }
+        const std::array<std::size_t, 1> slice_header_context_counts{1};
+        status = writer.reconfigure_contexts(slice_header_context_counts, {});
+        if (!status.ok()) {
+            return status;
+        }
     }
 
     const SliceHeaderWriter header_writer;

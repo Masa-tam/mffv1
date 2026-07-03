@@ -2,6 +2,8 @@
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_executor.hpp"
 #include "codec/slice_footer_writer.hpp"
+#include "codec/slice_header_writer.hpp"
+#include "entropy/range_encoder.hpp"
 #include "util/crc32.hpp"
 
 #include <array>
@@ -134,6 +136,28 @@ std::uint32_t read_trailing_crc(const std::vector<std::byte>& payload)
         | (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(payload[size - 3])) << 16)
         | (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(payload[size - 2])) << 8)
         | static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(payload[size - 1]));
+}
+
+std::vector<std::byte> make_range_header_payload(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::codec::SliceHeaderValues& values,
+    bool write_keyframe,
+    bool keyframe)
+{
+    mffv1::entropy::RangeEncoder writer;
+    EXPECT_TRUE(writer.reset(stream.state_transition).ok());
+    if (write_keyframe) {
+        EXPECT_TRUE(writer.write_bool(keyframe).ok());
+        const std::array<std::size_t, 1> slice_header_context_counts{1};
+        EXPECT_TRUE(writer.reconfigure_contexts(slice_header_context_counts, {}).ok());
+    }
+    const mffv1::codec::SliceHeaderWriter header_writer;
+    EXPECT_TRUE(header_writer.write(writer, stream, values).ok());
+    std::vector<std::byte> payload;
+    EXPECT_TRUE(writer.finalize(payload).ok());
+    const mffv1::codec::SliceFooterWriter footer_writer;
+    EXPECT_TRUE(footer_writer.append(stream, 0, payload).ok());
+    return payload;
 }
 
 TEST(FrameParserTest, RejectsEmptyPayload)
@@ -1203,14 +1227,11 @@ TEST(FrameParserTest, AcceptsSingleSliceCoveringMultipleRasterCells)
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
     mffv1::codec::FrameDecodeContext frame;
-    const std::array payload{
-        std::byte{0xe2},
-        std::byte{0x1c},
-        std::byte{0xcd},
-        std::byte{0x00},
-        std::byte{0x00},
-        std::byte{0x03},
-    };
+    mffv1::codec::SliceHeaderValues values;
+    values.width = 2;
+    values.height = 1;
+    values.quant_table_set_indexes = {0, 0};
+    const auto payload = make_range_header_payload(stream, values, true, true);
 
     const auto status = parser.parse_with_range_header(payload, frame);
 

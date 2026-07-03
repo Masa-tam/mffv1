@@ -39,25 +39,25 @@ Golomb-Rice run-state mismatch:
 The current requested compatibility vectors now all pass configuration parsing
 and reach frame decode. Version 3 frames use the range-coded slice
 header/footer path even when the stream has a 1x1 slice grid; treating a v3
-single-slice payload as legacy whole-slice content skips the two-byte slice
-header and misplaces the content boundary.
+single-slice payload as legacy whole-slice content skips the slice header and
+misplaces the content boundary.
 
-- `range_intra_gray10_1slice.mkv` configures and decodes a frame, but the
-  reconstructed plane differs from the generated expected samples.
-- `range_intra_420p10_1slice.mkv` configures as `bits=10 chroma=1
-  subsample=1,1 grid=1x1 qsets=2 q0=365 q1=5063`, then fails slice decode with
-  `range coded scalar exponent is too large byte=218 slice=0`. The single
-  located slice uses `content=2 footer=1282`.
-- `range_intra_420p10_2x2.mkv` configures and decodes, but the reconstructed
-  chroma planes differ from the generated expected samples.
-- `range_intra_420p8_1slice.mkv` configures and decodes, but reconstructed
-  planes differ from the generated expected samples.
-- `gr_intra_gray8_1slice_flat.mkv` configures as `bits=10 chroma=0
-  subsample=0,0 grid=1x1 qsets=2 q0=365 q1=5063`, then fails slice decode with
-  `range coded scalar exponent is too large byte=566 slice=0`. The single
-  located slice uses `content=2 footer=820`.
-- `gr_intra_gray8_2x2_flat.mkv` configures and decodes, but the reconstructed
-  plane differs from the generated expected samples.
+After resetting the range scalar context scope between the first-slice
+`keyframe` symbol and the version 3 Slice Header, the focused vectors moved
+from content offset 2 to content offset 3 and the single-plane range and flat
+Golomb-Rice vectors pass the generated-vector decode test. The remaining local
+failures are the range-coded 4:2:0 vectors:
+
+- `range_intra_420p10_1slice.mkv` decodes to frame comparison, then plane 2
+  differs at sample 0: `actual_sample=1 expected_sample=512`.
+- `range_intra_420p10_2x2.mkv` decodes to frame comparison, then plane 2
+  differs at sample 0: `actual_sample=1 expected_sample=512`.
+- `range_intra_420p8_1slice.mkv` decodes to frame comparison, then plane 2
+  differs at sample 0: `actual_sample=1 expected_sample=128`.
+
+The generated-vector comparison now ignores output stride padding and checks
+only active row bytes. Padding bytes are caller-owned output storage, not a
+codec reconstruction mismatch.
 
 The focused vectors previously failed before or during quantization-table
 parsing. Deferring application of custom `state_transition_delta` until after
@@ -144,6 +144,21 @@ shared `QuantizationTableSet` scope leaves impossible context counts such as
 `113699822`; per-table scopes produce valid context counts such as `365` and
 move every focused vector past configuration parsing.
 
+### Version 3 Slice Header Context Scope
+
+RFC 9043 gives the Frame `keyframe` symbol and Slice Header their own initial
+range states. The real range-coded parse/decode/encode paths now write or read
+the first-slice `keyframe` symbol, then reconfigure scalar contexts to a fresh
+single default-initialized Slice Header context before processing the Slice
+Header. Slice Content still carries the arithmetic coder state forward from
+the Slice Header, but reconfigures scalar contexts from the selected
+quantization-table-set indexes.
+
+This change is required by the current FFmpeg-generated vectors: without it,
+the first Slice Header consumes only two bytes and later sample decoding
+diverges earlier. With it, the content offset for the focused v3 range vectors
+is three bytes and single-plane focused vectors pass.
+
 ## Rejected Hypotheses
 
 The following experiments did not improve external-vector compatibility and
@@ -220,12 +235,12 @@ behavior. Avoid relaxing padding or trailing-byte validation as a fix; doing so
 only hides the bitstream-position mismatch.
 
 The range-coded configuration mismatch has been narrowed enough that the next
-target should move to slice/sample reconstruction. The current focused vectors
-either fail with `range coded scalar exponent is too large` inside slice decode
-or produce a full decoded frame whose bytes differ from the generated expected
-planes. Prioritize range-coded slice initial state selection, quant-table-set
-index usage, and expected sample packing/endianness before changing generic
-range nonbinary decoding again.
+target should move to range-coded 4:2:0 chroma reconstruction. The current
+focused vectors that still fail all decode a full frame and then diverge at
+the first active sample of plane 2. Prioritize chroma plane order, per-plane
+quant-table-set selection, subsampled plane boundary initialization, and
+expected sample interpretation before changing generic range nonbinary
+decoding again.
 
 The binary `ConfigurationRecordParser` now initializes the Parameter range
 reader with all 32 scalar contexts so `states_coded == 1` can decode

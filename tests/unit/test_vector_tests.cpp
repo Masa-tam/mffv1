@@ -139,18 +139,13 @@ std::uint32_t read_sample(std::span<const std::byte> bytes,
         | (static_cast<std::uint32_t>(byte_value(bytes[sample_offset + 1])) << 8);
 }
 
-void expect_plane_matches(std::span<const std::byte> actual,
-                          std::span<const std::byte> expected,
-                          const mffv1::PlaneInfo& plane,
-                          const std::string& frame_description)
+void report_plane_mismatch(std::span<const std::byte> actual,
+                           std::span<const std::byte> expected,
+                           std::size_t byte_offset,
+                           std::size_t plane_index,
+                           const mffv1::PlaneInfo& plane,
+                           const std::string& frame_description)
 {
-    ASSERT_EQ(actual.size(), expected.size());
-    const auto mismatch = std::mismatch(actual.begin(), actual.end(), expected.begin());
-    if (mismatch.first == actual.end()) {
-        return;
-    }
-
-    const auto byte_offset = static_cast<std::size_t>(mismatch.first - actual.begin());
     const auto bytes_per_sample = plane.sample_format == mffv1::SampleFormat::UInt16
         ? std::size_t{2}
         : std::size_t{1};
@@ -163,12 +158,13 @@ void expect_plane_matches(std::span<const std::byte> actual,
     const auto expected_sample = read_sample(expected, sample_offset, plane.sample_format);
 
     ADD_FAILURE()
-        << "plane mismatch at byte " << byte_offset
+        << "plane " << plane_index
+        << " mismatch at byte " << byte_offset
         << " (x=" << x << " y=" << y << " row_byte=" << row_byte << ")"
         << " actual_byte=0x" << std::hex << std::setw(2) << std::setfill('0')
-        << static_cast<int>(byte_value(*mismatch.first))
+        << static_cast<int>(byte_value(actual[byte_offset]))
         << " expected_byte=0x" << std::setw(2)
-        << static_cast<int>(byte_value(*mismatch.second))
+        << static_cast<int>(byte_value(expected[byte_offset]))
         << std::dec
         << " actual_sample=" << actual_sample
         << " expected_sample=" << expected_sample
@@ -176,6 +172,35 @@ void expect_plane_matches(std::span<const std::byte> actual,
         << " height=" << plane.height
         << " stride=" << plane.stride_bytes
         << "\n" << frame_description;
+}
+
+void expect_plane_matches(std::span<const std::byte> actual,
+                          std::span<const std::byte> expected,
+                          std::size_t plane_index,
+                          const mffv1::PlaneInfo& plane,
+                          const std::string& frame_description)
+{
+    ASSERT_EQ(actual.size(), expected.size());
+    const auto bytes_per_sample = plane.sample_format == mffv1::SampleFormat::UInt16
+        ? std::size_t{2}
+        : std::size_t{1};
+    const auto stride = static_cast<std::size_t>(plane.stride_bytes);
+    const auto active_row_bytes = static_cast<std::size_t>(plane.width) * bytes_per_sample;
+    ASSERT_LE(active_row_bytes, stride);
+    for (std::uint32_t y = 0; y < plane.height; ++y) {
+        const auto row_offset = static_cast<std::size_t>(y) * stride;
+        const auto actual_row = actual.subspan(row_offset, active_row_bytes);
+        const auto expected_row = expected.subspan(row_offset, active_row_bytes);
+        const auto mismatch = std::mismatch(
+            actual_row.begin(), actual_row.end(), expected_row.begin());
+        if (mismatch.first != actual_row.end()) {
+            const auto byte_offset = row_offset
+                + static_cast<std::size_t>(mismatch.first - actual_row.begin());
+            report_plane_mismatch(
+                actual, expected, byte_offset, plane_index, plane, frame_description);
+            return;
+        }
+    }
 }
 
 void expect_decodes_frame(
@@ -230,7 +255,7 @@ void expect_decodes_frame(
         const std::vector<std::byte> expected_bytes{
             expected.samples.begin(), expected.samples.begin() + expected_size};
         expect_plane_matches(
-            plane_storage[index], expected_bytes, expected.info, frame_description);
+            plane_storage[index], expected_bytes, index, expected.info, frame_description);
     }
 }
 

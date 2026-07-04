@@ -1487,7 +1487,7 @@ TEST(DecoderTest, InspectFramePreservesGolombRiceReferenceState)
     EXPECT_EQ(info.entropy_mode, mffv1::EntropyMode::GolombRice);
 
     storage.fill(0xdd);
-    const std::array non_keyframe_payload{std::byte{0x70}};
+    const std::array non_keyframe_payload{std::byte{0x7e}};
     const auto status =
         result.decoder->decode_frame(non_keyframe_payload, output);
 
@@ -1737,7 +1737,7 @@ TEST(DecoderTest, DecodeFrameContinuesLegacyGolombRiceNonKeyframe)
     mffv1::MutableFrameView output{&plane, 1};
     const std::array keyframe_payload{std::byte{0xfe}};
     ASSERT_TRUE(result.decoder->decode_frame(keyframe_payload, output).ok());
-    const std::array non_keyframe_payload{std::byte{0x70}};
+    const std::array non_keyframe_payload{std::byte{0x7e}};
 
     const auto status = result.decoder->decode_frame(non_keyframe_payload, output);
 
@@ -1775,7 +1775,7 @@ TEST(DecoderTest, FailedGolombRiceSliceDecodePreservesReferenceState)
     EXPECT_TRUE(failed_status.location.has_byte_offset);
     EXPECT_EQ(failed_status.location.byte_offset, 0u);
 
-    const std::array non_keyframe_payload{std::byte{0x70}};
+    const std::array non_keyframe_payload{std::byte{0x7e}};
     const auto status = result.decoder->decode_frame(non_keyframe_payload, output);
 
     EXPECT_TRUE(status.ok()) << status.message;

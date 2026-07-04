@@ -285,6 +285,9 @@ also worsens the vectors, leaving the RFC state update order intact.
 Resetting Golomb-Rice VLC context state at every decoded line, even as a coarse
 experiment combined with run-state reset, also worsens the refreshed vectors;
 the remaining issue is not explained by a simple per-line VLC scope.
+Flipping the Q3 gradient from the RFC's `L-l` direction to `l-L` also worsens
+the refreshed vectors and is not compatible with the pinned border-context
+unit test.
 
 The RFC 9043 Slice syntax places `SliceContent()` immediately after
 `SliceHeader()` and defines Golomb-Rice padding only after the content. The

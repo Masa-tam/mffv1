@@ -631,6 +631,9 @@ Status SliceEncoder::encode_golomb_rice_samples(
     if (!prepare_status.ok()) {
         return prepare_status;
     }
+    for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+        state.golomb_rice_run_state(plane_index).reset();
+    }
     entropy::GolombRiceWriter writer(bit_writer);
     const std::uint32_t maximum_sample =
         stream_.bits_per_raw_sample == 16

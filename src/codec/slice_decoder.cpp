@@ -464,6 +464,9 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         return status;
     }
     std::vector<std::uint64_t> plane_end_bits(output.plane_count(), 0);
+    for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
+        state.golomb_rice_run_state(plane).reset();
+    }
 
     bitstream::BitReader bit_reader(payload);
     status = bit_reader.skip_bits(content_bit_offset);

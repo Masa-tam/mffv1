@@ -1284,6 +1284,41 @@ TEST(SliceDecoderTest, DecodesGolombRiceRgbZeroRunsInLineOrder)
     EXPECT_EQ(b[0], 128u);
 }
 
+TEST(SliceDecoderTest, ResetsGolombRiceRunIndexAtSliceStart)
+{
+    auto stream = make_stream();
+    stream.width = 3;
+    stream.height = 1;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    std::array<std::uint8_t, 3> y{0xee, 0xee, 0xee};
+    std::array<mffv1::MutablePlaneView, 1> planes{};
+    planes[0] = {y.data(), {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 3, 1, 3}};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
+    const std::array<std::byte, 1> payload{std::byte{0xe0}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 3;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    const std::array<std::size_t, 1> context_counts{1};
+    ASSERT_TRUE(state.prepare_golomb_rice(context_counts, 1).ok());
+    state.golomb_rice_run_state(0).run_index = 4;
+    state.golomb_rice_run_state(0).pending_count = 3;
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(y, (std::array<std::uint8_t, 3>{0, 0, 0}));
+    EXPECT_EQ(state.golomb_rice_run_state(0).pending_count, 0u);
+}
+
 TEST(SliceDecoderTest, DecodesGolombRiceRgbRunInterruptionsWithAlpha)
 {
     auto stream = make_stream();

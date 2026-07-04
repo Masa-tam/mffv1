@@ -327,6 +327,11 @@ when the public API correctly withholds failed fallback output. With untouched
 slice areas ignored, both the 1-slice and 2x2 flat/SMPTE vectors report their
 first luma mismatch at `x=0,y=4`; the y-gradient control still differs earlier
 at `x=0,y=1`.
+The partial mismatch diagnostic now also reports reconstructed neighbor samples
+from both the partial output and expected plane. The refreshed GR vectors show
+matching neighbor values at the first mismatch, so the next useful probes
+should focus on Golomb-Rice scalar/VLC symbol consumption or context state,
+not on a decoded-sample neighbor history mismatch.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

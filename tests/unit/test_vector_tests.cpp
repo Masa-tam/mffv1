@@ -106,6 +106,66 @@ std::string describe_frame_parse(
     return out.str();
 }
 
+std::uint32_t sample_at(std::span<const std::byte> bytes,
+                        const mffv1::PlaneInfo& plane,
+                        std::uint32_t x,
+                        std::uint32_t y)
+{
+    const auto bytes_per_sample = plane.sample_format == mffv1::SampleFormat::UInt16
+        ? std::size_t{2}
+        : std::size_t{1};
+    const auto offset = static_cast<std::size_t>(y)
+            * static_cast<std::size_t>(plane.stride_bytes)
+        + static_cast<std::size_t>(x) * bytes_per_sample;
+    return read_sample(bytes, offset, plane.sample_format);
+}
+
+std::uint32_t previous_sample_or_zero(std::span<const std::byte> bytes,
+                                      const mffv1::PlaneInfo& plane,
+                                      std::uint32_t x,
+                                      std::uint32_t y)
+{
+    return y == 0 ? 0 : sample_at(bytes, plane, x, y - 1);
+}
+
+std::uint32_t second_previous_sample_or_zero(std::span<const std::byte> bytes,
+                                             const mffv1::PlaneInfo& plane,
+                                             std::uint32_t x,
+                                             std::uint32_t y)
+{
+    return y < 2 ? 0 : sample_at(bytes, plane, x, y - 2);
+}
+
+std::string describe_mismatch_neighbors(std::span<const std::byte> bytes,
+                                        const mffv1::PlaneInfo& plane,
+                                        std::uint32_t x,
+                                        std::uint32_t y)
+{
+    const auto far_left = x > 1
+        ? sample_at(bytes, plane, x - 2, y)
+        : (x == 1 ? previous_sample_or_zero(bytes, plane, 0, y) : 0);
+    const auto left = x > 0
+        ? sample_at(bytes, plane, x - 1, y)
+        : previous_sample_or_zero(bytes, plane, 0, y);
+    const auto top = previous_sample_or_zero(bytes, plane, x, y);
+    const auto top_left = x > 0
+        ? previous_sample_or_zero(bytes, plane, x - 1, y)
+        : second_previous_sample_or_zero(bytes, plane, 0, y);
+    const auto top_right = (x + 1) < plane.width
+        ? previous_sample_or_zero(bytes, plane, x + 1, y)
+        : previous_sample_or_zero(bytes, plane, x, y);
+    const auto top_top = second_previous_sample_or_zero(bytes, plane, x, y);
+    std::ostringstream out;
+    out << "L/l/t/tl/tr/T="
+        << far_left << "/"
+        << left << "/"
+        << top << "/"
+        << top_left << "/"
+        << top_right << "/"
+        << top_top;
+    return out.str();
+}
+
 std::string describe_first_partial_mismatch(
     std::span<const std::byte> actual,
     std::span<const std::byte> expected,
@@ -142,7 +202,13 @@ std::string describe_first_partial_mismatch(
             << " y=" << y
             << " byte=" << byte_offset
             << " actual_sample=" << read_sample(actual, sample_offset, plane.sample_format)
-            << " expected_sample=" << read_sample(expected, sample_offset, plane.sample_format);
+            << " expected_sample=" << read_sample(expected, sample_offset, plane.sample_format)
+            << " actual_neighbors="
+            << describe_mismatch_neighbors(
+                   actual, plane, static_cast<std::uint32_t>(x), y)
+            << " expected_neighbors="
+            << describe_mismatch_neighbors(
+                   expected, plane, static_cast<std::uint32_t>(x), y);
         return out.str();
     }
     return {};

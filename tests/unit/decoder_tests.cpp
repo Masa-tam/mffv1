@@ -1771,7 +1771,8 @@ TEST(DecoderTest, FailedGolombRiceSliceDecodePreservesReferenceState)
     EXPECT_EQ(failed_status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(failed_status.message,
               "Golomb-Rice payload contains trailing bytes at bit offset 8 "
-              "plane_end_bits=0:7 run_states=0:6/0");
+              "plane_end_bits=0:7 run_states=0:6/0 "
+              "remaining_bits=8 next_bytes=0");
     EXPECT_TRUE(failed_status.location.has_byte_offset);
     EXPECT_EQ(failed_status.location.byte_offset, 1u);
 

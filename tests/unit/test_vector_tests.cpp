@@ -327,6 +327,46 @@ std::string describe_context_terms(
     return out.str();
 }
 
+std::string describe_compact_trace(
+    const mffv1::codec::GolombRiceSampleTrace& trace,
+    std::span<const std::byte> content_payload)
+{
+    const auto rice_k =
+        derive_golomb_rice_k_for_diagnostic(trace.adaptive_state_before);
+    std::ostringstream out;
+    out << "p" << trace.plane
+        << ":" << trace.y << "," << trace.x
+        << " c" << trace.context.context
+        << (trace.context.invert_difference ? "i" : "")
+        << (trace.run_interruption ? " ri" : "")
+        << " b" << trace.bit_position_before
+        << "-" << trace.bit_position_after
+        << "("
+        << describe_bit_range(
+               content_payload, trace.bit_position_before, trace.bit_position_after)
+        << ")"
+        << " k" << static_cast<int>(rice_k)
+        << " d" << trace.difference
+        << " s" << trace.reconstructed_sample
+        << " r"
+        << static_cast<int>(trace.run_state_before.run_index)
+        << "/" << trace.run_state_before.pending_count
+        << ">"
+        << static_cast<int>(trace.run_state_after.run_index)
+        << "/" << trace.run_state_after.pending_count
+        << " a"
+        << trace.adaptive_state_before.drift << "/"
+        << trace.adaptive_state_before.error_sum << "/"
+        << trace.adaptive_state_before.bias << "/"
+        << trace.adaptive_state_before.count
+        << ">"
+        << trace.adaptive_state_after.drift << "/"
+        << trace.adaptive_state_after.error_sum << "/"
+        << trace.adaptive_state_after.bias << "/"
+        << trace.adaptive_state_after.count;
+    return out.str();
+}
+
 class FirstGolombRiceMismatchObserver final : public mffv1::codec::SliceDecodeObserver {
 public:
     explicit FirstGolombRiceMismatchObserver(
@@ -356,6 +396,7 @@ public:
         const auto expected_sample =
             sample_at(expected.samples, expected.info, trace.x, trace.y);
         if (static_cast<std::uint32_t>(trace.reconstructed_sample) == expected_sample) {
+            remember_trace(trace);
             return;
         }
         const auto expected_difference = mffv1::syntax::Predictor::difference(
@@ -402,6 +443,16 @@ public:
                 trace.neighbors,
                 quant_table_sets_[plane_quant_table_set_indexes_[trace.plane]]);
         }
+        if (!recent_traces_.empty()) {
+            out << " previous=[";
+            for (std::size_t i = 0; i < recent_traces_.size(); ++i) {
+                if (i != 0) {
+                    out << "; ";
+                }
+                out << recent_traces_[i];
+            }
+            out << "]";
+        }
         description_ = out.str();
     }
 
@@ -411,11 +462,21 @@ public:
     }
 
 private:
+    void remember_trace(const mffv1::codec::GolombRiceSampleTrace& trace)
+    {
+        if (recent_traces_.size() == kRecentTraceLimit) {
+            recent_traces_.erase(recent_traces_.begin());
+        }
+        recent_traces_.push_back(describe_compact_trace(trace, content_payload_));
+    }
+
+    static constexpr std::size_t kRecentTraceLimit = 8;
     std::span<const mffv1_testvectors::PlaneVector> expected_planes_;
     std::span<const std::byte> content_payload_;
     std::span<const mffv1::syntax::QuantTableSet> quant_table_sets_;
     std::span<const std::uint32_t> plane_quant_table_set_indexes_;
     std::uint8_t bits_per_raw_sample_ = 0;
+    std::vector<std::string> recent_traces_;
     std::string description_;
 };
 

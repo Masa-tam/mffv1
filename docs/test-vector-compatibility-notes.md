@@ -288,6 +288,11 @@ the remaining issue is not explained by a simple per-line VLC scope.
 Flipping the Q3 gradient from the RFC's `L-l` direction to `l-L` also worsens
 the refreshed vectors and is not compatible with the pinned border-context
 unit test.
+Changing the leftmost sample's `L` neighbor from the RFC additional-zero
+border column to the shifted left-border sample also worsens the refreshed
+vectors. It removes the later `x=0,y=4` scalar-context symptom, but causes an
+earlier flat/SMPTE mismatch at `x=1,y=2` after a run interruption, so the
+RFC border model remains the current baseline.
 
 The RFC 9043 Slice syntax places `SliceContent()` immediately after
 `SliceHeader()` and defines Golomb-Rice padding only after the content. The

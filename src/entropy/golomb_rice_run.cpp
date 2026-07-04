@@ -66,7 +66,6 @@ Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
             }
             ++next_run_index;
         } else {
-            state.pending_count = segment.count - (width - x);
             segment.count = width - x;
         }
     } else {

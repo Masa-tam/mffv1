@@ -273,6 +273,16 @@ byte-aligned. Diagnostic partial-output runs show the first stable luma
 mismatch at the start of row 4 (`y=4,x=0`, actual one sample above or below
 expected depending on the vector), before the later underflow.
 
+Additional diagnostics on the flat vector show that the first stable mismatch
+is not a run-interruption symbol. It is a scalar symbol with neighbors
+`l=t=tl=tr=T=126` and `L=0`, which is the RFC border model's additional left
+column. With the selected qset 1, `Q3[L-l]` is `Q3[-126] = -1210`, producing
+`context=1210` with sign inversion. qset 0 has `Q3[-126] = 0`, but forcing GR
+content to qset 0 makes the refreshed vectors diverge later and more broadly,
+so the selected qset 1 remains the correct interpretation. Updating VLC
+context state from the biased decoded difference instead of the pre-bias `v`
+also worsens the vectors, leaving the RFC state update order intact.
+
 The RFC 9043 Slice syntax places `SliceContent()` immediately after
 `SliceHeader()` and defines Golomb-Rice padding only after the content. The
 observed FFmpeg vectors behave as if the byte already read ahead by the range

@@ -68,6 +68,22 @@ TEST(ContextModelTest, NegativeFoldUsesMagnitude)
     EXPECT_TRUE(decision.invert_difference);
 }
 
+TEST(ContextModelTest, LeftSliceBorderCanContributeFarLeftGradient)
+{
+    mffv1::syntax::QuantTableSet tables;
+    tables.context_count = 1211;
+    tables.tables[3][130] = -1210; // (0 - 126) & 255
+    const mffv1::syntax::ContextModel model(tables);
+    mffv1::syntax::ContextDecision decision;
+
+    const auto status = model.derive_context({0, 126, 126, 126, 126, 126},
+                                             decision);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(decision.context, 1210u);
+    EXPECT_TRUE(decision.invert_difference);
+}
+
 TEST(ContextModelTest, RejectsFoldedContextOutsideConfiguredRange)
 {
     mffv1::syntax::QuantTableSet tables;

@@ -93,6 +93,22 @@ TEST(GolombRiceContextTest, RescalesStateAtCountLimit)
     EXPECT_EQ(state.count, 65);
 }
 
+TEST(GolombRiceContextTest, AcceptsZeroErrorSumAfterRepeatedZeroResiduals)
+{
+    const std::array bytes{std::byte{0x80}}; // k=0: 1 -> 0
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state{0, 0, 0, 128};
+    std::int32_t value = 7;
+
+    const auto status = mffv1::entropy::read_golomb_rice_symbol(reader, state, 8, value);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(value, 0);
+    EXPECT_EQ(state.error_sum, 0);
+    EXPECT_EQ(state.count, 65);
+}
+
 TEST(GolombRiceContextTest, LeavesStateAndOutputUnchangedOnUnderflow)
 {
     const std::array<std::byte, 0> bytes{};

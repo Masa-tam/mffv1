@@ -241,6 +241,27 @@ Two direct probes were rejected during that investigation:
   fixes the first x=87 mismatch but introduces a later row-1 mismatch around
   x=233 and does not restore full vector compatibility.
 
+The refreshed local Golomb-Rice 4:2:0 set contains:
+
+- `gr_intra_420p8_1slice_flat.mkv`
+- `gr_intra_420p8_2x2_flat.mkv`
+- `gr_intra_420p8_1slice_smptebars.mkv`
+- `gr_intra_420p8_2x2_smptebars.mkv`
+- `gr_intra_420p8_1slice_ygrad_uvflat.mkv`
+- `gr_intra_420p8_1slice_yflat_uvgrad.mkv`
+
+These vectors use `qidx=1,1`. With the current internal slice-header boundary
+model, they parse as `content=4` and fail from the first Y sample. Temporarily
+subtracting one byte from the v3 Golomb-Rice content offset changes them to
+`content=3`, which aligns the first samples but then exposes the existing
+run-interruption/bias divergence around row 4 and later underflow. That
+byte-position subtraction also breaks mffv1's internal Golomb-Rice
+encoder/decoder round-trip tests, so it is not a valid standalone fix.
+
+The flat vectors also exposed that a Golomb-Rice VLC context can legitimately
+rescale `error_sum` to zero after long zero-residual runs. This is now accepted
+by the context validator; negative `error_sum` remains invalid.
+
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context
   changes near a row boundary.

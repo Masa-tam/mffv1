@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <string>
 
 namespace mffv1::entropy {
 
@@ -16,9 +17,10 @@ Status validate_state(const GolombRiceContextState& state)
         return make_error(ErrorCode::InvalidState,
                           "Golomb-Rice context count is invalid");
     }
-    if (state.error_sum <= 0) {
+    if (state.error_sum < 0) {
         return make_error(ErrorCode::InvalidState,
-                          "Golomb-Rice context error sum is invalid");
+                          "Golomb-Rice context error sum is invalid: "
+                              + std::to_string(state.error_sum));
     }
     if (state.bias < -128 || state.bias > 127) {
         return make_error(ErrorCode::InvalidState,

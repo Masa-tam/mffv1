@@ -337,6 +337,12 @@ partial mismatch. The flat vectors now show `pred=126`, expected `diff=0`, and
 actual `diff=1`; the SMPTE vectors show `pred=180`, expected `diff=0`, and
 actual `diff=-1`. This confirms the first visible mismatch is a one-step
 residual decode difference under matching predictor input.
+Golomb-Rice scalar and run-interruption failures now include the adaptive VLC
+context as `gr_state=drift/error_sum/bias/count`. The refreshed vectors show
+that later underflow can occur with different adaptive states, for example
+`-2/8/-1/3` in the 1-slice flat vector and `0/4/0/1` in the 1-slice SMPTE
+vector, so future probes should compare the first divergent symbol against the
+state that led to it rather than only the final underflow location.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

@@ -193,6 +193,18 @@ std::string format_golomb_rice_context_trace(std::size_t plane,
     return out.str();
 }
 
+std::string format_golomb_rice_adaptive_state(
+    const entropy::GolombRiceContextState& state)
+{
+    std::ostringstream out;
+    out << " gr_state="
+        << state.drift << "/"
+        << state.error_sum << "/"
+        << state.bias << "/"
+        << state.count;
+    return out.str();
+}
+
 Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                entropy::GolombRiceReader& reader,
                                std::uint64_t payload_offset,
@@ -256,9 +268,10 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
             }
 
             std::int32_t difference = 0;
+            auto& adaptive_state = state.golomb_rice_context(context_bank, 0);
             status = entropy::read_golomb_rice_run_interruption(
                 reader,
-                state.golomb_rice_context(context_bank, 0),
+                adaptive_state,
                 reconstruction_bits,
                 difference);
             if (!status.ok()) {
@@ -276,7 +289,8 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                         failure_prediction,
                         context,
                         run_state,
-                        bit_reader.bit_position());
+                        bit_reader.bit_position())
+                    + format_golomb_rice_adaptive_state(adaptive_state);
                 set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
                 return status;
             }
@@ -292,9 +306,10 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
         }
 
         std::int32_t difference = 0;
+        auto& adaptive_state = state.golomb_rice_context(context_bank, context.context);
         status = entropy::read_golomb_rice_symbol(
             reader,
-            state.golomb_rice_context(context_bank, context.context),
+            adaptive_state,
             reconstruction_bits,
             difference);
         if (!status.ok()) {
@@ -307,7 +322,8 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                     prediction,
                     context,
                     run_state,
-                    bit_reader.bit_position());
+                    bit_reader.bit_position())
+                + format_golomb_rice_adaptive_state(adaptive_state);
             set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
             return status;
         }

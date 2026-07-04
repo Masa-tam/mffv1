@@ -8,6 +8,7 @@
 #include "mffv1/predictor.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
@@ -292,14 +293,52 @@ std::string describe_bit_range(std::span<const std::byte> bytes,
     return out.str();
 }
 
+std::uint8_t diagnostic_context_input_index(std::int64_t value) noexcept
+{
+    return static_cast<std::uint8_t>(static_cast<std::uint64_t>(value) & 0xffu);
+}
+
+std::string describe_context_terms(
+    const mffv1::syntax::NeighborSamples& samples,
+    const mffv1::syntax::QuantTableSet& table_set)
+{
+    const std::array<std::int64_t, mffv1::syntax::QuantTableSet::kContextInputs> gradients{
+        static_cast<std::int64_t>(samples.left) - samples.top_left,
+        static_cast<std::int64_t>(samples.top_left) - samples.top,
+        static_cast<std::int64_t>(samples.top) - samples.top_right,
+        static_cast<std::int64_t>(samples.far_left) - samples.left,
+        static_cast<std::int64_t>(samples.top_top) - samples.top,
+    };
+    std::ostringstream out;
+    out << " grads=";
+    for (std::size_t i = 0; i < gradients.size(); ++i) {
+        if (i != 0) {
+            out << "/";
+        }
+        out << gradients[i];
+    }
+    out << " terms=";
+    for (std::size_t i = 0; i < gradients.size(); ++i) {
+        if (i != 0) {
+            out << "/";
+        }
+        out << table_set.tables[i][diagnostic_context_input_index(gradients[i])];
+    }
+    return out.str();
+}
+
 class FirstGolombRiceMismatchObserver final : public mffv1::codec::SliceDecodeObserver {
 public:
     explicit FirstGolombRiceMismatchObserver(
         std::span<const mffv1_testvectors::PlaneVector> expected_planes,
         std::span<const std::byte> content_payload,
+        std::span<const mffv1::syntax::QuantTableSet> quant_table_sets,
+        std::span<const std::uint32_t> plane_quant_table_set_indexes,
         std::uint8_t bits_per_raw_sample)
         : expected_planes_(expected_planes),
           content_payload_(content_payload),
+          quant_table_sets_(quant_table_sets),
+          plane_quant_table_set_indexes_(plane_quant_table_set_indexes),
           bits_per_raw_sample_(bits_per_raw_sample)
     {
     }
@@ -325,6 +364,9 @@ public:
             bits_per_raw_sample_);
         const auto rice_k =
             derive_golomb_rice_k_for_diagnostic(trace.adaptive_state_before);
+        const auto has_context_terms =
+            trace.plane < plane_quant_table_set_indexes_.size()
+            && plane_quant_table_set_indexes_[trace.plane] < quant_table_sets_.size();
 
         std::ostringstream out;
         out << "first traced GR mismatch plane=" << trace.plane
@@ -355,6 +397,11 @@ public:
             << " run_after="
             << static_cast<int>(trace.run_state_after.run_index)
             << "/" << trace.run_state_after.pending_count;
+        if (has_context_terms) {
+            out << describe_context_terms(
+                trace.neighbors,
+                quant_table_sets_[plane_quant_table_set_indexes_[trace.plane]]);
+        }
         description_ = out.str();
     }
 
@@ -366,6 +413,8 @@ public:
 private:
     std::span<const mffv1_testvectors::PlaneVector> expected_planes_;
     std::span<const std::byte> content_payload_;
+    std::span<const mffv1::syntax::QuantTableSet> quant_table_sets_;
+    std::span<const std::uint32_t> plane_quant_table_set_indexes_;
     std::uint8_t bits_per_raw_sample_ = 0;
     std::string description_;
 };
@@ -427,8 +476,23 @@ std::string describe_golomb_rice_partial_decode(
     const mffv1::codec::SliceDecoder slice_decoder(stream);
     const auto content_offset = candidate.content_byte_offset - candidate.payload_byte_offset;
     const auto content_payload = candidate.payload.subspan(content_offset);
+    std::vector<std::uint32_t> plane_quant_table_set_indexes;
+    plane_quant_table_set_indexes.reserve(output_planes.size());
+    for (std::size_t plane = 0; plane < output_planes.size(); ++plane) {
+        const auto index_slot = stream.version >= 3
+            ? mffv1::syntax::plane_quant_table_set_index_slot(stream, plane)
+            : plane;
+        if (index_slot >= candidate.quant_table_set_indexes.size()) {
+            return {};
+        }
+        plane_quant_table_set_indexes.push_back(candidate.quant_table_set_indexes[index_slot]);
+    }
     FirstGolombRiceMismatchObserver observer(
-        expected_planes, content_payload, stream.bits_per_raw_sample);
+        expected_planes,
+        content_payload,
+        stream.quant_table_sets,
+        plane_quant_table_set_indexes,
+        stream.bits_per_raw_sample);
     status = slice_decoder.decode(candidate, window, state, &observer);
 
     std::ostringstream out;

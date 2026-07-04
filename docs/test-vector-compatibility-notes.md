@@ -362,6 +362,15 @@ pending run from the common flat/SMPTE mismatch (`run_before` becomes `*/0`),
 but the first scalar mismatch still consumes `11` with `k=1`. This makes the
 pending-run carry a correctness cleanup rather than the root cause of the
 shared border mismatch.
+The traced mismatch now also reports context gradients and quantized terms.
+The common flat/SMPTE scalar mismatch has gradients such as
+`0/0/0/-126/0`, `0/0/0/-128/0`, or `0/0/0/-180/0`, and the only nonzero term
+is the RFC border `Q3[L-l]` contribution (`-1210` for flat controls and
+`+1210` for SMPTE controls). This confirms that the `context=1210` decision
+is produced entirely by the additional left border column while predictor
+inputs and expected residual remain zero. The next useful probe should
+therefore compare preceding bit consumption and run/scalar transition timing
+around that border context, not the quantization-table index selection itself.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

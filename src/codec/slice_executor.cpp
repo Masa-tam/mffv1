@@ -7,7 +7,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <future>
+#include <limits>
 #include <numeric>
 #include <thread>
 #include <utility>
@@ -32,6 +34,98 @@ std::uint32_t normalize_thread_count(int thread_count) noexcept
 std::array<std::uint32_t, 4> slice_layout(const syntax::SliceDescriptor& slice) noexcept
 {
     return {slice.raster_x, slice.raster_y, slice.raster_width, slice.raster_height};
+}
+
+bool can_try_golomb_rice_read_ahead_boundary(
+    const syntax::StreamParameters& stream,
+    const syntax::SliceDescriptor& slice) noexcept
+{
+    return stream.version >= 3
+        && stream.entropy_mode == EntropyMode::GolombRice
+        && slice.content_byte_offset > slice.payload_byte_offset;
+}
+
+syntax::SliceDescriptor make_golomb_rice_read_ahead_boundary(
+    const syntax::SliceDescriptor& slice) noexcept
+{
+    auto candidate = slice;
+    --candidate.content_byte_offset;
+    return candidate;
+}
+
+Status make_temporary_frame(MutableFrameView output,
+                            std::vector<std::vector<std::byte>>& storage,
+                            std::vector<MutablePlaneView>& planes,
+                            MutableFrameView& out_frame)
+{
+    storage.clear();
+    planes.clear();
+    storage.reserve(output.plane_count);
+    planes.reserve(output.plane_count);
+
+    for (std::size_t i = 0; i < output.plane_count; ++i) {
+        const auto& info = output.planes[i].info;
+        if (info.stride_bytes < 0) {
+            return make_error(ErrorCode::InvalidArgument,
+                              "output plane stride is negative");
+        }
+        const auto stride = static_cast<std::uint64_t>(info.stride_bytes);
+        const auto height = static_cast<std::uint64_t>(info.height);
+        if (height != 0
+            && stride > std::numeric_limits<std::size_t>::max() / height) {
+            return make_error(ErrorCode::ResourceExhausted,
+                              "temporary output plane size overflows size_t");
+        }
+        storage.emplace_back(static_cast<std::size_t>(stride * height));
+        MutablePlaneView plane;
+        plane.data = storage.back().data();
+        plane.info = info;
+        planes.push_back(plane);
+    }
+
+    out_frame = MutableFrameView{planes.data(), planes.size()};
+    return ok_status();
+}
+
+Status copy_decoded_slice(const SliceOutputWindow& source,
+                          const SliceOutputWindow& destination)
+{
+    if (source.plane_count() != destination.plane_count()) {
+        return make_error(ErrorCode::InternalError,
+                          "temporary slice plane count does not match output");
+    }
+
+    for (std::size_t plane = 0; plane < source.plane_count(); ++plane) {
+        const auto width = source.plane_width(plane);
+        const auto height = source.plane_height(plane);
+        if (width != destination.plane_width(plane)
+            || height != destination.plane_height(plane)) {
+            return make_error(ErrorCode::InternalError,
+                              "temporary slice geometry does not match output");
+        }
+        for (std::uint32_t y = 0; y < height; ++y) {
+            if (const auto* src = source.row_u8(plane, y)) {
+                auto* dst = destination.row_u8(plane, y);
+                if (dst == nullptr) {
+                    return make_error(ErrorCode::InternalError,
+                                      "temporary uint8 slice row does not match output");
+                }
+                std::memcpy(dst, src, width);
+            } else if (const auto* src16 = source.row_u16(plane, y)) {
+                auto* dst16 = destination.row_u16(plane, y);
+                if (dst16 == nullptr) {
+                    return make_error(ErrorCode::InternalError,
+                                      "temporary uint16 slice row does not match output");
+                }
+                std::memcpy(dst16, src16, static_cast<std::size_t>(width) * sizeof(std::uint16_t));
+            } else {
+                return make_error(ErrorCode::InternalError,
+                                  "temporary slice row is not accessible");
+            }
+        }
+    }
+
+    return ok_status();
 }
 
 } // namespace
@@ -157,6 +251,20 @@ Status SliceExecutor::validate_slices(MutableFrameView output,
         if (status.ok()) {
             status = decoder.validate(slice, window);
         }
+        if (!status.ok()
+            && can_try_golomb_rice_read_ahead_boundary(stream_, slice)) {
+            const auto candidate =
+                make_golomb_rice_read_ahead_boundary(slice);
+            SliceOutputWindow candidate_window;
+            Status candidate_status =
+                candidate_window.validate(stream_, output, candidate);
+            if (candidate_status.ok()) {
+                candidate_status = decoder.validate(candidate, candidate_window);
+            }
+            if (candidate_status.ok()) {
+                continue;
+            }
+        }
         if (!status.ok()) {
             set_slice_location_if_missing(status, slice.index);
             return status;
@@ -233,7 +341,47 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
     }
 
     const SliceDecoder decoder(stream_, kernels_);
-    return decoder.decode(slice, window, state);
+    if (!can_try_golomb_rice_read_ahead_boundary(stream_, slice)) {
+        return decoder.decode(slice, window, state);
+    }
+
+    std::vector<std::vector<std::byte>> temporary_storage;
+    std::vector<MutablePlaneView> temporary_planes;
+    MutableFrameView temporary_frame;
+    status = make_temporary_frame(
+        output, temporary_storage, temporary_planes, temporary_frame);
+    if (!status.ok()) {
+        return status;
+    }
+
+    const std::array candidates{
+        slice,
+        make_golomb_rice_read_ahead_boundary(slice),
+    };
+    Status last_status;
+    for (const auto& candidate : candidates) {
+        SliceOutputWindow candidate_window;
+        status = candidate_window.validate(stream_, temporary_frame, candidate);
+        if (!status.ok()) {
+            last_status = std::move(status);
+            continue;
+        }
+        SliceState candidate_state = state;
+        status = decoder.decode(candidate, candidate_window, candidate_state);
+        if (!status.ok()) {
+            last_status = std::move(status);
+            continue;
+        }
+
+        status = copy_decoded_slice(candidate_window, window);
+        if (!status.ok()) {
+            return status;
+        }
+        state = std::move(candidate_state);
+        return ok_status();
+    }
+
+    return last_status;
 }
 
 } // namespace mffv1::codec

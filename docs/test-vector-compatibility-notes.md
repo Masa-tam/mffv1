@@ -281,6 +281,16 @@ that the following content byte can serve as the range decoder read-ahead byte,
 or the decoder needs a safe alternate-boundary path that does not expose partial
 output/state when the first boundary attempt fails.
 
+The decoder now implements that safe alternate-boundary path in the slice
+executor. For v3 Golomb-Rice slices, the normal parsed boundary is tried first
+against a temporary output frame; if that fails, `content_byte_offset - 1` is
+tried from the same input state. Only a successful candidate is copied to the
+caller output and committed to the slice reference state. This preserves
+mffv1-generated streams while allowing FFmpeg-style read-ahead boundaries to
+reach the deeper Golomb-Rice run/context mismatch. With the refreshed vectors,
+the first-sample mismatch disappears and the remaining failures are underflow
+or alignment errors after several decoded rows.
+
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context
   changes near a row boundary.

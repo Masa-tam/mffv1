@@ -182,6 +182,10 @@ should not be repeated without new evidence:
   advance, but makes multi-plane vectors underflow early in plane 1 and is not
   a valid fix. RFC 9043's run-mode pseudo-code also supports carrying a
   remaining `run_count` across the row when a full run reaches the row end.
+- Suppressing the `run_index` increment when a full run ends exactly at the
+  row boundary. This does not move the refreshed flat vector's first mismatch
+  (`y=4,x=0`, +1 luma), so the RFC `x + run_count <= w` condition remains the
+  implemented behavior.
 - Resetting Golomb-Rice run state on every `prepare_golomb_rice` call; this
   breaks existing legacy non-keyframe reference-state tests.
 - For the 10-bit range-coded configuration, forcing the alternative state
@@ -261,6 +265,13 @@ encoder/decoder round-trip tests, so it is not a valid standalone fix.
 The flat vectors also exposed that a Golomb-Rice VLC context can legitimately
 rescale `error_sum` to zero after long zero-residual runs. This is now accepted
 by the context validator; negative `error_sum` remains invalid.
+
+The refreshed flat and SMPTE vectors also confirm that treating the range
+read-ahead byte as Golomb-Rice content with bit offsets other than zero makes
+the 4:2:0 failures occur earlier. The alternate boundary therefore remains
+byte-aligned. Diagnostic partial-output runs show the first stable luma
+mismatch at the start of row 4 (`y=4,x=0`, actual one sample above or below
+expected depending on the vector), before the later underflow.
 
 The RFC 9043 Slice syntax places `SliceContent()` immediately after
 `SliceHeader()` and defines Golomb-Rice padding only after the content. The

@@ -29,6 +29,27 @@ TEST(GolombRiceRunTest, ReadsFullSegmentAndIncrementsIndex)
     EXPECT_EQ(reader.bit_position(), 1u);
 }
 
+TEST(GolombRiceRunTest, ReadsFullSegmentEndingAtRowEndAndIncrementsIndex)
+{
+    const std::array bytes{std::byte{0x80}};
+    mffv1::bitstream::BitReader reader(bytes);
+    mffv1::entropy::GolombRiceRunState state{4};
+    mffv1::entropy::GolombRiceRunSegment segment;
+
+    const auto status = mffv1::entropy::read_golomb_rice_run_segment(reader,
+                                                                    state,
+                                                                    4,
+                                                                    6,
+                                                                    segment);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(segment.count, 2u);
+    EXPECT_FALSE(segment.interrupted);
+    EXPECT_EQ(state.run_index, 5u);
+    EXPECT_EQ(state.pending_count, 0u);
+    EXPECT_EQ(reader.bit_position(), 1u);
+}
+
 TEST(GolombRiceRunTest, DoesNotIncrementIndexWhenFullSegmentCrossesRowEnd)
 {
     const std::array bytes{std::byte{0x80}};

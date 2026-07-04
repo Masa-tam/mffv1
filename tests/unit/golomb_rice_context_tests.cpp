@@ -164,6 +164,27 @@ TEST(GolombRiceContextTest, RemovesZeroFromRunInterruptionDifference)
     EXPECT_EQ(value, 1);
 }
 
+TEST(GolombRiceContextTest, UpdatesRunInterruptionStateBeforeZeroRemoval)
+{
+    const std::array bytes{std::byte{0x80}}; // initial k=2: 1 00 -> 0
+    mffv1::bitstream::BitReader bits(bytes);
+    mffv1::entropy::GolombRiceReader reader(bits);
+    mffv1::entropy::GolombRiceContextState state;
+    std::int32_t value = 0;
+
+    const auto status = mffv1::entropy::read_golomb_rice_run_interruption(reader,
+                                                                         state,
+                                                                         8,
+                                                                         value);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(value, 1);
+    EXPECT_EQ(state.drift, 0);
+    EXPECT_EQ(state.error_sum, 4);
+    EXPECT_EQ(state.bias, 0);
+    EXPECT_EQ(state.count, 2);
+}
+
 TEST(GolombRiceContextTest, RejectsUnrepresentableKWithoutReading)
 {
     const std::array bytes{std::byte{0xff}};

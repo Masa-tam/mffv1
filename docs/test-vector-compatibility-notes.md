@@ -367,6 +367,13 @@ pending run from the common flat/SMPTE mismatch (`run_before` becomes `*/0`),
 but the first scalar mismatch still consumes `11` with `k=1`. This makes the
 pending-run carry a correctness cleanup rather than the root cause of the
 shared border mismatch.
+The run reader now also carries `prefix=0` remainder counts across row
+boundaries when the decoded remainder is larger than the remaining samples in
+the current row. This carries only the zero-run count; it does not force the
+run-interruption symbol itself to cross the row boundary. Carrying the
+interruption flag as well was tested and rejected because it made mffv1's own
+Golomb-Rice encoder output fail and moved the refreshed vectors to an earlier
+false run-interruption mismatch.
 The traced mismatch now also reports context gradients and quantized terms.
 The common flat/SMPTE scalar mismatch has gradients such as
 `0/0/0/-126/0`, `0/0/0/-128/0`, or `0/0/0/-180/0`, and the only nonzero term
@@ -376,6 +383,13 @@ is produced entirely by the additional left border column while predictor
 inputs and expected residual remain zero. The next useful probe should
 therefore compare preceding bit consumption and run/scalar transition timing
 around that border context, not the quantization-table index selection itself.
+With interrupted remainder carry limited to the zero-run count, the refreshed
+flat vectors advance through luma and first diverge at the start of chroma:
+plane 1 predicts zero while the generated vector expects 128 for flat chroma.
+The SMPTE vectors also move past the earlier left-border scalar mismatch and
+now diverge later in luma. The next investigation should therefore focus on
+per-plane Golomb-Rice state/baseline handling and chroma plane initialization,
+not the previous `x=0,y=4` luma border context.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

@@ -80,6 +80,12 @@ Status read_golomb_rice_run_segment(bitstream::BitReader& reader,
         if (next_run_index != 0) {
             --next_run_index;
         }
+        const auto row_remaining = width - x;
+        if (segment.count > row_remaining) {
+            state.pending_count = segment.count - row_remaining;
+            segment.count = row_remaining;
+            segment.interrupted = false;
+        }
     }
 
     state.run_index = next_run_index;

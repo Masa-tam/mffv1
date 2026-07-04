@@ -1612,6 +1612,40 @@ TEST(SliceDecoderTest, DecodesGolombRiceRunClippedAtPlaneEnd)
     }
 }
 
+TEST(SliceDecoderTest, DecodesGolombRicePendingRunAcrossRows)
+{
+    auto stream = make_stream();
+    stream.width = 1;
+    stream.height = 6;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    std::array<std::uint8_t, 6> storage{};
+    storage.fill(0xee);
+    mffv1::MutablePlaneView plane{
+        storage.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 1, 6, 1}};
+    mffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 1> payload{std::byte{0xf8}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 6;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    for (const auto sample : storage) {
+        EXPECT_EQ(sample, 0u);
+    }
+}
+
 TEST(SliceDecoderTest, DecodesGolombRiceChromaPlanesInOrder)
 {
     auto stream = make_stream();

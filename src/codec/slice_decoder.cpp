@@ -221,6 +221,55 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
     auto& run_state = state.golomb_rice_run_state(plane);
     std::uint32_t x = 0;
     while (x < width) {
+        if (run_state.pending_count != 0) {
+            entropy::GolombRiceRunSegment segment;
+            const auto run_start_bit = bit_reader.bit_position();
+            const auto run_state_before = run_state;
+            Status status = entropy::read_golomb_rice_run_segment(
+                bit_reader, run_state, x, width, segment);
+            if (!status.ok()) {
+                set_reader_byte_offset(
+                    status, payload_offset, bit_reader.byte_position());
+                return status;
+            }
+            const auto run_end = std::min<std::uint64_t>(
+                static_cast<std::uint64_t>(width),
+                static_cast<std::uint64_t>(x) + segment.count);
+            while (x < run_end) {
+                const auto run_neighbors = line.neighbors(x);
+                const auto run_prediction = syntax::Predictor::median_predict(
+                    run_neighbors.left, run_neighbors.top, run_neighbors.top_left);
+                syntax::ContextDecision run_context;
+                status = context_model.derive_context(run_neighbors, run_context);
+                if (!status.ok()) {
+                    return status;
+                }
+                line.mutable_current()[x] = run_prediction;
+                if (observer != nullptr) {
+                    GolombRiceSampleTrace trace;
+                    trace.plane = plane;
+                    trace.x = x;
+                    trace.y = y;
+                    trace.context_bank = context_bank;
+                    trace.context = run_context;
+                    trace.neighbors = run_neighbors;
+                    trace.run_state_before = run_state_before;
+                    trace.run_state_after = run_state;
+                    trace.adaptive_state_before =
+                        state.golomb_rice_context(context_bank, 0);
+                    trace.adaptive_state_after = trace.adaptive_state_before;
+                    trace.bit_position_before = run_start_bit;
+                    trace.bit_position_after = bit_reader.bit_position();
+                    trace.prediction = run_prediction;
+                    trace.difference = 0;
+                    trace.reconstructed_sample = run_prediction;
+                    observer->on_golomb_rice_sample(trace);
+                }
+                ++x;
+            }
+            continue;
+        }
+
         const auto neighbors = line.neighbors(x);
         const auto prediction = syntax::Predictor::median_predict(
             neighbors.left, neighbors.top, neighbors.top_left);

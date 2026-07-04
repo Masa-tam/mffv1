@@ -357,6 +357,11 @@ residual is zero, the remaining issue is unlikely to be the median predictor
 itself; the next probes should test whether this border position should have
 remained in run mode, whether a preceding run segment consumed the wrong
 number of bits, or whether the signed mapping differs for this scalar context.
+Consuming a carried pending run before deriving the next context removes the
+pending run from the common flat/SMPTE mismatch (`run_before` becomes `*/0`),
+but the first scalar mismatch still consumes `11` with `k=1`. This makes the
+pending-run carry a correctness cleanup rather than the root cause of the
+shared border mismatch.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

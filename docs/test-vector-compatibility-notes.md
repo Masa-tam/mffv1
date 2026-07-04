@@ -321,6 +321,12 @@ The TestVector diagnostics now annotate failed fallback attempts with the
 actual candidate content byte offset; the refreshed vectors confirm that the
 remaining failures happen while decoding the `content_byte_offset=3` alternate
 candidate, even though the parsed Slice Header still reports `content=4`.
+The external-vector failure path also performs a low-level partial decode into
+test-owned storage so the first reconstructed-sample mismatch is visible even
+when the public API correctly withholds failed fallback output. With untouched
+slice areas ignored, both the 1-slice and 2x2 flat/SMPTE vectors report their
+first luma mismatch at `x=0,y=4`; the y-gradient control still differs earlier
+at `x=0,y=1`.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

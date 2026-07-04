@@ -2,6 +2,8 @@
 
 #include "codec/configuration_record_parser.hpp"
 #include "codec/frame_parser.hpp"
+#include "codec/slice_decoder.hpp"
+#include "codec/slice_output_window.hpp"
 #include "mffv1/codec.hpp"
 
 #include <algorithm>
@@ -18,6 +20,13 @@
 
 #if !defined(NO_DEFINE_TEST_VECTOR_DATA)
 namespace {
+
+bool compute_plane_size(const mffv1_testvectors::PlaneVector& plane,
+                        std::size_t& out_size);
+
+std::uint32_t read_sample(std::span<const std::byte> bytes,
+                          std::size_t sample_offset,
+                          mffv1::SampleFormat format);
 
 std::string describe_status(const mffv1::Status& status)
 {
@@ -93,6 +102,132 @@ std::string describe_frame_parse(
             out << index << ",";
         }
         out << "]";
+    }
+    return out.str();
+}
+
+std::string describe_first_partial_mismatch(
+    std::span<const std::byte> actual,
+    std::span<const std::byte> expected,
+    std::size_t plane_index,
+    const mffv1::PlaneInfo& plane)
+{
+    const auto bytes_per_sample = plane.sample_format == mffv1::SampleFormat::UInt16
+        ? std::size_t{2}
+        : std::size_t{1};
+    const auto stride = static_cast<std::size_t>(plane.stride_bytes);
+    const auto active_row_bytes = static_cast<std::size_t>(plane.width) * bytes_per_sample;
+    for (std::uint32_t y = 0; y < plane.height; ++y) {
+        const auto row_offset = static_cast<std::size_t>(y) * stride;
+        const auto actual_row = actual.subspan(row_offset, active_row_bytes);
+        const auto expected_row = expected.subspan(row_offset, active_row_bytes);
+        const auto mismatch = std::mismatch(
+            actual_row.begin(), actual_row.end(), expected_row.begin());
+        auto actual_it = mismatch.first;
+        while (actual_it != actual_row.end() && *actual_it == std::byte{0xa5}) {
+            ++actual_it;
+        }
+        if (actual_it == actual_row.end()) {
+            continue;
+        }
+
+        const auto byte_offset = row_offset
+            + static_cast<std::size_t>(actual_it - actual_row.begin());
+        const auto row_byte = byte_offset % stride;
+        const auto x = row_byte / bytes_per_sample;
+        const auto sample_offset = byte_offset - (row_byte % bytes_per_sample);
+        std::ostringstream out;
+        out << "partial plane " << plane_index
+            << " first mismatch at x=" << x
+            << " y=" << y
+            << " byte=" << byte_offset
+            << " actual_sample=" << read_sample(actual, sample_offset, plane.sample_format)
+            << " expected_sample=" << read_sample(expected, sample_offset, plane.sample_format);
+        return out.str();
+    }
+    return {};
+}
+
+std::string describe_golomb_rice_partial_decode(
+    const mffv1_testvectors::DecodeVector& vector,
+    std::span<const std::byte> frame_payload,
+    std::span<const mffv1_testvectors::PlaneVector> expected_planes)
+{
+    mffv1::syntax::StreamParameters stream;
+    mffv1::codec::ConfigurationRecordParser config_parser;
+    auto status = config_parser.parse(vector.configuration_record, stream);
+    if (!status.ok()) {
+        return {};
+    }
+    if (stream.entropy_mode != mffv1::EntropyMode::GolombRice
+        || stream.version < 3) {
+        return {};
+    }
+    stream.width = vector.frame_width;
+    stream.height = vector.frame_height;
+
+    mffv1::codec::FrameParser frame_parser(stream, true);
+    mffv1::codec::FrameDecodeContext frame;
+    status = frame_parser.parse(frame_payload, frame);
+    if (!status.ok() || frame.slices.empty()) {
+        return {};
+    }
+
+    std::vector<std::vector<std::byte>> plane_storage;
+    std::vector<mffv1::MutablePlaneView> output_planes;
+    plane_storage.reserve(expected_planes.size());
+    output_planes.reserve(expected_planes.size());
+    for (const auto& expected : expected_planes) {
+        std::size_t expected_size = 0;
+        if (!compute_plane_size(expected, expected_size)) {
+            return {};
+        }
+        plane_storage.emplace_back(expected_size, std::byte{0xa5});
+        output_planes.push_back(
+            mffv1::MutablePlaneView{plane_storage.back().data(), expected.info});
+    }
+
+    auto candidate = frame.slices.front();
+    if (candidate.content_byte_offset > candidate.payload_byte_offset) {
+        --candidate.content_byte_offset;
+    }
+    mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
+    mffv1::codec::SliceOutputWindow window;
+    status = window.validate(stream, output, candidate);
+    if (!status.ok()) {
+        return {};
+    }
+    mffv1::codec::SliceState state;
+    status = state.reset(window);
+    if (!status.ok()) {
+        return {};
+    }
+    const mffv1::codec::SliceDecoder slice_decoder(stream);
+    status = slice_decoder.decode(candidate, window, state);
+
+    std::ostringstream out;
+    out << "partial alternate decode status: " << describe_status(status);
+    for (std::size_t index = 0; index < expected_planes.size(); ++index) {
+        const bool plane_was_touched = std::any_of(
+            plane_storage[index].begin(),
+            plane_storage[index].end(),
+            [](std::byte value) { return value != std::byte{0xa5}; });
+        if (!plane_was_touched) {
+            continue;
+        }
+        const auto& expected = expected_planes[index];
+        std::size_t expected_size = 0;
+        if (!compute_plane_size(expected, expected_size)) {
+            continue;
+        }
+        const std::vector<std::byte> expected_bytes{
+            expected.samples.begin(), expected.samples.begin() + expected_size};
+        const auto mismatch = describe_first_partial_mismatch(
+            plane_storage[index], expected_bytes, index, expected.info);
+        if (!mismatch.empty()) {
+            out << "\n" << mismatch;
+            break;
+        }
     }
     return out.str();
 }
@@ -264,6 +399,9 @@ void expect_decodes_frame(
         }
     }
     ASSERT_TRUE(status.ok()) << describe_status(status) << "\n"
+                             << describe_golomb_rice_partial_decode(
+                                    vector, frame_payload, expected_planes)
+                             << "\n"
                              << frame_description;
 
     for (std::size_t index = 0; index < expected_planes.size(); ++index) {

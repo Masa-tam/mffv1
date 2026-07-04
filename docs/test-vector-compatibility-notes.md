@@ -282,6 +282,9 @@ content to qset 0 makes the refreshed vectors diverge later and more broadly,
 so the selected qset 1 remains the correct interpretation. Updating VLC
 context state from the biased decoded difference instead of the pre-bias `v`
 also worsens the vectors, leaving the RFC state update order intact.
+Resetting Golomb-Rice VLC context state at every decoded line, even as a coarse
+experiment combined with run-state reset, also worsens the refreshed vectors;
+the remaining issue is not explained by a simple per-line VLC scope.
 
 The RFC 9043 Slice syntax places `SliceContent()` immediately after
 `SliceHeader()` and defines Golomb-Rice padding only after the content. The

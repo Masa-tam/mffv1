@@ -59,6 +59,30 @@ TEST(GolombRiceWriterTest, WritesCanonicalEscape)
         std::byte{0x00}, std::byte{0x08}, std::byte{0x00}}));
 }
 
+TEST(GolombRiceWriterTest, SeparatesRegularBoundaryFromFirstEscape)
+{
+    {
+        mffv1::bitstream::BitWriter bits;
+        mffv1::entropy::GolombRiceWriter writer(bits);
+
+        ASSERT_TRUE(writer.write_signed(0, 8, -6).ok()); // folded 11
+        const auto bytes = finalize(bits);
+
+        EXPECT_EQ(bytes, (std::vector<std::byte>{
+            std::byte{0x00}, std::byte{0x10}}));
+    }
+    {
+        mffv1::bitstream::BitWriter bits;
+        mffv1::entropy::GolombRiceWriter writer(bits);
+
+        ASSERT_TRUE(writer.write_signed(0, 8, 6).ok()); // folded 12
+        const auto bytes = finalize(bits);
+
+        EXPECT_EQ(bytes, (std::vector<std::byte>{
+            std::byte{0x00}, std::byte{0x00}, std::byte{0x10}}));
+    }
+}
+
 TEST(GolombRiceWriterTest, RoundTripsSignedValues)
 {
     for (std::uint8_t k = 0; k <= 6; ++k) {

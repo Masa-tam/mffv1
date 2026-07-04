@@ -348,7 +348,7 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
         return status;
     }
 
-    status = state.reset(window);
+    status = state.reset(stream_, window);
     if (!status.ok()) {
         return status;
     }

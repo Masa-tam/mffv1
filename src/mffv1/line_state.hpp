@@ -10,7 +10,7 @@ namespace mffv1::syntax {
 
 class LineState {
 public:
-    Status reset(std::uint32_t width);
+    Status reset(std::uint32_t width, std::int32_t border_value = 0);
 
     [[nodiscard]] std::uint32_t width() const noexcept;
     [[nodiscard]] const std::vector<std::int32_t>& second_previous() const noexcept;
@@ -23,6 +23,7 @@ public:
     void swap_lines() noexcept;
 
 private:
+    std::int32_t border_value_ = 0;
     std::vector<std::int32_t> second_previous_;
     std::vector<std::int32_t> previous_;
     std::vector<std::int32_t> current_;

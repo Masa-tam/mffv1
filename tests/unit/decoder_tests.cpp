@@ -1764,16 +1764,16 @@ TEST(DecoderTest, FailedGolombRiceSliceDecodePreservesReferenceState)
     ASSERT_TRUE(result.decoder->decode_frame(keyframe_payload, output).ok());
 
     storage.fill(0xdd);
-    const std::array malformed_keyframe{std::byte{0xff}};
+    const std::array malformed_keyframe{std::byte{0xff}, std::byte{0x00}};
     const auto failed_status =
         result.decoder->decode_frame(malformed_keyframe, output);
     ASSERT_FALSE(failed_status.ok());
     EXPECT_EQ(failed_status.code, mffv1::ErrorCode::SyntaxError);
     EXPECT_EQ(failed_status.message,
-              "Golomb-Rice alignment padding must be zero at bit offset 7 "
+              "Golomb-Rice payload contains trailing bytes at bit offset 8 "
               "plane_end_bits=0:7 run_states=0:6/0");
     EXPECT_TRUE(failed_status.location.has_byte_offset);
-    EXPECT_EQ(failed_status.location.byte_offset, 0u);
+    EXPECT_EQ(failed_status.location.byte_offset, 1u);
 
     const std::array non_keyframe_payload{std::byte{0x7e}};
     const auto status = result.decoder->decode_frame(non_keyframe_payload, output);

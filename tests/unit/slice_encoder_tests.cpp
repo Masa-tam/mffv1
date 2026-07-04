@@ -91,7 +91,7 @@ void expect_round_trip(
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, output, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(window).ok());
+    ASSERT_TRUE(state.reset(stream, window).ok());
     const mffv1::codec::SliceDecoder decoder(stream);
 
     const auto status = decoder.decode(slice, window, state);
@@ -156,7 +156,7 @@ TEST(SliceEncoderTest, AssemblesVersionThreeSliceAcceptedByFrameParser)
     ASSERT_TRUE(
         window.validate(stream, output, frame.slices[0]).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(window).ok());
+    ASSERT_TRUE(state.reset(stream, window).ok());
     const mffv1::codec::SliceDecoder decoder(stream);
 
     const auto status =
@@ -224,7 +224,7 @@ TEST(SliceEncoderTest, RoundTripsGolombRiceContent)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, output, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(window).ok());
+    ASSERT_TRUE(state.reset(stream, window).ok());
     const mffv1::codec::SliceDecoder decoder(stream);
 
     ASSERT_TRUE(decoder.decode(slice, window, state).ok());
@@ -256,7 +256,7 @@ TEST(SliceEncoderTest, AssemblesGolombRiceSliceAcceptedByFrameParser)
     ASSERT_TRUE(
         window.validate(stream, output, frame.slices[0]).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(window).ok());
+    ASSERT_TRUE(state.reset(stream, window).ok());
     const mffv1::codec::SliceDecoder decoder(stream);
 
     ASSERT_TRUE(decoder.decode(frame.slices[0], window, state).ok());
@@ -322,7 +322,7 @@ TEST(SliceEncoderTest, RoundTripsPlanarYcbcr444)
     ASSERT_TRUE(
         window.validate(stream, output, frame.slices[0]).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(window).ok());
+    ASSERT_TRUE(state.reset(stream, window).ok());
     const mffv1::codec::SliceDecoder decoder(stream);
 
     ASSERT_TRUE(
@@ -397,7 +397,7 @@ TEST(SliceEncoderTest, RoundTripsOddSizedYcbcr420)
     ASSERT_TRUE(
         window.validate(stream, output, frame.slices[0]).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(window).ok());
+    ASSERT_TRUE(state.reset(stream, window).ok());
     const mffv1::codec::SliceDecoder decoder(stream);
 
     ASSERT_TRUE(

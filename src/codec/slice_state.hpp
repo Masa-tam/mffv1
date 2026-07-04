@@ -30,7 +30,9 @@ class SliceState {
 public:
     Status reset(const syntax::StreamParameters& stream);
     Status reset(const SliceInputWindow& input);
+    Status reset(const syntax::StreamParameters& stream, const SliceInputWindow& input);
     Status reset(const SliceOutputWindow& output);
+    Status reset(const syntax::StreamParameters& stream, const SliceOutputWindow& output);
     Status prepare_golomb_rice(std::span<const std::size_t> context_counts);
     Status prepare_golomb_rice(std::span<const std::size_t> context_counts,
                                std::size_t run_state_count);

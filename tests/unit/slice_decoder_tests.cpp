@@ -847,10 +847,10 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor8BitChromaSlice)
         EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cb) {
-        EXPECT_EQ(sample, 0u);
+        EXPECT_EQ(sample, 128u);
     }
     for (const auto sample : cr) {
-        EXPECT_EQ(sample, 0u);
+        EXPECT_EQ(sample, 128u);
     }
 }
 
@@ -913,10 +913,10 @@ TEST(SliceDecoderTest, DecodesVersionThreeRangeChromaWithSharedSlotContext)
         EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cb) {
-        EXPECT_EQ(sample, 0u);
+        EXPECT_EQ(sample, 128u);
     }
     for (const auto sample : cr) {
-        EXPECT_EQ(sample, 0u);
+        EXPECT_EQ(sample, 128u);
     }
     ASSERT_TRUE(state.has_range_contexts());
     EXPECT_EQ(state.range_contexts().size(), 2u);
@@ -971,10 +971,10 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor16BitChromaSlice)
         EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cb) {
-        EXPECT_EQ(sample, 0u);
+        EXPECT_EQ(sample, 32768u);
     }
     for (const auto sample : cr) {
-        EXPECT_EQ(sample, 0u);
+        EXPECT_EQ(sample, 32768u);
     }
 }
 
@@ -2044,7 +2044,7 @@ TEST(SliceDecoderTest, KeepsGolombRiceRunModeAcrossDerivedContextChanges)
     EXPECT_EQ(storage, (std::array<std::uint8_t, 4>{5, 6, 6, 6}));
 }
 
-TEST(SliceDecoderTest, RejectsNonzeroGolombRicePadding)
+TEST(SliceDecoderTest, AcceptsNonzeroGolombRiceBitPadding)
 {
     auto stream = make_stream();
     stream.entropy_mode = mffv1::EntropyMode::GolombRice;
@@ -2067,10 +2067,7 @@ TEST(SliceDecoderTest, RejectsNonzeroGolombRicePadding)
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
 
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
-    EXPECT_TRUE(status.location.has_byte_offset);
-    EXPECT_EQ(status.location.byte_offset, 0u);
+    EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{0, 0, 0, 0, 0, 0, 0, 0}));
 }
 

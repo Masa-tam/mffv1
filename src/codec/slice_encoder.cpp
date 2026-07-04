@@ -144,7 +144,7 @@ Status SliceEncoder::encode_content(
         return status;
     }
     SliceState state;
-    status = state.reset(window);
+    status = state.reset(stream_, window);
     if (!status.ok()) {
         return status;
     }
@@ -282,7 +282,7 @@ Status SliceEncoder::encode_slice(
             ErrorCode::InvalidState,
             "non-keyframe encoding requires reference slice state");
     }
-    status = working_state.reset(window);
+    status = working_state.reset(stream_, window);
     if (!status.ok()) {
         return status;
     }

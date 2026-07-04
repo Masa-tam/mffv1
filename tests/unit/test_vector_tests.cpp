@@ -293,6 +293,21 @@ std::string describe_bit_range(std::span<const std::byte> bytes,
     return out.str();
 }
 
+std::string describe_bit_window(std::span<const std::byte> bytes,
+                                std::uint64_t center_bit,
+                                std::uint64_t radius)
+{
+    const auto begin_bit = center_bit > radius ? center_bit - radius : 0;
+    const auto end_bit = center_bit > std::numeric_limits<std::uint64_t>::max() - radius
+        ? std::numeric_limits<std::uint64_t>::max()
+        : center_bit + radius;
+
+    std::ostringstream out;
+    out << begin_bit << "-" << end_bit
+        << "(" << describe_bit_range(bytes, begin_bit, end_bit) << ")";
+    return out.str();
+}
+
 std::uint8_t diagnostic_context_input_index(std::int64_t value) noexcept
 {
     return static_cast<std::uint8_t>(static_cast<std::uint64_t>(value) & 0xffu);
@@ -422,6 +437,8 @@ public:
             << describe_bit_range(
                    content_payload_, trace.bit_position_before, trace.bit_position_after)
             << ")"
+            << " bit_window="
+            << describe_bit_window(content_payload_, trace.bit_position_before, 16)
             << " k=" << static_cast<int>(rice_k)
             << " pred=" << trace.prediction
             << " actual_sample=" << trace.reconstructed_sample
@@ -530,7 +547,7 @@ std::string describe_golomb_rice_partial_decode(
         return {};
     }
     mffv1::codec::SliceState state;
-    status = state.reset(window);
+    status = state.reset(stream, window);
     if (!status.ok()) {
         return {};
     }

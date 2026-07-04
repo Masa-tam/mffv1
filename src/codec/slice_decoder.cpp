@@ -26,14 +26,15 @@
 
 namespace mffv1::syntax {
 
-Status LineState::reset(std::uint32_t width)
+Status LineState::reset(std::uint32_t width, std::int32_t border_value)
 {
     if (width == 0) {
         return make_error(ErrorCode::InvalidArgument, "line state width must be non-zero");
     }
-    previous_.assign(width, 0);
-    second_previous_.assign(width, 0);
-    current_.assign(width, 0);
+    border_value_ = border_value;
+    previous_.assign(width, border_value_);
+    second_previous_.assign(width, border_value_);
+    current_.assign(width, border_value_);
     return ok_status();
 }
 
@@ -70,7 +71,8 @@ std::vector<std::int32_t>& LineState::mutable_current() noexcept
 NeighborSamples LineState::neighbors(std::uint32_t x) const noexcept
 {
     NeighborSamples samples;
-    samples.far_left = x > 1 ? current_[x - 2] : (x == 1 ? previous_[0] : 0);
+    samples.far_left = x > 1 ? current_[x - 2]
+        : (x == 1 ? previous_[0] : border_value_);
     samples.left = x > 0 ? current_[x - 1] : previous_[0];
     samples.top = previous_[x];
     samples.top_left = x > 0 ? previous_[x - 1] : second_previous_[0];
@@ -83,7 +85,7 @@ void LineState::swap_lines() noexcept
 {
     second_previous_ = previous_;
     previous_.swap(current_);
-    std::fill(current_.begin(), current_.end(), 0);
+    std::fill(current_.begin(), current_.end(), border_value_);
 }
 
 } // namespace mffv1::syntax
@@ -689,24 +691,10 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         }
     }
 
-    while ((bit_reader.bit_position() % 8) != 0) {
-        const auto padding_byte_offset = bit_reader.byte_position();
-        const auto padding_bit_offset = bit_reader.bit_position();
-        const auto state_suffix =
-            format_golomb_rice_plane_end_bits(plane_end_bits)
-            + format_golomb_rice_run_states(state, output.plane_count());
-        std::uint8_t padding = 0;
-        status = bit_reader.read_bit(padding);
-        if (!status.ok()) {
-            set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
-            return status;
-        }
-        if (padding != 0) {
-            return make_byte_error(ErrorCode::SyntaxError,
-                                   "Golomb-Rice alignment padding must be zero at bit offset "
-                                       + std::to_string(padding_bit_offset) + state_suffix,
-                                   payload_offset + padding_byte_offset);
-        }
+    status = bit_reader.byte_align();
+    if (!status.ok()) {
+        set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
+        return status;
     }
     if (bit_reader.remaining_bits() != 0) {
         const auto state_suffix =
@@ -722,13 +710,29 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
 
 } // namespace
 
+namespace {
+
+std::int32_t plane_border_value(const syntax::StreamParameters& stream,
+                                std::size_t plane_index) noexcept
+{
+    if (stream.colorspace_type == 0
+        && syntax::is_chroma_plane(stream, plane_index)
+        && stream.bits_per_raw_sample > 0
+        && stream.bits_per_raw_sample < 31) {
+        return std::int32_t{1} << (stream.bits_per_raw_sample - 1);
+    }
+    return 0;
+}
+
+} // namespace
+
 Status SliceState::reset(const syntax::StreamParameters& stream)
 {
     const auto planes = syntax::coded_plane_count(stream);
     line_states_.resize(planes);
     for (std::size_t i = 0; i < line_states_.size(); ++i) {
         const std::uint32_t width = syntax::plane_width(stream, i);
-        Status status = line_states_[i].reset(width);
+        Status status = line_states_[i].reset(width, plane_border_value(stream, i));
         if (!status.ok()) {
             return status;
         }
@@ -748,11 +752,39 @@ Status SliceState::reset(const SliceInputWindow& input)
     return ok_status();
 }
 
+Status SliceState::reset(const syntax::StreamParameters& stream,
+                         const SliceInputWindow& input)
+{
+    line_states_.resize(input.plane_count());
+    for (std::size_t i = 0; i < line_states_.size(); ++i) {
+        Status status = line_states_[i].reset(input.plane_width(i),
+                                              plane_border_value(stream, i));
+        if (!status.ok()) {
+            return status;
+        }
+    }
+    return ok_status();
+}
+
 Status SliceState::reset(const SliceOutputWindow& output)
 {
     line_states_.resize(output.plane_count());
     for (std::size_t i = 0; i < line_states_.size(); ++i) {
         Status status = line_states_[i].reset(output.plane_width(i));
+        if (!status.ok()) {
+            return status;
+        }
+    }
+    return ok_status();
+}
+
+Status SliceState::reset(const syntax::StreamParameters& stream,
+                         const SliceOutputWindow& output)
+{
+    line_states_.resize(output.plane_count());
+    for (std::size_t i = 0; i < line_states_.size(); ++i) {
+        Status status = line_states_[i].reset(output.plane_width(i),
+                                              plane_border_value(stream, i));
         if (!status.ok()) {
             return status;
         }

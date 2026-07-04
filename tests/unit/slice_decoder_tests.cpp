@@ -4,6 +4,7 @@
 #include "entropy/golomb_rice_run.hpp"
 #include "entropy/range_encoder.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <vector>
@@ -47,6 +48,17 @@ mffv1::MutablePlaneView make_u16_plane(std::array<std::uint16_t, 8>& storage)
     plane.info.stride_bytes = 8;
     return plane;
 }
+
+class RecordingSliceObserver final : public mffv1::codec::SliceDecodeObserver {
+public:
+    void on_golomb_rice_sample(
+        const mffv1::codec::GolombRiceSampleTrace& trace) override
+    {
+        traces.push_back(trace);
+    }
+
+    std::vector<mffv1::codec::GolombRiceSampleTrace> traces;
+};
 
 TEST(LineStateTest, ResetsAndSwapsLines)
 {
@@ -1857,12 +1869,30 @@ TEST(SliceDecoderTest, DecodesGolombRiceScalarContext)
     ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
-    const auto status = decoder.decode(slice, window, state);
+    RecordingSliceObserver observer;
+    const auto status = decoder.decode(slice, window, state, &observer);
 
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(storage[0], 1u);
     EXPECT_EQ(storage[1], 1u);
     EXPECT_EQ(storage[2], 0xee);
+    ASSERT_GE(observer.traces.size(), 2u);
+    const auto scalar_trace = std::find_if(
+        observer.traces.begin(),
+        observer.traces.end(),
+        [](const mffv1::codec::GolombRiceSampleTrace& trace) {
+            return trace.context.context == 1;
+        });
+    ASSERT_NE(scalar_trace, observer.traces.end());
+    EXPECT_EQ(scalar_trace->plane, 0u);
+    EXPECT_EQ(scalar_trace->x, 1u);
+    EXPECT_EQ(scalar_trace->y, 0u);
+    EXPECT_EQ(scalar_trace->prediction, 1);
+    EXPECT_EQ(scalar_trace->difference, 0);
+    EXPECT_EQ(scalar_trace->reconstructed_sample, 1);
+    EXPECT_LT(scalar_trace->bit_position_before, scalar_trace->bit_position_after);
+    EXPECT_EQ(scalar_trace->adaptive_state_before.count, 1);
+    EXPECT_EQ(scalar_trace->adaptive_state_after.count, 2);
 }
 
 TEST(SliceDecoderTest, InvertsGolombRiceDifferenceForNegativeContext)

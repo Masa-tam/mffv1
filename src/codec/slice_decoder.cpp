@@ -214,7 +214,8 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                std::size_t context_bank,
                                std::uint32_t width,
                                std::uint8_t reconstruction_bits,
-                               SliceState& state)
+                               SliceState& state,
+                               SliceDecodeObserver* observer)
 {
     auto& line = state.line_state(plane);
     auto& run_state = state.golomb_rice_run_state(plane);
@@ -235,6 +236,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 entropy::GolombRiceRunSegment segment;
                 const auto run_start_x = x;
                 const auto run_start_bit = bit_reader.bit_position();
+                const auto run_state_before = run_state;
                 status = entropy::read_golomb_rice_run_segment(
                     bit_reader, run_state, x, width, segment);
                 if (!status.ok()) {
@@ -257,8 +259,29 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                     static_cast<std::uint64_t>(x) + segment.count);
                 while (x < run_end) {
                     const auto run_neighbors = line.neighbors(x);
-                    line.mutable_current()[x] = syntax::Predictor::median_predict(
+                    const auto run_prediction = syntax::Predictor::median_predict(
                         run_neighbors.left, run_neighbors.top, run_neighbors.top_left);
+                    line.mutable_current()[x] = run_prediction;
+                    if (observer != nullptr) {
+                        GolombRiceSampleTrace trace;
+                        trace.plane = plane;
+                        trace.x = x;
+                        trace.y = y;
+                        trace.context_bank = context_bank;
+                        trace.context = context;
+                        trace.neighbors = run_neighbors;
+                        trace.run_state_before = run_state_before;
+                        trace.run_state_after = run_state;
+                        trace.adaptive_state_before =
+                            state.golomb_rice_context(context_bank, 0);
+                        trace.adaptive_state_after = trace.adaptive_state_before;
+                        trace.bit_position_before = run_start_bit;
+                        trace.bit_position_after = bit_reader.bit_position();
+                        trace.prediction = run_prediction;
+                        trace.difference = 0;
+                        trace.reconstructed_sample = run_prediction;
+                        observer->on_golomb_rice_sample(trace);
+                    }
                     ++x;
                 }
                 interrupted = segment.interrupted;
@@ -269,6 +292,9 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
 
             std::int32_t difference = 0;
             auto& adaptive_state = state.golomb_rice_context(context_bank, 0);
+            const auto adaptive_state_before = adaptive_state;
+            const auto run_state_before = run_state;
+            const auto bit_position_before = bit_reader.bit_position();
             status = entropy::read_golomb_rice_run_interruption(
                 reader,
                 adaptive_state,
@@ -299,14 +325,38 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 interruption_neighbors.left,
                 interruption_neighbors.top,
                 interruption_neighbors.top_left);
-            line.mutable_current()[x] = syntax::Predictor::reconstruct(
+            const auto reconstructed = syntax::Predictor::reconstruct(
                 interruption_prediction, difference, reconstruction_bits);
+            line.mutable_current()[x] = reconstructed;
+            if (observer != nullptr) {
+                GolombRiceSampleTrace trace;
+                trace.plane = plane;
+                trace.x = x;
+                trace.y = y;
+                trace.context_bank = context_bank;
+                trace.context = context;
+                trace.neighbors = interruption_neighbors;
+                trace.run_state_before = run_state_before;
+                trace.run_state_after = run_state;
+                trace.adaptive_state_before = adaptive_state_before;
+                trace.adaptive_state_after = adaptive_state;
+                trace.bit_position_before = bit_position_before;
+                trace.bit_position_after = bit_reader.bit_position();
+                trace.prediction = interruption_prediction;
+                trace.difference = difference;
+                trace.reconstructed_sample = reconstructed;
+                trace.run_interruption = true;
+                observer->on_golomb_rice_sample(trace);
+            }
             ++x;
             continue;
         }
 
         std::int32_t difference = 0;
         auto& adaptive_state = state.golomb_rice_context(context_bank, context.context);
+        const auto adaptive_state_before = adaptive_state;
+        const auto run_state_before = run_state;
+        const auto bit_position_before = bit_reader.bit_position();
         status = entropy::read_golomb_rice_symbol(
             reader,
             adaptive_state,
@@ -330,8 +380,28 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
         if (context.invert_difference) {
             difference = -difference;
         }
-        line.mutable_current()[x] = syntax::Predictor::reconstruct(
+        const auto reconstructed = syntax::Predictor::reconstruct(
             prediction, difference, reconstruction_bits);
+        line.mutable_current()[x] = reconstructed;
+        if (observer != nullptr) {
+            GolombRiceSampleTrace trace;
+            trace.plane = plane;
+            trace.x = x;
+            trace.y = y;
+            trace.context_bank = context_bank;
+            trace.context = context;
+            trace.neighbors = neighbors;
+            trace.run_state_before = run_state_before;
+            trace.run_state_after = run_state;
+            trace.adaptive_state_before = adaptive_state_before;
+            trace.adaptive_state_after = adaptive_state;
+            trace.bit_position_before = bit_position_before;
+            trace.bit_position_after = bit_reader.bit_position();
+            trace.prediction = prediction;
+            trace.difference = difference;
+            trace.reconstructed_sample = reconstructed;
+            observer->on_golomb_rice_sample(trace);
+        }
         ++x;
     }
     return ok_status();
@@ -469,7 +539,8 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                 std::span<const std::size_t> context_bank_indexes,
                                 std::span<const std::size_t> context_bank_counts,
                                 SliceOutputWindow& output,
-                                SliceState& state)
+                                SliceState& state,
+                                SliceDecodeObserver* observer)
 {
     if (context_bank_indexes.size() != context_models.size()) {
         return make_error(ErrorCode::InvalidArgument,
@@ -512,7 +583,8 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  context_bank_indexes[plane],
                                                  width,
                                                  reconstruction_bits,
-                                                 state);
+                                                 state,
+                                                 observer);
                 if (!status.ok()) {
                     status.message += " at GR plane "
                         + std::to_string(plane)
@@ -547,7 +619,8 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  context_bank_indexes[plane],
                                                  width,
                                                  stream.bits_per_raw_sample,
-                                                 state);
+                                                 state,
+                                                 observer);
                 if (!status.ok()) {
                     status.message += " at GR plane "
                         + std::to_string(plane)
@@ -862,6 +935,14 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                             SliceOutputWindow& output,
                             SliceState& state) const
 {
+    return decode(slice, output, state, nullptr);
+}
+
+Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
+                            SliceOutputWindow& output,
+                            SliceState& state,
+                            SliceDecodeObserver* observer) const
+{
     Status status = validate(slice, output);
     if (!status.ok()) {
         return status;
@@ -963,7 +1044,8 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                         golomb_rice_context_bank_indexes,
                                         golomb_rice_context_bank_counts,
                                         output,
-                                        state);
+                                        state,
+                                        observer);
     }
 
     entropy::RangeCoder reader;

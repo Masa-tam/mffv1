@@ -343,6 +343,13 @@ that later underflow can occur with different adaptive states, for example
 `-2/8/-1/3` in the 1-slice flat vector and `0/4/0/1` in the 1-slice SMPTE
 vector, so future probes should compare the first divergent symbol against the
 state that led to it rather than only the final underflow location.
+The internal GR sample observer now records the first expected-output mismatch
+while decoding. The flat, SMPTE, and y-flat/u-v-gradient refreshed vectors all
+first diverge on a scalar symbol at `x=0,y=4`, `context=1210`, with
+`state_before=0/4/0/3` and `state_after=-1/5/0/4`; the bit positions differ by
+slice size, but the adaptive state and context are identical. The y-gradient
+control diverges earlier on a run fill at `x=0,y=1`, which points to a
+separate run-length interpretation issue for that vector.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

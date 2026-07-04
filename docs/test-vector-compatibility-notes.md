@@ -317,6 +317,10 @@ mffv1-generated streams while allowing FFmpeg-style read-ahead boundaries to
 reach the deeper Golomb-Rice run/context mismatch. With the refreshed vectors,
 the first-sample mismatch disappears and the remaining failures are underflow
 or alignment errors after several decoded rows.
+The TestVector diagnostics now annotate failed fallback attempts with the
+actual candidate content byte offset; the refreshed vectors confirm that the
+remaining failures happen while decoding the `content_byte_offset=3` alternate
+candidate, even though the parsed Slice Header still reports `content=4`.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

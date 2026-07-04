@@ -11,6 +11,7 @@
 #include <future>
 #include <limits>
 #include <numeric>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -126,6 +127,18 @@ Status copy_decoded_slice(const SliceOutputWindow& source,
     }
 
     return ok_status();
+}
+
+void append_golomb_rice_candidate_context(
+    Status& status,
+    const syntax::SliceDescriptor& candidate)
+{
+    status.message += " while decoding Golomb-Rice content candidate at byte offset "
+        + std::to_string(candidate.content_byte_offset);
+    if (candidate.content_bit_offset != 0) {
+        status.message += " bit offset "
+            + std::to_string(candidate.content_bit_offset);
+    }
 }
 
 } // namespace
@@ -363,12 +376,14 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
         SliceOutputWindow candidate_window;
         status = candidate_window.validate(stream_, temporary_frame, candidate);
         if (!status.ok()) {
+            append_golomb_rice_candidate_context(status, candidate);
             last_status = std::move(status);
             continue;
         }
         SliceState candidate_state = state;
         status = decoder.decode(candidate, candidate_window, candidate_state);
         if (!status.ok()) {
+            append_golomb_rice_candidate_context(status, candidate);
             last_status = std::move(status);
             continue;
         }

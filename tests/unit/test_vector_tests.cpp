@@ -261,12 +261,45 @@ std::string describe_adaptive_state(const mffv1::entropy::GolombRiceContextState
     return out.str();
 }
 
+std::uint8_t derive_golomb_rice_k_for_diagnostic(
+    const mffv1::entropy::GolombRiceContextState& state)
+{
+    auto threshold = state.count;
+    std::uint8_t k = 0;
+    while (threshold < state.error_sum && k < 31) {
+        ++k;
+        threshold *= 2;
+    }
+    return k;
+}
+
+std::string describe_bit_range(std::span<const std::byte> bytes,
+                               std::uint64_t begin_bit,
+                               std::uint64_t end_bit)
+{
+    std::ostringstream out;
+    for (auto bit = begin_bit; bit < end_bit; ++bit) {
+        const auto byte_index = static_cast<std::size_t>(bit / 8);
+        if (byte_index >= bytes.size()) {
+            out << "?";
+            continue;
+        }
+        const auto bit_index = 7u - static_cast<unsigned>(bit % 8);
+        const auto value =
+            (std::to_integer<std::uint8_t>(bytes[byte_index]) >> bit_index) & 1u;
+        out << value;
+    }
+    return out.str();
+}
+
 class FirstGolombRiceMismatchObserver final : public mffv1::codec::SliceDecodeObserver {
 public:
     explicit FirstGolombRiceMismatchObserver(
         std::span<const mffv1_testvectors::PlaneVector> expected_planes,
+        std::span<const std::byte> content_payload,
         std::uint8_t bits_per_raw_sample)
         : expected_planes_(expected_planes),
+          content_payload_(content_payload),
           bits_per_raw_sample_(bits_per_raw_sample)
     {
     }
@@ -290,6 +323,8 @@ public:
             static_cast<std::int32_t>(expected_sample),
             trace.prediction,
             bits_per_raw_sample_);
+        const auto rice_k =
+            derive_golomb_rice_k_for_diagnostic(trace.adaptive_state_before);
 
         std::ostringstream out;
         out << "first traced GR mismatch plane=" << trace.plane
@@ -300,6 +335,11 @@ public:
             << (trace.run_interruption ? " run_interruption=1" : " run_interruption=0")
             << " bits=" << trace.bit_position_before
             << "-" << trace.bit_position_after
+            << "("
+            << describe_bit_range(
+                   content_payload_, trace.bit_position_before, trace.bit_position_after)
+            << ")"
+            << " k=" << static_cast<int>(rice_k)
             << " pred=" << trace.prediction
             << " actual_sample=" << trace.reconstructed_sample
             << " expected_sample=" << expected_sample
@@ -325,6 +365,7 @@ public:
 
 private:
     std::span<const mffv1_testvectors::PlaneVector> expected_planes_;
+    std::span<const std::byte> content_payload_;
     std::uint8_t bits_per_raw_sample_ = 0;
     std::string description_;
 };
@@ -384,8 +425,10 @@ std::string describe_golomb_rice_partial_decode(
         return {};
     }
     const mffv1::codec::SliceDecoder slice_decoder(stream);
+    const auto content_offset = candidate.content_byte_offset - candidate.payload_byte_offset;
+    const auto content_payload = candidate.payload.subspan(content_offset);
     FirstGolombRiceMismatchObserver observer(
-        expected_planes, stream.bits_per_raw_sample);
+        expected_planes, content_payload, stream.bits_per_raw_sample);
     status = slice_decoder.decode(candidate, window, state, &observer);
 
     std::ostringstream out;

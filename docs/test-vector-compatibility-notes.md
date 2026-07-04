@@ -350,6 +350,13 @@ first diverge on a scalar symbol at `x=0,y=4`, `context=1210`, with
 slice size, but the adaptive state and context are identical. The y-gradient
 control diverges earlier on a run fill at `x=0,y=1`, which points to a
 separate run-length interpretation issue for that vector.
+The traced common mismatch now also reports the Rice parameter and consumed
+bit string. Those scalar mismatches consume `11` with `k=1`, which is folded
+value 1 under the current Golomb-Rice signed mapping. Since the expected
+residual is zero, the remaining issue is unlikely to be the median predictor
+itself; the next probes should test whether this border position should have
+remained in run mode, whether a preceding run segment consumed the wrong
+number of bits, or whether the signed mapping differs for this scalar context.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

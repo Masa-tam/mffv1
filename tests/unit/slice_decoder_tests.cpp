@@ -847,10 +847,10 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor8BitChromaSlice)
         EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cb) {
-        EXPECT_EQ(sample, 128u);
+        EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cr) {
-        EXPECT_EQ(sample, 128u);
+        EXPECT_EQ(sample, 0u);
     }
 }
 
@@ -913,10 +913,10 @@ TEST(SliceDecoderTest, DecodesVersionThreeRangeChromaWithSharedSlotContext)
         EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cb) {
-        EXPECT_EQ(sample, 128u);
+        EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cr) {
-        EXPECT_EQ(sample, 128u);
+        EXPECT_EQ(sample, 0u);
     }
     ASSERT_TRUE(state.has_range_contexts());
     EXPECT_EQ(state.range_contexts().size(), 2u);
@@ -971,10 +971,10 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesFor16BitChromaSlice)
         EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cb) {
-        EXPECT_EQ(sample, 32768u);
+        EXPECT_EQ(sample, 0u);
     }
     for (const auto sample : cr) {
-        EXPECT_EQ(sample, 32768u);
+        EXPECT_EQ(sample, 0u);
     }
 }
 

@@ -748,6 +748,7 @@ std::int32_t plane_border_value(const syntax::StreamParameters& stream,
                                 std::size_t plane_index) noexcept
 {
     if (stream.colorspace_type == 0
+        && stream.entropy_mode == EntropyMode::GolombRice
         && syntax::is_chroma_plane(stream, plane_index)
         && stream.bits_per_raw_sample > 0
         && stream.bits_per_raw_sample < 31) {

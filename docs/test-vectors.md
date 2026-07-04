@@ -86,13 +86,15 @@ Current high-value requests:
 - A range-coded vector with nonzero quantization-table-set indexes in the Slice
   Header, if the generator can produce one. This directly validates that range
   context banks are shared by slot, not by qset value.
-- Golomb-Rice 8-bit gray with a ramp or checkerboard input, one slice.
-  The remaining historical Golomb-Rice failures were run-mode related; a
-  non-flat single-plane control helps isolate run interruption and scalar mode
-  transitions.
-- Golomb-Rice 8-bit 4:2:0, one slice, with modest non-flat content.
-  This probes Golomb-Rice plane ordering and context state after the
-  single-plane case is stable.
+- Golomb-Rice 8-bit gray with a small vertical ramp, one slice.
+  This isolates row-boundary zero-run carry without chroma initialization.
+- Golomb-Rice 8-bit gray with a small horizontal ramp, one slice.
+  This isolates scalar/run-interruption transitions within a row.
+- Golomb-Rice 8-bit 4:2:0, one slice, with flat Y and neutral flat chroma.
+  This is the compact pass control for YCbCr chroma predictor initialization.
+- Golomb-Rice 8-bit 4:2:0, one slice, with flat Y and a single simple chroma
+  step. This checks chroma-plane alignment and expected-plane semantics after
+  the flat chroma control is stable.
 
 Recommended naming pattern for local generated headers:
 
@@ -101,8 +103,10 @@ Recommended naming pattern for local generated headers:
 - `range_intra_yuva8_1slice`
 - `range_intra_rgba8_1slice`, only if planar data is generated
 - `range_intra_420p8_1slice_qidx`
-- `gr_intra_gray8_1slice_ramp`
-- `gr_intra_420p8_1slice_ramp`
+- `gr_intra_gray8_1slice_ygrad_small`
+- `gr_intra_gray8_1slice_xgrad_small`
+- `gr_intra_420p8_1slice_yflat_uvflat_small`
+- `gr_intra_420p8_1slice_yflat_uvstep_small`
 
 When possible, keep the frame size modest, for example 32x24 or 64x48. Smaller
 vectors keep diagnostics and generated headers easier to inspect, while still

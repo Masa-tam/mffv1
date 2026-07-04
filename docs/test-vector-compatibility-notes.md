@@ -262,6 +262,25 @@ The flat vectors also exposed that a Golomb-Rice VLC context can legitimately
 rescale `error_sum` to zero after long zero-residual runs. This is now accepted
 by the context validator; negative `error_sum` remains invalid.
 
+The RFC 9043 Slice syntax places `SliceContent()` immediately after
+`SliceHeader()` and defines Golomb-Rice padding only after the content. The
+observed FFmpeg vectors behave as if the byte already read ahead by the range
+decoder is the first Golomb-Rice content byte. Moving the parser boundary from
+`header_reader.byte_position()` to `header_reader.byte_position() - 1` changes
+the refreshed vectors to `content=3` and removes the first-sample mismatch, but
+it is not safe as a standalone change: mffv1's current encoder finalizes the
+range-coded header with an additional stabilizing byte and appends Golomb-Rice
+content after that byte. Simply popping or overwriting this byte before
+appending content breaks internal Golomb-Rice round trips because the byte is
+part of the range header's decodability, not disposable padding.
+
+The next implementation step should therefore treat this as a range-header
+finalization problem rather than a parser-only off-by-one. A conforming mixed
+range-header/Golomb-Rice encoder needs to finalize the range-coded header so
+that the following content byte can serve as the range decoder read-ahead byte,
+or the decoder needs a safe alternate-boundary path that does not expose partial
+output/state when the first boundary attempt fails.
+
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context
   changes near a row boundary.

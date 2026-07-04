@@ -394,7 +394,7 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
     Status last_status;
     for (std::size_t i = 0; i < candidates.size(); ++i) {
         const auto& candidate = candidates[i];
-        const auto& candidate_decoder = i == 0 ? decoder : read_ahead_decoder;
+        const auto& candidate_decoder = read_ahead_decoder;
         SliceOutputWindow candidate_window;
         status = candidate_window.validate(stream_, temporary_frame, candidate);
         if (!status.ok()) {

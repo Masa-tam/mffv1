@@ -5,6 +5,7 @@
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_output_window.hpp"
 #include "mffv1/codec.hpp"
+#include "mffv1/predictor.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -166,11 +167,41 @@ std::string describe_mismatch_neighbors(std::span<const std::byte> bytes,
     return out.str();
 }
 
+std::string describe_mismatch_prediction(std::span<const std::byte> bytes,
+                                         const mffv1::PlaneInfo& plane,
+                                         std::uint32_t x,
+                                         std::uint32_t y,
+                                         std::uint8_t bits_per_raw_sample)
+{
+    const auto left = x > 0
+        ? sample_at(bytes, plane, x - 1, y)
+        : previous_sample_or_zero(bytes, plane, 0, y);
+    const auto top = previous_sample_or_zero(bytes, plane, x, y);
+    const auto top_left = x > 0
+        ? previous_sample_or_zero(bytes, plane, x - 1, y)
+        : second_previous_sample_or_zero(bytes, plane, 0, y);
+    const auto prediction = mffv1::syntax::Predictor::median_predict(
+        static_cast<std::int32_t>(left),
+        static_cast<std::int32_t>(top),
+        static_cast<std::int32_t>(top_left));
+    const auto sample = sample_at(bytes, plane, x, y);
+    const auto difference = mffv1::syntax::Predictor::difference(
+        static_cast<std::int32_t>(sample),
+        prediction,
+        bits_per_raw_sample);
+
+    std::ostringstream out;
+    out << "pred=" << prediction
+        << " diff=" << difference;
+    return out.str();
+}
+
 std::string describe_first_partial_mismatch(
     std::span<const std::byte> actual,
     std::span<const std::byte> expected,
     std::size_t plane_index,
-    const mffv1::PlaneInfo& plane)
+    const mffv1::PlaneInfo& plane,
+    std::uint8_t bits_per_raw_sample)
 {
     const auto bytes_per_sample = plane.sample_format == mffv1::SampleFormat::UInt16
         ? std::size_t{2}
@@ -208,7 +239,13 @@ std::string describe_first_partial_mismatch(
                    actual, plane, static_cast<std::uint32_t>(x), y)
             << " expected_neighbors="
             << describe_mismatch_neighbors(
-                   expected, plane, static_cast<std::uint32_t>(x), y);
+                   expected, plane, static_cast<std::uint32_t>(x), y)
+            << " actual_prediction="
+            << describe_mismatch_prediction(
+                   actual, plane, static_cast<std::uint32_t>(x), y, bits_per_raw_sample)
+            << " expected_prediction="
+            << describe_mismatch_prediction(
+                   expected, plane, static_cast<std::uint32_t>(x), y, bits_per_raw_sample);
         return out.str();
     }
     return {};
@@ -289,7 +326,11 @@ std::string describe_golomb_rice_partial_decode(
         const std::vector<std::byte> expected_bytes{
             expected.samples.begin(), expected.samples.begin() + expected_size};
         const auto mismatch = describe_first_partial_mismatch(
-            plane_storage[index], expected_bytes, index, expected.info);
+            plane_storage[index],
+            expected_bytes,
+            index,
+            expected.info,
+            stream.bits_per_raw_sample);
         if (!mismatch.empty()) {
             out << "\n" << mismatch;
             break;

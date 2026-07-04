@@ -332,6 +332,11 @@ from both the partial output and expected plane. The refreshed GR vectors show
 matching neighbor values at the first mismatch, so the next useful probes
 should focus on Golomb-Rice scalar/VLC symbol consumption or context state,
 not on a decoded-sample neighbor history mismatch.
+The diagnostic also reports the median predictor and residual at the first
+partial mismatch. The flat vectors now show `pred=126`, expected `diff=0`, and
+actual `diff=1`; the SMPTE vectors show `pred=180`, expected `diff=0`, and
+actual `diff=-1`. This confirms the first visible mismatch is a one-step
+residual decode difference under matching predictor input.
 
 - The exact update order of Golomb-Rice context state during run interruption.
 - The transition between run mode and scalar mode after a derived context

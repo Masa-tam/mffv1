@@ -247,6 +247,13 @@ void expect_decodes_frame(
     const auto frame_description = describe_frame_parse(vector, frame_payload);
     if (!status.ok()) {
         for (std::size_t index = 0; index < expected_planes.size(); ++index) {
+            const bool plane_was_touched = std::any_of(
+                plane_storage[index].begin(),
+                plane_storage[index].end(),
+                [](std::byte value) { return value != std::byte{0xa5}; });
+            if (!plane_was_touched) {
+                continue;
+            }
             const auto& expected = expected_planes[index];
             std::size_t expected_size = 0;
             ASSERT_TRUE(compute_plane_size(expected, expected_size));

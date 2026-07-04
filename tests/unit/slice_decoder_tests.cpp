@@ -2107,6 +2107,40 @@ TEST(SliceDecoderTest, RejectsTrailingGolombRiceByte)
     EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{0, 0, 0, 0, 0, 0, 0, 0}));
 }
 
+TEST(SliceDecoderTest, AcceptsVersionThreeGolombRiceReadAheadTrailingBytes)
+{
+    auto stream = make_stream();
+    stream.version = 3;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 4> payload{
+        std::byte{0xaa},
+        std::byte{0xbb},
+        std::byte{0xfc},
+        std::byte{0x55},
+    };
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 4;
+    slice.height = 2;
+    slice.payload = payload;
+    slice.content_byte_offset = 2;
+    slice.quant_table_set_indexes = {0, 0};
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream).ok());
+
+    const mffv1::codec::SliceDecoder decoder(stream, true);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 8>{0, 0, 0, 0, 0, 0, 0, 0}));
+}
+
 TEST(SliceDecoderTest, RejectsMissingQuantTableSetIndex)
 {
     const auto stream = make_stream();

@@ -617,7 +617,8 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                 std::span<const std::size_t> context_bank_counts,
                                 SliceOutputWindow& output,
                                 SliceState& state,
-                                SliceDecodeObserver* observer)
+                                SliceDecodeObserver* observer,
+                                bool allow_read_ahead_trailing_bytes)
 {
     if (context_bank_indexes.size() != context_models.size()) {
         return make_error(ErrorCode::InvalidArgument,
@@ -723,6 +724,9 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         return status;
     }
     if (bit_reader.remaining_bits() != 0) {
+        if (allow_read_ahead_trailing_bytes && stream.version >= 3) {
+            return ok_status();
+        }
         const auto state_suffix =
             format_golomb_rice_plane_end_bits(plane_end_bits)
             + format_golomb_rice_run_states(state, output.plane_count());
@@ -931,10 +935,29 @@ SliceDecoder::SliceDecoder(const syntax::StreamParameters& stream) noexcept
 {
 }
 
+SliceDecoder::SliceDecoder(
+    const syntax::StreamParameters& stream,
+    bool allow_golomb_rice_read_ahead_trailing_bytes) noexcept
+    : SliceDecoder(stream,
+                   scalar_codec_kernels(),
+                   allow_golomb_rice_read_ahead_trailing_bytes)
+{
+}
+
 SliceDecoder::SliceDecoder(const syntax::StreamParameters& stream,
                            const simd::CodecKernels& kernels) noexcept
+    : SliceDecoder(stream, kernels, false)
+{
+}
+
+SliceDecoder::SliceDecoder(
+    const syntax::StreamParameters& stream,
+    const simd::CodecKernels& kernels,
+    bool allow_golomb_rice_read_ahead_trailing_bytes) noexcept
     : stream_(stream)
     , kernels_(kernels)
+    , allow_golomb_rice_read_ahead_trailing_bytes_(
+          allow_golomb_rice_read_ahead_trailing_bytes)
 {
 }
 
@@ -1154,7 +1177,8 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                         golomb_rice_context_bank_counts,
                                         output,
                                         state,
-                                        observer);
+                                        observer,
+                                        allow_golomb_rice_read_ahead_trailing_bytes_);
     }
 
     entropy::RangeCoder reader;

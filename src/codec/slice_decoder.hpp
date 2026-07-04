@@ -44,7 +44,12 @@ class SliceDecoder {
 public:
     explicit SliceDecoder(const syntax::StreamParameters& stream) noexcept;
     SliceDecoder(const syntax::StreamParameters& stream,
+                 bool allow_golomb_rice_read_ahead_trailing_bytes) noexcept;
+    SliceDecoder(const syntax::StreamParameters& stream,
                  const simd::CodecKernels& kernels) noexcept;
+    SliceDecoder(const syntax::StreamParameters& stream,
+                 const simd::CodecKernels& kernels,
+                 bool allow_golomb_rice_read_ahead_trailing_bytes) noexcept;
 
     Status validate(const syntax::SliceDescriptor& slice,
                     const SliceOutputWindow& output) const;
@@ -62,6 +67,7 @@ private:
 
     const syntax::StreamParameters& stream_;
     const simd::CodecKernels& kernels_;
+    bool allow_golomb_rice_read_ahead_trailing_bytes_ = false;
 };
 
 } // namespace mffv1::codec

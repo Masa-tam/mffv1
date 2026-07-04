@@ -54,6 +54,20 @@ syntax::SliceDescriptor make_golomb_rice_read_ahead_boundary(
     return candidate;
 }
 
+std::vector<syntax::SliceDescriptor> make_golomb_rice_content_candidates(
+    const syntax::StreamParameters& stream,
+    const syntax::SliceDescriptor& slice)
+{
+    std::vector<syntax::SliceDescriptor> candidates;
+    candidates.push_back(slice);
+    if (!can_try_golomb_rice_read_ahead_boundary(stream, slice)) {
+        return candidates;
+    }
+
+    candidates.push_back(make_golomb_rice_read_ahead_boundary(slice));
+    return candidates;
+}
+
 Status make_temporary_frame(MutableFrameView output,
                             std::vector<std::vector<std::byte>>& storage,
                             std::vector<MutablePlaneView>& planes,
@@ -264,17 +278,24 @@ Status SliceExecutor::validate_slices(MutableFrameView output,
         if (status.ok()) {
             status = decoder.validate(slice, window);
         }
-        if (!status.ok()
-            && can_try_golomb_rice_read_ahead_boundary(stream_, slice)) {
-            const auto candidate =
-                make_golomb_rice_read_ahead_boundary(slice);
-            SliceOutputWindow candidate_window;
-            Status candidate_status =
-                candidate_window.validate(stream_, output, candidate);
-            if (candidate_status.ok()) {
-                candidate_status = decoder.validate(candidate, candidate_window);
+        if (!status.ok()) {
+            const auto candidates =
+                make_golomb_rice_content_candidates(stream_, slice);
+            bool accepted_candidate = false;
+            for (std::size_t i = 1; i < candidates.size(); ++i) {
+                const auto& candidate = candidates[i];
+                SliceOutputWindow candidate_window;
+                Status candidate_status =
+                    candidate_window.validate(stream_, output, candidate);
+                if (candidate_status.ok()) {
+                    candidate_status = decoder.validate(candidate, candidate_window);
+                }
+                if (candidate_status.ok()) {
+                    accepted_candidate = true;
+                    break;
+                }
             }
-            if (candidate_status.ok()) {
+            if (accepted_candidate) {
                 continue;
             }
         }
@@ -367,12 +388,13 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
         return status;
     }
 
-    const std::array candidates{
-        slice,
-        make_golomb_rice_read_ahead_boundary(slice),
-    };
+    const auto candidates = make_golomb_rice_content_candidates(stream_, slice);
+    const SliceDecoder read_ahead_decoder(
+        stream_, kernels_, true);
     Status last_status;
-    for (const auto& candidate : candidates) {
+    for (std::size_t i = 0; i < candidates.size(); ++i) {
+        const auto& candidate = candidates[i];
+        const auto& candidate_decoder = i == 0 ? decoder : read_ahead_decoder;
         SliceOutputWindow candidate_window;
         status = candidate_window.validate(stream_, temporary_frame, candidate);
         if (!status.ok()) {
@@ -381,7 +403,7 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
             continue;
         }
         SliceState candidate_state = state;
-        status = decoder.decode(candidate, candidate_window, candidate_state);
+        status = candidate_decoder.decode(candidate, candidate_window, candidate_state);
         if (!status.ok()) {
             append_golomb_rice_candidate_context(status, candidate);
             last_status = std::move(status);

@@ -93,6 +93,20 @@ mffv1::syntax::StreamParameters make_initial_profile()
     return stream;
 }
 
+mffv1::syntax::QuantTableSet make_two_context_quant_table_set()
+{
+    auto table_set = mffv1::syntax::make_zero_quant_table_set();
+    for (std::size_t i = 64; i < 128; ++i) {
+        table_set.tables[0][i] = 1;
+    }
+    for (std::size_t mirror = 1; mirror < 128; ++mirror) {
+        table_set.tables[0][256 - mirror] = -table_set.tables[0][mirror];
+    }
+    table_set.tables[0][128] = -table_set.tables[0][127];
+    table_set.context_count = 2;
+    return table_set;
+}
+
 TEST(ConfigurationRecordWriterTest, WritesInitialProfileSyntaxInRfcOrder)
 {
     const auto stream = make_initial_profile();
@@ -116,6 +130,42 @@ TEST(ConfigurationRecordWriterTest, WritesInitialProfileSyntaxInRfcOrder)
         {SymbolKind::Unsigned, 0},
         {SymbolKind::Unsigned, 1},
         {SymbolKind::Unsigned, 127},
+        {SymbolKind::Unsigned, 127},
+        {SymbolKind::Unsigned, 127},
+        {SymbolKind::Unsigned, 127},
+        {SymbolKind::Unsigned, 127},
+        {SymbolKind::Bool, 0},
+        {SymbolKind::Unsigned, 0},
+        {SymbolKind::Unsigned, 1},
+    };
+    EXPECT_EQ(symbols.symbols, expected);
+}
+
+TEST(ConfigurationRecordWriterTest, WritesCustomQuantTableSyntaxInRfcOrder)
+{
+    auto stream = make_initial_profile();
+    stream.quant_table_sets[0] = make_two_context_quant_table_set();
+    RecordingSymbolWriter symbols;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write_parameters(stream, symbols);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    const std::vector<Symbol> expected{
+        {SymbolKind::Unsigned, 3},
+        {SymbolKind::Unsigned, 4},
+        {SymbolKind::Unsigned, 1},
+        {SymbolKind::Unsigned, 0},
+        {SymbolKind::Unsigned, 8},
+        {SymbolKind::Bool, 0},
+        {SymbolKind::Unsigned, 0},
+        {SymbolKind::Unsigned, 0},
+        {SymbolKind::Bool, 0},
+        {SymbolKind::Unsigned, 0},
+        {SymbolKind::Unsigned, 0},
+        {SymbolKind::Unsigned, 1},
+        {SymbolKind::Unsigned, 63},
+        {SymbolKind::Unsigned, 63},
         {SymbolKind::Unsigned, 127},
         {SymbolKind::Unsigned, 127},
         {SymbolKind::Unsigned, 127},
@@ -232,6 +282,55 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesCustomRangeCoder)
     ASSERT_TRUE(parser.parse(record, parsed).ok());
     EXPECT_EQ(parsed.entropy_mode, mffv1::EntropyMode::Range);
     EXPECT_EQ(parsed.state_transition, stream.state_transition);
+}
+
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesCustomQuantTable)
+{
+    auto stream = make_initial_profile();
+    stream.quant_table_sets[0] = make_two_context_quant_table_set();
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    const auto status = writer.write(stream, record);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_GE(record.size(), 6u);
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(record), 0u);
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    ASSERT_EQ(parsed.quant_table_sets.size(), 1u);
+    EXPECT_EQ(parsed.quant_table_sets[0].context_count, 2u);
+    EXPECT_EQ(parsed.quant_table_sets[0].tables,
+              stream.quant_table_sets[0].tables);
+}
+
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesMultipleQuantTableSets)
+{
+    auto stream = make_initial_profile();
+    stream.quant_table_sets.push_back(make_two_context_quant_table_set());
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    const auto status = writer.write(stream, record);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_GE(record.size(), 6u);
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(record), 0u);
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    ASSERT_EQ(parsed.quant_table_sets.size(), 2u);
+    EXPECT_EQ(parsed.quant_table_sets[0].tables,
+              stream.quant_table_sets[0].tables);
+    EXPECT_EQ(parsed.quant_table_sets[1].context_count, 2u);
+    EXPECT_EQ(parsed.quant_table_sets[1].tables,
+              stream.quant_table_sets[1].tables);
+    ASSERT_EQ(parsed.initial_states.size(), 2u);
+    EXPECT_TRUE(parsed.initial_states[0].contexts.empty());
+    EXPECT_TRUE(parsed.initial_states[1].contexts.empty());
 }
 
 TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesCustomInitialStates)
@@ -621,7 +720,7 @@ TEST(ConfigurationRecordWriterTest, AcceptsNormalizedEmptyInitialStateSet)
     EXPECT_TRUE(status.ok()) << status.message;
 }
 
-TEST(ConfigurationRecordWriterTest, RejectsNonZeroQuantTableSetWithDiagnostic)
+TEST(ConfigurationRecordWriterTest, RejectsUnencodableQuantTableSetWithDiagnostic)
 {
     auto stream = make_initial_profile();
     stream.quant_table_sets[0].tables[0][1] = 1;
@@ -631,9 +730,9 @@ TEST(ConfigurationRecordWriterTest, RejectsNonZeroQuantTableSetWithDiagnostic)
     const auto status = writer.write(stream, record);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
     EXPECT_EQ(status.message,
-              "configuration writer supports only one zero quantization table set");
+              "configuration quantization table mirror entries are inconsistent");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

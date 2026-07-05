@@ -206,10 +206,11 @@ The generated Configuration Record currently declares:
   is true; otherwise, these slice footer fields are omitted.
 
 The lower-level `codec::ConfigurationRecordWriter` can also serialize custom
-range state transitions from `syntax::StreamParameters` by writing range coder
-type 2 and the signed transition deltas. It can also serialize coded initial
-range states with `states_coded=1`. The public encoder profile builder still
-generates the default range state transition table and default initial states.
+quantization table sets, custom range state transitions from
+`syntax::StreamParameters` by writing range coder type 2 and the signed
+transition deltas, and coded initial range states with `states_coded=1`. The
+public encoder profile builder still generates one zero quantization table set,
+the default range state transition table, and default initial states.
 
 With the default options, every generated frame is a keyframe. When
 `keyframe_interval` is greater than one, frame zero and every Nth frame after it

@@ -4,29 +4,34 @@
 #include "entropy/range_encoder.hpp"
 #include "util/crc32.hpp"
 
-#include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <sstream>
 #include <utility>
 
 namespace mffv1::codec {
 
 namespace {
 
-bool is_zero_quant_table_set(const syntax::QuantTableSet& table_set) noexcept
+Status validate_quant_table_mirror(
+    const syntax::QuantTableSet& table_set,
+    std::size_t table_index)
 {
-    if (table_set.context_count != 1) {
-        return false;
+    for (std::size_t mirror = 1; mirror < 128; ++mirror) {
+        if (table_set.tables[table_index][256 - mirror]
+            != -table_set.tables[table_index][mirror]) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "configuration quantization table mirror entries are inconsistent");
+        }
     }
-    return std::all_of(
-        table_set.tables.begin(),
-        table_set.tables.end(),
-        [](const auto& table) {
-            return std::all_of(
-                table.begin(), table.end(), [](std::int32_t value) {
-                    return value == 0;
-                });
-        });
+    if (table_set.tables[table_index][128]
+        != -table_set.tables[table_index][127]) {
+        return make_error(
+            ErrorCode::InvalidState,
+            "configuration quantization table center mirror entry is inconsistent");
+    }
+    return ok_status();
 }
 
 bool has_custom_state_transition(
@@ -50,6 +55,99 @@ Status write_u(entropy::SymbolWriter& writer, std::uint64_t value)
 Status write_b(entropy::SymbolWriter& writer, bool value)
 {
     return writer.write_bool(value);
+}
+
+Status write_quant_table(
+    const syntax::QuantTableSet& table_set,
+    std::size_t table_index,
+    std::int64_t scale,
+    entropy::SymbolWriter& writer,
+    std::int64_t& out_len_count)
+{
+    Status status = validate_quant_table_mirror(table_set, table_index);
+    if (!status.ok()) {
+        return status;
+    }
+
+    std::size_t k = 0;
+    std::int64_t value = 0;
+    while (k < 128) {
+        if (value != 0
+            && scale > std::numeric_limits<std::int64_t>::max() / value) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "configuration quantization table value overflow");
+        }
+        const auto expected = scale * value;
+        if (table_set.tables[table_index][k] != expected) {
+            std::ostringstream message;
+            message << "configuration quantization table is not encodable at table "
+                    << table_index << ", entry " << k;
+            return make_error(ErrorCode::InvalidState, message.str());
+        }
+
+        std::size_t len = 0;
+        while (k + len < 128
+               && table_set.tables[table_index][k + len] == expected) {
+            ++len;
+        }
+        if (len == 0) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "configuration quantization table has an empty run");
+        }
+        status = write_u(writer, len - 1);
+        if (!status.ok()) {
+            return status;
+        }
+        k += len;
+        ++value;
+    }
+
+    out_len_count = value;
+    return ok_status();
+}
+
+Status write_quant_table_set(
+    const syntax::QuantTableSet& table_set,
+    entropy::SymbolWriter& writer)
+{
+    std::int64_t scale = 1;
+    Status status;
+    for (std::size_t table = 0;
+         table < syntax::QuantTableSet::kContextInputs;
+         ++table) {
+        status = writer.begin_independent_scalar_contexts(1);
+        if (!status.ok()) {
+            return status;
+        }
+        std::int64_t len_count = 0;
+        status = write_quant_table(table_set, table, scale, writer, len_count);
+        const Status end_status = writer.end_independent_scalar_contexts();
+        if (!status.ok()) {
+            return end_status.ok() ? status : end_status;
+        }
+        if (!end_status.ok()) {
+            return end_status;
+        }
+
+        const std::int64_t multiplier = 2 * len_count - 1;
+        if (multiplier <= 0
+            || scale > (std::numeric_limits<std::int64_t>::max() / multiplier)) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "configuration quantization table scale overflow");
+        }
+        scale *= multiplier;
+    }
+
+    const auto context_count = static_cast<std::uint32_t>((scale + 1) / 2);
+    if (table_set.context_count != context_count) {
+        return make_error(
+            ErrorCode::InvalidState,
+            "configuration quantization table context count does not match encoded tables");
+    }
+    return ok_status();
 }
 
 Status write_initial_state_set(
@@ -212,32 +310,24 @@ Status ConfigurationRecordWriter::write_parameters(
     if (!status.ok()) {
         return status;
     }
-    status = write_unsigned(1); // quant_table_set_count
+    status = write_unsigned(stream.quant_table_sets.size()); // quant_table_set_count
     if (!status.ok()) {
         return status;
     }
 
-    for (std::size_t table = 0;
-         table < syntax::QuantTableSet::kContextInputs;
-         ++table) {
-        status = writer.begin_independent_scalar_contexts(1);
+    for (const auto& table_set : stream.quant_table_sets) {
+        status = write_quant_table_set(table_set, writer);
         if (!status.ok()) {
             return status;
-        }
-        status = write_unsigned(127); // one run of 128 zero entries
-        const Status end_status = writer.end_independent_scalar_contexts();
-        if (!status.ok()) {
-            return end_status.ok() ? status : end_status;
-        }
-        if (!end_status.ok()) {
-            return end_status;
         }
     }
 
     if (stream.initial_states.empty()) {
-        status = write_bool(false); // states_coded
-        if (!status.ok()) {
-            return status;
+        for (std::size_t i = 0; i < stream.quant_table_sets.size(); ++i) {
+            status = write_bool(false); // states_coded
+            if (!status.ok()) {
+                return status;
+            }
         }
     } else {
         for (const auto& state_set : stream.initial_states) {
@@ -309,11 +399,17 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             ErrorCode::InvalidArgument,
             "configuration slice grid dimensions must be non-zero");
     }
-    if (stream.quant_table_sets.size() != 1
-        || !is_zero_quant_table_set(stream.quant_table_sets[0])) {
+    if (stream.quant_table_sets.empty() || stream.quant_table_sets.size() > 8) {
         return make_error(
-            ErrorCode::UnsupportedFeature,
-            "configuration writer supports only one zero quantization table set");
+            ErrorCode::InvalidArgument,
+            "configuration quantization table set count must be in the range 1..8");
+    }
+    for (const auto& table_set : stream.quant_table_sets) {
+        if (table_set.context_count == 0) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "configuration quantization table set has no contexts");
+        }
     }
     if (!stream.initial_states.empty()
         && stream.initial_states.size() != stream.quant_table_sets.size()) {

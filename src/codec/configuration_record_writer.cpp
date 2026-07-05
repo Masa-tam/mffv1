@@ -29,6 +29,13 @@ bool is_zero_quant_table_set(const syntax::QuantTableSet& table_set) noexcept
         });
 }
 
+bool has_custom_state_transition(
+    const syntax::StreamParameters& stream) noexcept
+{
+    return stream.entropy_mode == EntropyMode::Range
+        && stream.state_transition != syntax::kDefaultStateTransition;
+}
+
 Status write_u(entropy::SymbolWriter& writer, std::uint64_t value)
 {
     return writer.write_unsigned(value);
@@ -114,9 +121,25 @@ Status ConfigurationRecordWriter::write_parameters(
         return status;
     }
     status = write_unsigned(
-        stream.entropy_mode == EntropyMode::GolombRice ? 0 : 1);
+        stream.entropy_mode == EntropyMode::GolombRice
+            ? 0
+            : (has_custom_state_transition(stream) ? 2 : 1));
     if (!status.ok()) {
         return status;
+    }
+    if (has_custom_state_transition(stream)) {
+        for (std::size_t state = 1;
+             state < stream.state_transition.size();
+             ++state) {
+            const auto delta =
+                static_cast<std::int64_t>(stream.state_transition[state])
+                - static_cast<std::int64_t>(
+                    syntax::kDefaultStateTransition[state]);
+            status = writer.write_signed(delta);
+            if (!status.ok()) {
+                return status;
+            }
+        }
     }
     status = write_unsigned(
         static_cast<std::uint64_t>(stream.colorspace_type));
@@ -192,13 +215,11 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             ErrorCode::UnsupportedFeature,
             "configuration writer supports only FFV1 version 3 micro-version 4");
     }
-    if ((stream.entropy_mode != EntropyMode::Range
-         && stream.entropy_mode != EntropyMode::GolombRice)
-        || (stream.entropy_mode == EntropyMode::Range
-            && stream.state_transition != syntax::kDefaultStateTransition)) {
+    if (stream.entropy_mode != EntropyMode::Range
+        && stream.entropy_mode != EntropyMode::GolombRice) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports Golomb-Rice or the default range coder");
+            "configuration writer supports only range or Golomb-Rice coding");
     }
     if (stream.entropy_mode == EntropyMode::GolombRice
         && !constraints::is_supported_encoder_bit_depth(stream.bits_per_raw_sample)) {

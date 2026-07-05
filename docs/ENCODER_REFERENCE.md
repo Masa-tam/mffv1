@@ -205,6 +205,11 @@ The generated Configuration Record currently declares:
 - Error-status and slice CRC fields when `StreamInfo::error_status_enabled`
   is true; otherwise, these slice footer fields are omitted.
 
+The lower-level `codec::ConfigurationRecordWriter` can also serialize custom
+range state transitions from `syntax::StreamParameters` by writing range coder
+type 2 and the signed transition deltas. The public encoder profile builder
+still generates the default range state transition table.
+
 With the default options, every generated frame is a keyframe. When
 `keyframe_interval` is greater than one, frame zero and every Nth frame after it
 are keyframes, and intervening frames continue each slice's prediction and

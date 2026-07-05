@@ -127,6 +127,29 @@ TEST(ConfigurationRecordWriterTest, WritesInitialProfileSyntaxInRfcOrder)
     EXPECT_EQ(symbols.symbols, expected);
 }
 
+TEST(ConfigurationRecordWriterTest, WritesCustomRangeCoderSyntaxInRfcOrder)
+{
+    auto stream = make_initial_profile();
+    stream.state_transition[8] =
+        static_cast<std::uint8_t>(
+            mffv1::syntax::kDefaultStateTransition[8] + 5u);
+    RecordingSymbolWriter symbols;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write_parameters(stream, symbols);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(symbols.symbols.size(), 275u);
+    EXPECT_EQ(symbols.symbols[0], (Symbol{SymbolKind::Unsigned, 3}));
+    EXPECT_EQ(symbols.symbols[1], (Symbol{SymbolKind::Unsigned, 4}));
+    EXPECT_EQ(symbols.symbols[2], (Symbol{SymbolKind::Unsigned, 2}));
+    EXPECT_EQ(symbols.symbols[3], (Symbol{SymbolKind::Signed, 0}));
+    EXPECT_EQ(symbols.symbols[10], (Symbol{SymbolKind::Signed, 5}));
+    EXPECT_EQ(symbols.symbols[257], (Symbol{SymbolKind::Signed, 0}));
+    EXPECT_EQ(symbols.symbols[258], (Symbol{SymbolKind::Unsigned, 0}));
+    EXPECT_EQ(symbols.symbols[259], (Symbol{SymbolKind::Unsigned, 8}));
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordRoundTripsThroughParser)
 {
     const auto stream = make_initial_profile();
@@ -161,6 +184,31 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordRoundTripsThroughParser)
     EXPECT_EQ(parsed.quant_table_sets[0].context_count, 1u);
     EXPECT_EQ(parsed.quant_table_sets[0].tables,
               stream.quant_table_sets[0].tables);
+}
+
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesCustomRangeCoder)
+{
+    auto stream = make_initial_profile();
+    stream.state_transition[8] =
+        static_cast<std::uint8_t>(
+            mffv1::syntax::kDefaultStateTransition[8] + 5u);
+    stream.state_transition[128] =
+        static_cast<std::uint8_t>(
+            mffv1::syntax::kDefaultStateTransition[128] - 1u);
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    const auto status = writer.write(stream, record);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_GE(record.size(), 6u);
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(record), 0u);
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    EXPECT_EQ(parsed.entropy_mode, mffv1::EntropyMode::Range);
+    EXPECT_EQ(parsed.state_transition, stream.state_transition);
 }
 
 TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesSliceGrid)
@@ -327,22 +375,6 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedVersionWithDiagnostic)
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(status.message,
               "configuration writer supports only FFV1 version 3 micro-version 4");
-    EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
-}
-
-TEST(ConfigurationRecordWriterTest, RejectsCustomRangeCoderWithDiagnostic)
-{
-    auto stream = make_initial_profile();
-    stream.state_transition[1] ^= 1;
-    const mffv1::codec::ConfigurationRecordWriter writer;
-    std::vector<std::byte> record{std::byte{0xaa}};
-
-    const auto status = writer.write(stream, record);
-
-    EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(status.message,
-              "configuration writer supports Golomb-Rice or the default range coder");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

@@ -747,13 +747,8 @@ namespace {
 std::int32_t plane_border_value(const syntax::StreamParameters& stream,
                                 std::size_t plane_index) noexcept
 {
-    if (stream.colorspace_type == 0
-        && stream.entropy_mode == EntropyMode::GolombRice
-        && syntax::is_chroma_plane(stream, plane_index)
-        && stream.bits_per_raw_sample > 0
-        && stream.bits_per_raw_sample < 31) {
-        return std::int32_t{1} << (stream.bits_per_raw_sample - 1);
-    }
+    (void)stream;
+    (void)plane_index;
     return 0;
 }
 
@@ -1101,9 +1096,22 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     context_counts.reserve(output.plane_count());
     golomb_rice_context_bank_indexes.reserve(output.plane_count());
     initial_state_banks.reserve(output.plane_count());
-    golomb_rice_context_bank_counts.reserve(stream_.quant_table_sets.size());
-    for (const auto& table_set : stream_.quant_table_sets) {
-        golomb_rice_context_bank_counts.push_back(table_set.context_count);
+    const bool use_slot_local_golomb_rice_contexts =
+        stream_.version >= 3 && stream_.colorspace_type == 0;
+    const auto golomb_rice_bank_count = use_slot_local_golomb_rice_contexts
+        ? syntax::quant_table_set_index_count(stream_)
+        : stream_.quant_table_sets.size();
+    golomb_rice_context_bank_counts.reserve(golomb_rice_bank_count);
+    if (use_slot_local_golomb_rice_contexts) {
+        for (std::size_t slot = 0; slot < golomb_rice_bank_count; ++slot) {
+            const auto quant_table_set_index = slice.quant_table_set_indexes[slot];
+            golomb_rice_context_bank_counts.push_back(
+                stream_.quant_table_sets[quant_table_set_index].context_count);
+        }
+    } else {
+        for (const auto& table_set : stream_.quant_table_sets) {
+            golomb_rice_context_bank_counts.push_back(table_set.context_count);
+        }
     }
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
         const auto index_slot = stream_.version >= 3
@@ -1111,7 +1119,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             : std::size_t{0};
         const auto quant_table_set_index = slice.quant_table_set_indexes[index_slot];
         golomb_rice_context_bank_indexes.push_back(
-            static_cast<std::size_t>(quant_table_set_index));
+            use_slot_local_golomb_rice_contexts
+                ? index_slot
+                : static_cast<std::size_t>(quant_table_set_index));
         context_models.emplace_back(stream_.quant_table_sets[quant_table_set_index]);
         context_counts.push_back(context_models.back().context_count());
         if (stream_.initial_states.empty()) {

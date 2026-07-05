@@ -626,7 +626,21 @@ Status SliceEncoder::encode_golomb_rice_samples(
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream_));
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
-    const std::array<std::size_t, 1> context_counts{context_model.context_count()};
+    const bool use_slot_local_golomb_rice_contexts =
+        stream_.version >= 3 && stream_.colorspace_type == 0;
+    const auto golomb_rice_context_bank_count =
+        use_slot_local_golomb_rice_contexts
+            ? syntax::quant_table_set_index_count(stream_)
+            : std::size_t{1};
+    std::vector<std::size_t> context_counts(
+        golomb_rice_context_bank_count, context_model.context_count());
+    std::vector<std::size_t> context_bank_indexes(plane_count, 0);
+    if (use_slot_local_golomb_rice_contexts) {
+        for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+            context_bank_indexes[plane_index] =
+                syntax::plane_quant_table_set_index_slot(stream_, plane_index);
+        }
+    }
     Status prepare_status = state.prepare_golomb_rice(context_counts, plane_count);
     if (!prepare_status.ok()) {
         return prepare_status;
@@ -817,7 +831,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
                 Status status = encode_line(
                     rows[plane_index],
                     reconstruction_bits,
-                    0,
+                    context_bank_indexes[plane_index],
                     state.line_state(plane_index),
                     state.golomb_rice_run_state(plane_index));
                 if (!status.ok()) {
@@ -851,7 +865,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
             Status status = encode_line(
                 samples,
                 stream_.bits_per_raw_sample,
-                0,
+                context_bank_indexes[plane_index],
                 line,
                 run_state);
             if (!status.ok()) {

@@ -1,7 +1,9 @@
 #include "codec/slice_decoder.hpp"
 #include "mffv1/configuration_parser.hpp"
 #include "bitstream/bit_writer.hpp"
+#include "entropy/golomb_rice_context.hpp"
 #include "entropy/golomb_rice_run.hpp"
+#include "entropy/golomb_rice_writer.hpp"
 #include "entropy/range_encoder.hpp"
 
 #include <algorithm>
@@ -1653,6 +1655,70 @@ TEST(SliceDecoderTest, DecodesGolombRiceChromaPlanesInOrder)
     EXPECT_EQ(y[0], 1u);
     EXPECT_EQ(cb[0], 255u);
     EXPECT_EQ(cr[0], 2u);
+}
+
+TEST(SliceDecoderTest, KeepsGolombRiceContextsSlotLocalWhenQidxValueIsShared)
+{
+    auto stream = make_stream();
+    stream.version = 3;
+    stream.width = 1;
+    stream.height = 1;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    stream.chroma_planes = true;
+
+    mffv1::bitstream::BitWriter bit_writer;
+    mffv1::entropy::GolombRiceRunState y_run_state;
+    mffv1::entropy::GolombRiceContextState y_context;
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run(
+        bit_writer, y_run_state, 0, 1, 0).ok());
+    mffv1::entropy::GolombRiceWriter rice_writer(bit_writer);
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run_interruption(
+        rice_writer, y_context, stream.bits_per_raw_sample, 126).ok());
+    mffv1::entropy::GolombRiceRunState cb_run_state;
+    mffv1::entropy::GolombRiceContextState cb_context;
+    mffv1::entropy::GolombRiceRunState cr_run_state;
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run(
+        bit_writer, cb_run_state, 0, 1, 0).ok());
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run_interruption(
+        rice_writer, cb_context, stream.bits_per_raw_sample, 128).ok());
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run(
+        bit_writer, cr_run_state, 0, 1, 0).ok());
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run_interruption(
+        rice_writer, cb_context, stream.bits_per_raw_sample, 128).ok());
+    ASSERT_TRUE(bit_writer.byte_align_zero().ok());
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(bit_writer.finalize(payload).ok());
+
+    std::array<std::uint8_t, 1> y{0xee};
+    std::array<std::uint8_t, 1> cb{0xee};
+    std::array<std::uint8_t, 1> cr{0xee};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
+    planes[0].data = y.data();
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 1, 1, 1};
+    planes[1].data = cb.data();
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 1, 1, 1};
+    planes[2].data = cr.data();
+    planes[2].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 1, 1, 1};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.quant_table_set_indexes = {0, 0};
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(stream, window).ok());
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(y[0], 126u);
+    EXPECT_EQ(cb[0], 128u);
+    EXPECT_EQ(cr[0], 128u);
 }
 
 TEST(SliceDecoderTest, DecodesGolombRice16BitExtraPlane)

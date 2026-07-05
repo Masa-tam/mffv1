@@ -403,7 +403,7 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 - Custom quantization tables and custom initial states are absent.
 - Generated error-status values are always `0`; the encoder does not report
   correctable or uncorrectable slice errors in its own output.
-- Sample depths below 8 or above 16 are unsupported.
+- Sample depths above 16 are unsupported.
 - Colorspaces other than planar YCbCr and planar RGB are unsupported.
 - Input format conversion, packed pixels, and negative strides are unsupported.
 - SIMD coverage is currently limited to AVX2 and SSE2 RGB forward color

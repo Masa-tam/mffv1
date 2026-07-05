@@ -59,7 +59,7 @@ Status SliceEncoder::validate_stream() const
         && !constraints::is_supported_encoder_bit_depth(stream_.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice slice encoding supports only 8-16 bit streams");
+            "Golomb-Rice slice encoding supports only 1-16 bit streams");
     }
     if (constraints::has_invalid_rgb_geometry(
             stream_.colorspace_type == 1,

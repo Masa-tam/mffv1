@@ -349,7 +349,7 @@ TEST(ConfigurationRecordWriterTest, RejectsCustomRangeCoderWithDiagnostic)
 TEST(ConfigurationRecordWriterTest, RejectsUnsupportedRangeBitDepthWithDiagnostic)
 {
     auto stream = make_initial_profile();
-    stream.bits_per_raw_sample = 7;
+    stream.bits_per_raw_sample = 0;
     const mffv1::codec::ConfigurationRecordWriter writer;
     std::vector<std::byte> record{std::byte{0xaa}};
 
@@ -358,7 +358,7 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedRangeBitDepthWithDiagnosti
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(status.message,
-              "configuration writer supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+              "configuration writer supports only 1-16 bit planar YCbCr or RGB streams, with an optional extra plane");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
@@ -366,7 +366,7 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedGolombRiceBitDepthWithDiag
 {
     auto stream = make_initial_profile();
     stream.entropy_mode = mffv1::EntropyMode::GolombRice;
-    stream.bits_per_raw_sample = 7;
+    stream.bits_per_raw_sample = 0;
     const mffv1::codec::ConfigurationRecordWriter writer;
     std::vector<std::byte> record{std::byte{0xaa}};
 
@@ -374,7 +374,7 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedGolombRiceBitDepthWithDiag
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(status.message, "Golomb-Rice configuration supports only 8-16 bit streams");
+    EXPECT_EQ(status.message, "Golomb-Rice configuration supports only 1-16 bit streams");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
@@ -390,7 +390,7 @@ TEST(ConfigurationRecordWriterTest, RejectsUnsupportedColorspaceWithDiagnostic)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(status.message,
-              "configuration writer supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+              "configuration writer supports only 1-16 bit planar YCbCr or RGB streams, with an optional extra plane");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

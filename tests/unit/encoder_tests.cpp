@@ -341,7 +341,7 @@ TEST(EncoderTest, ConfigureRejectsUnsupportedBitDepthWithoutChangingOutput)
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
     EXPECT_EQ(status.message,
-              "encoder supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+              "encoder supports only 1-16 bit planar YCbCr or RGB streams, with an optional extra plane");
     EXPECT_EQ(record.bytes, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
@@ -670,6 +670,86 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
 
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(decoded, source);
+}
+
+void expect_public_low_bit_y_round_trip(
+    std::uint8_t bits_per_raw_sample,
+    mffv1::EntropyMode entropy_mode)
+{
+    mffv1::EncoderOptions options;
+    options.entropy_mode = entropy_mode;
+    auto encoder = mffv1::create_encoder(options);
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+    auto stream = make_initial_profile();
+    stream.width = 9;
+    stream.height = 5;
+    stream.bits_per_raw_sample = bits_per_raw_sample;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    std::array<std::uint8_t, 45> source{};
+    const auto mask = static_cast<std::uint8_t>(
+        (std::uint16_t{1} << bits_per_raw_sample) - 1u);
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = static_cast<std::uint8_t>(
+            (index * 13u + (index / stream.width) * 7u) & mask);
+    }
+    source[1] = mask;
+    source[2] = static_cast<std::uint8_t>((mask + 1u) / 2u);
+    const mffv1::PlaneView input_plane{
+        source.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 9, 5, 9},
+    };
+    const mffv1::FrameView input{&input_plane, 1};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = stream.width;
+    decoder_options.frame_height = stream.height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    mffv1::FrameInfo info;
+    ASSERT_TRUE(decoder.decoder->inspect_frame(frame.bytes, info).ok());
+    EXPECT_EQ(info.bits_per_raw_sample, bits_per_raw_sample);
+    ASSERT_EQ(info.plane_count, 1u);
+    EXPECT_EQ(info.planes[0].sample_format, mffv1::SampleFormat::UInt8);
+    EXPECT_EQ(info.planes[0].stride_bytes, 9);
+
+    std::array<std::uint8_t, 45> decoded{};
+    decoded.fill(0xee);
+    mffv1::MutablePlaneView output_plane{
+        decoded.data(),
+        {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 9, 5, 9},
+    };
+    mffv1::MutableFrameView output{&output_plane, 1};
+
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+    EXPECT_EQ(decoded, source);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsOneBitRangeSamples)
+{
+    expect_public_low_bit_y_round_trip(1, mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsOneBitGolombRiceSamples)
+{
+    expect_public_low_bit_y_round_trip(1, mffv1::EntropyMode::GolombRice);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsSevenBitRangeSamples)
+{
+    expect_public_low_bit_y_round_trip(7, mffv1::EntropyMode::Range);
+}
+
+TEST(EncoderTest, PublicEncoderRoundTripsSevenBitGolombRiceSamples)
+{
+    expect_public_low_bit_y_round_trip(7, mffv1::EntropyMode::GolombRice);
 }
 
 TEST(EncoderTest, PublicEncoderRoundTripsPaddedInputStride)

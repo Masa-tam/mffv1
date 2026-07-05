@@ -32,7 +32,7 @@ Status normalize_encoder_profile(const EncoderOptions& options,
     }
     if (!constraints::is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
         return make_error(ErrorCode::UnsupportedFeature,
-                          "encoder supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+                          "encoder supports only 1-16 bit planar YCbCr or RGB streams, with an optional extra plane");
     }
     if (!constraints::is_supported_public_color_space(info.color_space)) {
         return make_error(
@@ -52,7 +52,7 @@ Status normalize_encoder_profile(const EncoderOptions& options,
         && !constraints::is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice encoding supports only 8-16 bit streams");
+            "Golomb-Rice encoding supports only 1-16 bit streams");
     }
     if (constraints::has_subsampling_without_chroma(
             info.has_chroma_planes,

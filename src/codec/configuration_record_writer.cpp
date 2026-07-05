@@ -204,13 +204,13 @@ Status ConfigurationRecordWriter::validate_initial_profile(
         && !constraints::is_supported_encoder_bit_depth(stream.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "Golomb-Rice configuration supports only 8-16 bit streams");
+            "Golomb-Rice configuration supports only 1-16 bit streams");
     }
     if (!constraints::is_supported_syntax_colorspace(stream.colorspace_type)
         || !constraints::is_supported_encoder_bit_depth(stream.bits_per_raw_sample)) {
         return make_error(
             ErrorCode::UnsupportedFeature,
-            "configuration writer supports only 8-16 bit planar YCbCr or RGB streams, with an optional extra plane");
+            "configuration writer supports only 1-16 bit planar YCbCr or RGB streams, with an optional extra plane");
     }
     if (constraints::has_invalid_rgb_geometry(
             stream.colorspace_type == 1,

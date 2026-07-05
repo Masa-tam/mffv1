@@ -6,7 +6,9 @@ namespace {
 
 TEST(ProfileConstraintsTest, AcceptsOnlyEncoderBitDepths)
 {
-    EXPECT_FALSE(mffv1::constraints::is_supported_encoder_bit_depth(7));
+    EXPECT_FALSE(mffv1::constraints::is_supported_encoder_bit_depth(0));
+    EXPECT_TRUE(mffv1::constraints::is_supported_encoder_bit_depth(1));
+    EXPECT_TRUE(mffv1::constraints::is_supported_encoder_bit_depth(7));
     EXPECT_TRUE(mffv1::constraints::is_supported_encoder_bit_depth(8));
     EXPECT_TRUE(mffv1::constraints::is_supported_encoder_bit_depth(16));
     EXPECT_FALSE(mffv1::constraints::is_supported_encoder_bit_depth(17));

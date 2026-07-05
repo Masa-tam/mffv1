@@ -201,14 +201,15 @@ The generated Configuration Record currently declares:
 - Default range state transitions.
 - Intra-only coding when `EncoderOptions::keyframe_interval == 1`.
 - Non-intra coding when `EncoderOptions::keyframe_interval > 1`.
-- No custom initial states.
+- Default initial range states.
 - Error-status and slice CRC fields when `StreamInfo::error_status_enabled`
   is true; otherwise, these slice footer fields are omitted.
 
 The lower-level `codec::ConfigurationRecordWriter` can also serialize custom
 range state transitions from `syntax::StreamParameters` by writing range coder
-type 2 and the signed transition deltas. The public encoder profile builder
-still generates the default range state transition table.
+type 2 and the signed transition deltas. It can also serialize coded initial
+range states with `states_coded=1`. The public encoder profile builder still
+generates the default range state transition table and default initial states.
 
 With the default options, every generated frame is a keyframe. When
 `keyframe_interval` is greater than one, frame zero and every Nth frame after it
@@ -405,7 +406,7 @@ Use `status.location.has_slice_index` before reading `slice_index`.
 ## Current Limitations
 
 - Versions 0, 1, and 2 are not encoded.
-- Custom quantization tables and custom initial states are absent.
+- Custom quantization tables are absent from the public encoder profile.
 - Generated error-status values are always `0`; the encoder does not report
   correctable or uncorrectable slice errors in its own output.
 - Sample depths above 16 are unsupported.

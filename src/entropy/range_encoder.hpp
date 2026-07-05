@@ -43,8 +43,8 @@ public:
     Status write_termination_sentinel();
     Status write_unsigned(std::uint64_t value) override;
     Status write_signed(std::int64_t value) override;
-    Status write_unsigned(ContextId context, std::uint64_t value);
-    Status write_signed(ContextId context, std::int64_t value);
+    Status write_unsigned(ContextId context, std::uint64_t value) override;
+    Status write_signed(ContextId context, std::int64_t value) override;
     Status write_unsigned(std::size_t context_bank,
                           ContextId context,
                           std::uint64_t value);

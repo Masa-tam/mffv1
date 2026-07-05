@@ -36,6 +36,12 @@ bool has_custom_state_transition(
         && stream.state_transition != syntax::kDefaultStateTransition;
 }
 
+bool has_coded_initial_state_set(
+    const syntax::InitialStateSet& state_set) noexcept
+{
+    return !state_set.contexts.empty();
+}
+
 Status write_u(entropy::SymbolWriter& writer, std::uint64_t value)
 {
     return writer.write_unsigned(value);
@@ -44,6 +50,38 @@ Status write_u(entropy::SymbolWriter& writer, std::uint64_t value)
 Status write_b(entropy::SymbolWriter& writer, bool value)
 {
     return writer.write_bool(value);
+}
+
+Status write_initial_state_set(
+    const syntax::InitialStateSet& state_set,
+    entropy::SymbolWriter& writer)
+{
+    Status status = write_b(writer, has_coded_initial_state_set(state_set));
+    if (!status.ok() || !has_coded_initial_state_set(state_set)) {
+        return status;
+    }
+
+    for (std::size_t context = 0;
+         context < state_set.contexts.size();
+         ++context) {
+        const auto& current = state_set.contexts[context];
+        for (std::size_t state_index = 0;
+             state_index < current.size();
+             ++state_index) {
+            const auto prediction = context == 0
+                ? std::uint8_t{128}
+                : state_set.contexts[context - 1][state_index];
+            const auto delta =
+                static_cast<std::int64_t>(current[state_index])
+                - static_cast<std::int64_t>(prediction);
+            status = writer.write_signed(
+                static_cast<entropy::ContextId>(state_index), delta);
+            if (!status.ok()) {
+                return status;
+            }
+        }
+    }
+    return ok_status();
 }
 
 Status append_crc_parity(std::vector<std::byte>& bytes)
@@ -74,7 +112,7 @@ Status ConfigurationRecordWriter::write(
     }
 
     entropy::RangeEncoder writer;
-    status = writer.reset();
+    status = writer.reset(syntax::InitialState{}.size());
     if (!status.ok()) {
         return status;
     }
@@ -196,9 +234,18 @@ Status ConfigurationRecordWriter::write_parameters(
         }
     }
 
-    status = write_bool(false); // states_coded
-    if (!status.ok()) {
-        return status;
+    if (stream.initial_states.empty()) {
+        status = write_bool(false); // states_coded
+        if (!status.ok()) {
+            return status;
+        }
+    } else {
+        for (const auto& state_set : stream.initial_states) {
+            status = write_initial_state_set(state_set, writer);
+            if (!status.ok()) {
+                return status;
+            }
+        }
     }
     status = write_unsigned(stream.error_status_enabled ? 1 : 0); // ec
     if (!status.ok()) {
@@ -269,11 +316,19 @@ Status ConfigurationRecordWriter::validate_initial_profile(
             "configuration writer supports only one zero quantization table set");
     }
     if (!stream.initial_states.empty()
-        && (stream.initial_states.size() != 1
-            || !stream.initial_states[0].contexts.empty())) {
+        && stream.initial_states.size() != stream.quant_table_sets.size()) {
         return make_error(
-            ErrorCode::UnsupportedFeature,
-            "configuration writer supports only streams without custom states");
+            ErrorCode::InvalidState,
+            "configuration initial state set count does not match quantization table set count");
+    }
+    for (std::size_t i = 0; i < stream.initial_states.size(); ++i) {
+        const auto& contexts = stream.initial_states[i].contexts;
+        if (!contexts.empty()
+            && contexts.size() != stream.quant_table_sets[i].context_count) {
+            return make_error(
+                ErrorCode::InvalidState,
+                "configuration initial state count does not match quantization contexts");
+        }
     }
     return ok_status();
 }

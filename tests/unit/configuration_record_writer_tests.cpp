@@ -150,6 +150,29 @@ TEST(ConfigurationRecordWriterTest, WritesCustomRangeCoderSyntaxInRfcOrder)
     EXPECT_EQ(symbols.symbols[259], (Symbol{SymbolKind::Unsigned, 8}));
 }
 
+TEST(ConfigurationRecordWriterTest, WritesCustomInitialStatesInRfcOrder)
+{
+    auto stream = make_initial_profile();
+    stream.initial_states.resize(1);
+    stream.initial_states[0].contexts.resize(1);
+    stream.initial_states[0].contexts[0].fill(128);
+    stream.initial_states[0].contexts[0][0] = 255;
+    stream.initial_states[0].contexts[0][31] = 133;
+    RecordingSymbolWriter symbols;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+
+    const auto status = writer.write_parameters(stream, symbols);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(symbols.symbols.size(), 52u);
+    EXPECT_EQ(symbols.symbols[17], (Symbol{SymbolKind::Bool, 1}));
+    EXPECT_EQ(symbols.symbols[18], (Symbol{SymbolKind::Signed, 127}));
+    EXPECT_EQ(symbols.symbols[19], (Symbol{SymbolKind::Signed, 0}));
+    EXPECT_EQ(symbols.symbols[49], (Symbol{SymbolKind::Signed, 5}));
+    EXPECT_EQ(symbols.symbols[50], (Symbol{SymbolKind::Unsigned, 0}));
+    EXPECT_EQ(symbols.symbols[51], (Symbol{SymbolKind::Unsigned, 1}));
+}
+
 TEST(ConfigurationRecordWriterTest, GeneratedRecordRoundTripsThroughParser)
 {
     const auto stream = make_initial_profile();
@@ -209,6 +232,32 @@ TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesCustomRangeCoder)
     ASSERT_TRUE(parser.parse(record, parsed).ok());
     EXPECT_EQ(parsed.entropy_mode, mffv1::EntropyMode::Range);
     EXPECT_EQ(parsed.state_transition, stream.state_transition);
+}
+
+TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesCustomInitialStates)
+{
+    auto stream = make_initial_profile();
+    stream.initial_states.resize(1);
+    stream.initial_states[0].contexts.resize(1);
+    stream.initial_states[0].contexts[0].fill(128);
+    stream.initial_states[0].contexts[0][0] = 255;
+    stream.initial_states[0].contexts[0][31] = 133;
+    const mffv1::codec::ConfigurationRecordWriter writer;
+    std::vector<std::byte> record;
+
+    const auto status = writer.write(stream, record);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_GE(record.size(), 6u);
+    EXPECT_EQ(mffv1::util::crc32_ieee_msb(record), 0u);
+
+    mffv1::syntax::StreamParameters parsed;
+    const mffv1::codec::ConfigurationRecordParser parser;
+    ASSERT_TRUE(parser.parse(record, parsed).ok());
+    ASSERT_EQ(parsed.initial_states.size(), 1u);
+    ASSERT_EQ(parsed.initial_states[0].contexts.size(), 1u);
+    EXPECT_EQ(parsed.initial_states[0].contexts[0],
+              stream.initial_states[0].contexts[0]);
 }
 
 TEST(ConfigurationRecordWriterTest, GeneratedRecordPreservesSliceGrid)
@@ -588,19 +637,20 @@ TEST(ConfigurationRecordWriterTest, RejectsNonZeroQuantTableSetWithDiagnostic)
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 
-TEST(ConfigurationRecordWriterTest, RejectsCustomInitialStates)
+TEST(ConfigurationRecordWriterTest, RejectsMismatchedInitialStateCount)
 {
     auto stream = make_initial_profile();
     stream.initial_states.resize(1);
-    stream.initial_states[0].contexts.resize(1);
+    stream.initial_states[0].contexts.resize(2);
     const mffv1::codec::ConfigurationRecordWriter writer;
     std::vector<std::byte> record{std::byte{0xaa}};
 
     const auto status = writer.write(stream, record);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
-    EXPECT_EQ(status.message, "configuration writer supports only streams without custom states");
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message,
+              "configuration initial state count does not match quantization contexts");
     EXPECT_EQ(record, (std::vector<std::byte>{std::byte{0xaa}}));
 }
 

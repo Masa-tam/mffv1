@@ -9,58 +9,42 @@ repository test data.
 
 The local `testvectors/test_vector_data.hpp` set currently contains:
 
-- `gr_intra_420p8_1slice_flat.mkv`
-- `gr_intra_420p8_2x2_flat.mkv`
-- `gr_intra_420p8_1slice_smptebars.mkv`
-- `gr_intra_420p8_2x2_smptebars.mkv`
-- `gr_intra_420p8_1slice_ygrad_uvflat.mkv`
-- `gr_intra_420p8_1slice_yflat_uvgrad.mkv`
-
-After the version 3 Golomb-Rice read-ahead boundary fix, the two flat 4:2:0
-vectors decode through the public API. The fix is intentionally limited to the
-read-ahead content candidate: the normal Golomb-Rice decoder still rejects
-trailing bytes, while the v3 read-ahead candidate may accept remaining bytes
-that belong to the range-coded Slice Header sentinel/read-ahead overlap.
-
-The remaining local GR failures are now sample mismatches or later underflows
-in non-flat vectors:
-
-- `gr_intra_420p8_1slice_smptebars.mkv` first diverges in luma at
-  `x=93,y=7`: the predictor input matches, but mffv1 decodes a `-1`
-  residual where the generated expected plane contains a zero residual.
-- `gr_intra_420p8_2x2_smptebars.mkv` decodes slice 0 far enough to write
-  chroma, but later slices expose either untouched output regions or a luma
-  underflow. Keep slice-indexed diagnostics when investigating this vector.
-- `gr_intra_420p8_1slice_ygrad_uvflat.mkv` first diverges at luma `x=0,y=1`;
-  the bitstream is still in a carried zero run while the generated expected
-  plane increases to sample value `1`.
-- `gr_intra_420p8_1slice_yflat_uvgrad.mkv` first diverges in chroma at
-  `x=0,y=0`: mffv1 reconstructs the neutral chroma predictor value `128`,
-  while the generated expected plane contains `0`.
-
-Two rejected probes are important:
-
-- Clearing pending Golomb-Rice runs at row boundaries fixes the y-gradient
-  first pixel but immediately breaks flat chroma and consumes the rest of the
-  payload at the wrong bit positions. Pending run carry across rows remains
-  part of the current compatibility baseline.
-- Reverting YCbCr chroma borders from neutral to zero matches the RFC border
-  wording but breaks the two flat FFmpeg-generated 4:2:0 GR controls at the
-  first chroma sample. Neutral chroma border handling remains the current
-  FFmpeg-compatibility baseline for YCbCr Golomb-Rice decoding.
-
-Before changing Golomb-Rice run semantics again, request smaller local control
-vectors that isolate one effect at a time:
-
 - `gr_intra_gray8_1slice_ygrad_small`: gray-only vertical gradient. This
-  removes chroma initialization from the y-gradient run-carry question.
+  isolates row-boundary zero-run carry without chroma state.
 - `gr_intra_gray8_1slice_xgrad_small`: gray-only horizontal gradient. This
-  checks ordinary scalar transitions without row-boundary run carry.
+  checks scalar and run-interruption transitions within a row.
 - `gr_intra_420p8_1slice_yflat_uvflat_small`: flat Y with neutral flat chroma.
-  This should remain a compact pass control for neutral chroma prediction.
+  This is the compact chroma predictor and slot-state control.
 - `gr_intra_420p8_1slice_yflat_uvstep_small`: flat Y with a single simple
-  chroma step. This checks whether the generated expected chroma planes are
-  coded-plane samples and whether the first chroma non-run symbol is aligned.
+  chroma step. This checks chroma-plane alignment after the flat control.
+- `range_intra_420p8_1slice_chroma_grad`: 8-bit 4:2:0 range-coded chroma
+  gradients with one slice.
+- `range_intra_420p10_2x2_chroma_grad`: 10-bit 4:2:0 range-coded chroma
+  gradients with a 2x2 slice grid.
+- `range_intra_yuva8_1slice`: range-coded 8-bit YUVA, including an extra
+  plane.
+- `range_intra_rgba8_1slice`: range-coded 8-bit planar RGBA when the generator
+  can supply unpacked planes.
+- `range_intra_420p8_1slice_qidx`: range-coded 8-bit 4:2:0 with nonzero
+  Slice Header quantization-table-set indexes.
+
+All vectors in this local set decode through the public API and match the
+generated expected planes. No new local vector request is active as of this
+note; the next vector request should be driven by a specific unsupported
+profile or a newly observed mismatch.
+
+Several previously rejected probes remain useful guardrails:
+
+- Clearing pending Golomb-Rice runs at row boundaries breaks the gray ramp and
+  is not compatible with the passing controls. Full-run remainders may carry
+  across rows, but a run segment that reaches the end of a plane is clipped
+  there instead of creating a pending run beyond the plane.
+- YCbCr Golomb-Rice borders are zero, including chroma. Flat chroma therefore
+  starts as a residual from predictor zero, not from a neutral 128 baseline.
+- Version 3 YCbCr Golomb-Rice adaptive VLC contexts are slot-local: luma uses
+  slot 0, Cb and Cr share slot 1, and an optional extra plane uses slot 2.
+  Sharing by literal quantization-table-set value or by coded plane breaks the
+  current external-vector baseline.
 
 The previous `smptebars_*` local set showed that 8-bit Golomb-Rice vectors
 parse their slice footers and CRC correctly, but slice 0 reaches a
@@ -124,11 +108,13 @@ Changing `slice_size` handling to include the footer makes external vector
 inspection fail immediately with CRC mismatch and is not compatible with these
 vectors.
 
-### Golomb-Rice QSet Context Sharing
+### Golomb-Rice Slot-Local Context State
 
-Golomb-Rice context state sharing by quantization-table-set bank improved the
-external vector failure mode from early underflow to slice-end mismatch. Keep
-this as the current baseline unless later evidence proves otherwise.
+For version 3 YCbCr Golomb-Rice content, adaptive VLC context state is local
+to the Slice Header quantization-table index slot rather than to the literal
+quantization-table-set value or the coded plane. Luma uses slot 0, Cb and Cr
+share slot 1, and an optional extra plane uses slot 2. This is the current
+passing baseline for generated 4:2:0 Golomb-Rice vectors.
 
 ### Slice-End Validation Probe
 

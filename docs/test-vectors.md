@@ -60,41 +60,36 @@ data.
 Only generated vector data that is committed to the repository needs a registry
 entry with full provenance and license review.
 
-## Requested Local Compatibility Vectors
+## Current Local Compatibility Coverage
 
-The first local compatibility set has validated basic v3 range decoding for
-10-bit gray, 8-bit and 10-bit 4:2:0, one-slice and 2x2 slice layouts, plus
-flat 8-bit Golomb-Rice gray controls. The next most useful local vectors should
-exercise less uniform content and syntax combinations that are not yet covered
-by the current local set.
+The current optional local vector set validates v3 range and Golomb-Rice
+decoding across the compatibility cases that most recently drove fixes:
 
-Current high-value requests:
-
-- Range-coded 8-bit 4:2:0, one slice, with nonzero chroma gradients.
-  The current passing 4:2:0 controls begin with neutral chroma, so this probes
-  Cb/Cr prediction and shared chroma-slot range contexts beyond the first
-  neutral run.
-- Range-coded 10-bit 4:2:0, 2x2 slices, with nonzero chroma gradients.
-  This combines subsampling, multi-slice payload location, and chroma context
+- Range-coded 8-bit 4:2:0, one slice, with nonzero chroma gradients. This
+  probes Cb/Cr prediction and shared chroma-slot range contexts beyond neutral
+  flat chroma.
+- Range-coded 10-bit 4:2:0, 2x2 slices, with nonzero chroma gradients. This
+  combines subsampling, multi-slice payload location, and chroma context
   sharing under a higher bit depth.
-- Range-coded 8-bit YUVA or gray+alpha, one slice.
-  This verifies the extra-plane quant-table slot and range context bank
-  allocation separately from chroma.
-- Range-coded RGB or RGBA planar vectors that the generator accepts, one
-  slice. If a packed FFmpeg output is rejected by the generator, keep it out of
-  the local header and record that rejection outside the mffv1 tree.
-- A range-coded vector with nonzero quantization-table-set indexes in the Slice
-  Header, if the generator can produce one. This directly validates that range
-  context banks are shared by slot, not by qset value.
-- Golomb-Rice 8-bit gray with a small vertical ramp, one slice.
-  This isolates row-boundary zero-run carry without chroma initialization.
-- Golomb-Rice 8-bit gray with a small horizontal ramp, one slice.
-  This isolates scalar/run-interruption transitions within a row.
-- Golomb-Rice 8-bit 4:2:0, one slice, with flat Y and neutral flat chroma.
-  This is the compact pass control for YCbCr chroma predictor initialization.
-- Golomb-Rice 8-bit 4:2:0, one slice, with flat Y and a single simple chroma
-  step. This checks chroma-plane alignment and expected-plane semantics after
-  the flat chroma control is stable.
+- Range-coded 8-bit YUVA, one slice. This verifies the extra-plane quant-table
+  slot and range context bank allocation separately from chroma.
+- Range-coded planar RGBA, one slice, when the generator can supply unpacked
+  planes. Packed FFmpeg output should still be rejected by the generator and
+  kept out of the local header.
+- Range-coded 8-bit 4:2:0 with nonzero Slice Header quantization-table-set
+  indexes. This validates that range context banks are shared by slot, not by
+  the literal qset value.
+- Golomb-Rice 8-bit gray vertical and horizontal ramps. These isolate
+  row-boundary zero-run carry and scalar/run-interruption transitions without
+  chroma state.
+- Golomb-Rice 8-bit 4:2:0 with flat Y plus flat or stepped chroma. These are
+  compact controls for zero chroma borders, chroma-plane alignment, and
+  slot-local adaptive VLC state.
+
+No additional local vector is requested at this point. Keep the existing set
+available while working on entropy, prediction, slice, or frame-state changes.
+Ask for new vectors only when a new unsupported profile or ambiguous mismatch
+needs black-box confirmation.
 
 Recommended naming pattern for local generated headers:
 

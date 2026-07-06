@@ -3893,7 +3893,9 @@ std::string describe_legacy_golomb_rice_boundary_probe(
     const auto center = std::min<std::uint64_t>(
         bootstrap.content_byte_offset,
         static_cast<std::uint64_t>(payload.size()));
-    const auto begin = center > 2 ? center - 2 : std::uint64_t{0};
+    const auto begin = stream.version == 0
+        ? std::uint64_t{0}
+        : (center > 2 ? center - 2 : std::uint64_t{0});
     const auto end = std::min<std::uint64_t>(
         center + 2,
         static_cast<std::uint64_t>(payload.size()));

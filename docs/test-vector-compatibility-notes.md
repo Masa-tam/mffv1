@@ -559,3 +559,13 @@ and 210 do. The scan still leaves many candidates, so it is not a fix by
 itself. It does show that the v0 mismatch is sensitive to Slice Content
 context-state initialization rather than only to the byte boundary or arithmetic
 `range/low` carry state.
+
+The same probe now ranks candidate initial states by how far they can decode
+the first expected output plane before the first mismatch. For the gray and
+nominal yuv420p v0 controls, state 255 is currently the best uniform-state
+candidate but still matches only 408 of 512 luma samples before diverging at
+`x=24,y=12`. This rules out a simple "use a different fixed initial state"
+explanation for the v0 range mismatch. Any eventual compatibility fix likely
+needs either the historical v0 context evolution behavior or another
+v0-specific content model detail, not just a replacement for the default 128
+state.

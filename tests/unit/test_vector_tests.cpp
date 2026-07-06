@@ -8,7 +8,9 @@
 #include "entropy/range_coder.hpp"
 #include "mffv1/color_transform.hpp"
 #include "mffv1/configuration_parser.hpp"
+#include "mffv1/context_model.hpp"
 #include "mffv1/codec.hpp"
+#include "mffv1/line_state.hpp"
 #include "mffv1/predictor.hpp"
 
 #include <algorithm>
@@ -35,6 +37,11 @@ bool compute_plane_size(const mffv1_testvectors::PlaneVector& plane,
 std::uint32_t read_sample(std::span<const std::byte> bytes,
                           std::size_t sample_offset,
                           mffv1::SampleFormat format);
+
+std::uint32_t sample_at(std::span<const std::byte> bytes,
+                        const mffv1::PlaneInfo& plane,
+                        std::uint32_t x,
+                        std::uint32_t y);
 
 std::string describe_status(const mffv1::Status& status)
 {
@@ -409,6 +416,110 @@ std::string describe_legacy_range_initial_state_probe(
 
     const auto payload = vector.frame_payloads.front();
     constexpr std::array<std::size_t, 1> context_counts{1};
+    struct CandidateMatch {
+        std::uint16_t state = 0;
+        std::size_t matched_samples = 0;
+        std::uint32_t mismatch_x = 0;
+        std::uint32_t mismatch_y = 0;
+        bool failed = false;
+    };
+
+    const auto measure_candidate = [&](
+                                       std::uint16_t candidate,
+                                       CandidateMatch& out_match) {
+        out_match.state = candidate;
+        if (vector.expected_planes.empty()
+            || vector.expected_planes.front().empty()
+            || stream.quant_table_sets.empty()) {
+            return false;
+        }
+
+        const auto& expected = vector.expected_planes.front().front();
+        if (expected.info.width == 0 || expected.info.height == 0
+            || expected.info.sample_format != mffv1::SampleFormat::UInt8) {
+            return false;
+        }
+
+        mffv1::entropy::RangeCoder::ScalarContextStates states{};
+        states.fill(static_cast<std::uint8_t>(candidate));
+        const std::array state_bank{std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{
+            &states,
+            1,
+        }};
+
+        mffv1::entropy::RangeCoder reader;
+        auto status = reader.reset_from_arithmetic_state(
+            payload,
+            context_counts,
+            state_bank,
+            stream.state_transition,
+            bootstrap.range_state_after_parameters);
+        if (!status.ok()) {
+            out_match.failed = true;
+            return true;
+        }
+
+        const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+        mffv1::syntax::LineState line;
+        status = line.reset(expected.info.width);
+        if (!status.ok()) {
+            out_match.failed = true;
+            return true;
+        }
+
+        for (std::uint32_t y = 0; y < expected.info.height; ++y) {
+            for (std::uint32_t x = 0; x < expected.info.width; ++x) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = mffv1::syntax::Predictor::median_predict(
+                    neighbors.left,
+                    neighbors.top,
+                    neighbors.top_left);
+                mffv1::syntax::ContextDecision context;
+                status = context_model.derive_context(neighbors, context);
+                if (!status.ok()) {
+                    out_match.failed = true;
+                    return true;
+                }
+                std::int64_t difference64 = 0;
+                status = reader.read_signed(0, context.context, difference64);
+                if (!status.ok()) {
+                    out_match.failed = true;
+                    return true;
+                }
+                if (context.invert_difference) {
+                    difference64 = -difference64;
+                }
+                const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                    prediction,
+                    static_cast<std::int32_t>(difference64),
+                    stream.bits_per_raw_sample);
+                const auto expected_sample = sample_at(
+                    expected.samples,
+                    expected.info,
+                    x,
+                    y);
+                if (static_cast<std::uint32_t>(reconstructed) != expected_sample) {
+                    out_match.mismatch_x = x;
+                    out_match.mismatch_y = y;
+                    return true;
+                }
+                line.mutable_current()[x] = reconstructed;
+                ++out_match.matched_samples;
+            }
+            line.swap_lines();
+        }
+        return true;
+    };
+
+    std::vector<CandidateMatch> best_matches;
+    best_matches.reserve(8);
+    std::size_t measured_sample_count = 0;
+    if (!vector.expected_planes.empty()
+        && !vector.expected_planes.front().empty()) {
+        const auto& measured = vector.expected_planes.front().front();
+        measured_sample_count = static_cast<std::size_t>(measured.info.width)
+            * static_cast<std::size_t>(measured.info.height);
+    }
     std::ostringstream out;
     out << " initial_state_probe";
     std::size_t match_count = 0;
@@ -457,8 +568,36 @@ std::string describe_legacy_range_initial_state_probe(
             out << "]";
         }
         ++match_count;
+
+        CandidateMatch match;
+        if (measure_candidate(candidate, match)) {
+            best_matches.push_back(match);
+            std::sort(best_matches.begin(),
+                      best_matches.end(),
+                      [](const CandidateMatch& lhs, const CandidateMatch& rhs) {
+                          if (lhs.matched_samples != rhs.matched_samples) {
+                              return lhs.matched_samples > rhs.matched_samples;
+                          }
+                          return lhs.state < rhs.state;
+                      });
+            if (best_matches.size() > 8) {
+                best_matches.pop_back();
+            }
+        }
     }
     out << " matches=" << match_count;
+    if (!best_matches.empty()) {
+        out << " best/" << measured_sample_count;
+        for (const auto& match : best_matches) {
+            out << " state" << match.state
+                << "=" << match.matched_samples;
+            if (match.failed) {
+                out << "/fail";
+            } else {
+                out << "@" << match.mismatch_x << "," << match.mismatch_y;
+            }
+        }
+    }
     return out.str();
 }
 

@@ -89,17 +89,17 @@ decoding across the compatibility cases that most recently drove fixes:
   grids where available. These validate RGB line-plane run-state continuity,
   RCT output reconstruction, and slot-local adaptive VLC state for coded RCT
   Y versus coded Cb/Cr.
-- AVI-derived legacy version 1 range-coded 8-bit single-slice payloads with
-  empty Codec Private data. These validate explicit `bootstrap_legacy_frame()`
-  setup and decode of the same keyframe payload.
+- AVI-derived legacy version 1 range-coded and Golomb-Rice 8-bit single-slice
+  payloads with empty Codec Private data. These validate explicit
+  `bootstrap_legacy_frame()` setup and decode of the same keyframe payload.
 
-Legacy version 0 and legacy Golomb-Rice AVI-derived vectors may be kept in a
-local generated header as investigation material, but the current test harness
-skips them until their payload-boundary rules are implemented. No additional
-local vector is requested at this point. Keep the existing set available while
-working on entropy, prediction, slice, or frame-state changes. Ask for new
-vectors only when a new unsupported profile or ambiguous mismatch needs
-black-box confirmation.
+Legacy version 0 Golomb-Rice AVI-derived vectors may be kept in a local
+generated header as investigation material, but the current test harness skips
+them until their payload-boundary rules are implemented. No additional local
+vector is requested at this point. Keep the existing set available while working
+on entropy, prediction, slice, or frame-state changes. Ask for new vectors only
+when a new unsupported profile or ambiguous mismatch needs black-box
+confirmation.
 
 Recommended naming pattern for local generated headers:
 
@@ -118,6 +118,8 @@ Recommended naming pattern for local generated headers:
 - `gr_intra_420p8_1slice_yflat_uvstep_small`
 - `range_gray_v1_legacy_1slice`
 - `range_yuv420p_v1_legacy_1slice`
+- `gr_gray_v1_legacy_1slice`
+- `gr_yuv420p_v1_legacy_1slice`
 
 When possible, keep the frame size modest, for example 32x24 or 64x48. Smaller
 vectors keep diagnostics and generated headers easier to inspect, while still

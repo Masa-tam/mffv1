@@ -631,6 +631,117 @@ std::string describe_legacy_range_initial_state_probe(
         }
     };
 
+    const auto append_zero_state_trace = [&](
+                                             std::ostringstream& out,
+                                             std::uint8_t zero_state) {
+        if (vector.expected_planes.empty()
+            || vector.expected_planes.front().empty()
+            || stream.quant_table_sets.empty()) {
+            return;
+        }
+        const auto& expected = vector.expected_planes.front().front();
+        if (expected.info.width == 0 || expected.info.height == 0
+            || expected.info.sample_format != mffv1::SampleFormat::UInt8) {
+            return;
+        }
+
+        mffv1::entropy::RangeCoder::ScalarContextStates states{};
+        states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+        states[0] = zero_state;
+        const std::array state_bank{std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{
+            &states,
+            1,
+        }};
+        mffv1::entropy::RangeCoder reader;
+        auto status = reader.reset_from_arithmetic_state(
+            payload,
+            context_counts,
+            state_bank,
+            stream.state_transition,
+            bootstrap.range_state_after_parameters);
+        if (!status.ok()) {
+            out << " zero_state_trace=err(" << describe_status(status) << ")";
+            return;
+        }
+
+        constexpr std::array<std::size_t, 12> sample_points{
+            0, 1, 2, 3, 4, 8, 16, 64, 128, 256, 407, 408};
+        std::size_t next_point = 0;
+        std::size_t decoded_samples = 0;
+        bool emitted_prefix = false;
+        const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+        mffv1::syntax::LineState line;
+        status = line.reset(expected.info.width);
+        if (!status.ok()) {
+            out << " zero_state_trace=err(" << describe_status(status) << ")";
+            return;
+        }
+
+        for (std::uint32_t y = 0; y < expected.info.height; ++y) {
+            for (std::uint32_t x = 0; x < expected.info.width; ++x) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = mffv1::syntax::Predictor::median_predict(
+                    neighbors.left,
+                    neighbors.top,
+                    neighbors.top_left);
+                mffv1::syntax::ContextDecision context;
+                status = context_model.derive_context(neighbors, context);
+                if (!status.ok()) {
+                    out << " zero_state_trace=err(" << describe_status(status) << ")";
+                    return;
+                }
+                std::int64_t difference64 = 0;
+                status = reader.read_signed(0, context.context, difference64);
+                if (!status.ok()) {
+                    out << " zero_state_trace=err(" << describe_status(status) << ")";
+                    return;
+                }
+                mffv1::entropy::RangeCoder::ContextStateBanks copied_contexts;
+                status = reader.copy_contexts(copied_contexts);
+                if (!status.ok() || copied_contexts.empty()
+                    || copied_contexts.front().empty()) {
+                    out << " zero_state_trace=context_err";
+                    return;
+                }
+                while (next_point < sample_points.size()
+                       && sample_points[next_point] == decoded_samples) {
+                    if (!emitted_prefix) {
+                        out << " zero_state_trace";
+                        emitted_prefix = true;
+                    }
+                    out << " #" << decoded_samples
+                        << "=" << static_cast<int>(copied_contexts.front().front()[0]);
+                    ++next_point;
+                }
+                if (context.invert_difference) {
+                    difference64 = -difference64;
+                }
+                const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                    prediction,
+                    static_cast<std::int32_t>(difference64),
+                    stream.bits_per_raw_sample);
+                const auto expected_sample = sample_at(
+                    expected.samples,
+                    expected.info,
+                    x,
+                    y);
+                if (static_cast<std::uint32_t>(reconstructed) != expected_sample) {
+                    if (!emitted_prefix) {
+                        out << " zero_state_trace";
+                    }
+                    out << " mismatch=" << decoded_samples
+                        << "@" << x << "," << y
+                        << " state0="
+                        << static_cast<int>(copied_contexts.front().front()[0]);
+                    return;
+                }
+                line.mutable_current()[x] = reconstructed;
+                ++decoded_samples;
+            }
+            line.swap_lines();
+        }
+    };
+
     std::ostringstream out;
     out << " initial_state_probe";
     std::size_t match_count = 0;
@@ -689,6 +800,7 @@ std::string describe_legacy_range_initial_state_probe(
     append_best_matches(out, "exponent_only_best", stream.state_transition, InitialStatePattern::ExponentOnly);
     append_best_matches(out, "sign_only_best", stream.state_transition, InitialStatePattern::SignOnly);
     append_best_matches(out, "magnitude_only_best", stream.state_transition, InitialStatePattern::MagnitudeOnly);
+    append_zero_state_trace(out, 255);
     return out.str();
 }
 

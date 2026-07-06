@@ -597,3 +597,10 @@ as the best mutable `zero_only` and uniform candidates. The useful signal is
 therefore not "keep the zero/non-zero state fixed"; it is that the initial and
 early evolution of the zero/non-zero decision state differs from the current
 model.
+
+A `zero_state_trace` for the best `state255` candidate shows `states[0]`
+remaining at 255 through sample 407 and dropping to 246 exactly at the first
+mismatch (`sample=408`, `x=24,y=12`). This means the candidate path is not
+gradually drifting through the zero/non-zero context state. It stays maximally
+biased toward zero until the arithmetic state first decodes a non-zero symbol
+where the generated reference plane still expects zero.

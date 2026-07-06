@@ -93,13 +93,30 @@ decoding across the compatibility cases that most recently drove fixes:
   payloads with empty Codec Private data. These validate explicit
   `bootstrap_legacy_frame()` setup and decode of the same keyframe payload.
 
-Legacy version 0 Golomb-Rice AVI-derived vectors may be kept in a local
-generated header as investigation material, but the current test harness skips
-them until their payload-boundary rules are implemented. No additional local
-vector is requested at this point. Keep the existing set available while working
-on entropy, prediction, slice, or frame-state changes. Ask for new vectors only
-when a new unsupported profile or ambiguous mismatch needs black-box
-confirmation.
+Legacy version 0 AVI-derived vectors may be kept in a local generated header as
+investigation material. The current test harness decodes version 0 range-coded
+vectors when present and skips version 0 Golomb-Rice vectors until their
+payload-boundary rules are implemented.
+
+If version 0 compatibility needs more evidence, prefer tiny diagnostic vectors
+over broad coverage expansion:
+
+- Range-coded 8-bit gray v0, 1 slice, all-zero frames at 1x1, 2x1, 3x1, 4x1,
+  8x1, 16x1, and 32x16. These separate first-symbol behavior from later scalar
+  context evolution.
+- Range-coded 8-bit gray v0, 1 slice, exactly one nonzero luma sample at the
+  first, fourth, and last position. These isolate the first zero/non-zero range
+  decision and reconstruction path.
+- Golomb-Rice 8-bit gray v0, 1 slice, all-zero frames at 1x1, 2x1, 4x1, 8x1,
+  and 16x1. These distinguish keyframe-bit-only payloads from keyframe plus
+  embedded-parameter payloads.
+- Matching v1 siblings for each legacy v0 diagnostic vector whenever FFmpeg can
+  generate them. The test harness already compares v0 failures against passing
+  v1 siblings when the names match.
+
+Keep the existing local set available while working on entropy, prediction,
+slice, or frame-state changes. Ask for new vectors only when a new unsupported
+profile or ambiguous mismatch needs black-box confirmation.
 
 Recommended naming pattern for local generated headers:
 
@@ -120,6 +137,12 @@ Recommended naming pattern for local generated headers:
 - `range_yuv420p_v1_legacy_1slice`
 - `gr_gray_v1_legacy_1slice`
 - `gr_yuv420p_v1_legacy_1slice`
+- `range_gray_v0_legacy_1x1`
+- `range_gray_v0_legacy_4x1`
+- `range_gray_v0_legacy_32x16`
+- `gr_gray_v0_legacy_1x1`
+- `gr_gray_v0_legacy_4x1`
+- `gr_gray_v0_legacy_16x1`
 
 When possible, keep the frame size modest, for example 32x24 or 64x48. Smaller
 vectors keep diagnostics and generated headers easier to inspect, while still

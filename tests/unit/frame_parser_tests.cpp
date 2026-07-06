@@ -1111,7 +1111,8 @@ TEST(FrameParserTest, ReportsLegacyGolombRiceMultiSliceAsNotImplemented)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
-    EXPECT_EQ(status.message, "multi-slice frame parsing is not implemented yet");
+    EXPECT_EQ(status.message,
+              "legacy Golomb-Rice multi-slice frame parsing is not implemented");
     expect_existing_frame_preserved(frame);
 }
 

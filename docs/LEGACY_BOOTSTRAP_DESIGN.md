@@ -172,9 +172,10 @@ general `ur` `SymbolReader` for headers or parameters.
 
 Legacy multi-slice streams are not a primary compatibility target. Historical
 multi-slice support started in the experimental version 2 line, and the stable
-widely supported multi-slice model is version 3. Any version 0/1 multi-slice
-handling in this codebase should therefore be treated as defensive parser
-coverage rather than a release-critical legacy profile.
+widely supported multi-slice model is version 3. Version 0/1 range-coded
+multi-slice parsing exists as defensive parser coverage. Version 0/1
+Golomb-Rice multi-slice parsing remains intentionally unimplemented until a
+real compatibility requirement appears.
 
 ## Implementation Stages
 

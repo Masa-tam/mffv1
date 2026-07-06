@@ -949,6 +949,7 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t low_bias_after_one_rac = 0;
             std::uint32_t low_bias_after_one_subtract = 0;
             std::uint32_t low_bias_after_one_range_assign = 0;
+            std::uint32_t low_bias_after_one_mode = 0;
         };
         struct MiniRangeReader {
             std::span<const std::byte> payload;
@@ -967,6 +968,7 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t low_bias_after_one_rac = 0;
             std::uint32_t low_bias_after_one_subtract = 0;
             std::uint32_t low_bias_after_one_range_assign = 0;
+            std::uint32_t low_bias_after_one_mode = 0;
             mffv1::entropy::RangeCoder::ScalarContextStates states{};
 
             void refill() noexcept
@@ -997,8 +999,11 @@ std::string describe_legacy_range_initial_state_probe(
 
             bool read_rac(std::uint8_t& state) noexcept
             {
+                const auto pre_range = range;
+                const auto product =
+                    static_cast<std::uint64_t>(pre_range) * state + split_bias;
                 const std::uint32_t rangeoff =
-                    (static_cast<std::uint64_t>(range) * state + split_bias) >> 8;
+                    static_cast<std::uint32_t>(product >> 8);
                 range -= rangeoff;
                 const bool is_nonzero_path = inclusive_nonzero
                     ? low <= range
@@ -1015,6 +1020,26 @@ std::string describe_legacy_range_initial_state_probe(
                 low += low_bias_after_one_range_assign;
                 state = mffv1::syntax::range_one_state(*transition, state);
                 refill();
+                switch (low_bias_after_one_mode) {
+                case 1:
+                    low += (product & 0xffu) != 0 ? 1u : 0u;
+                    break;
+                case 2:
+                    low += static_cast<std::uint32_t>(product & 1u);
+                    break;
+                case 3:
+                    low += static_cast<std::uint32_t>(pre_range & 1u);
+                    break;
+                case 4:
+                    low += static_cast<std::uint32_t>(rangeoff & 1u);
+                    break;
+                case 5:
+                    low += ((product & 0xffu) != 0 ? 1u : 0u)
+                        + static_cast<std::uint32_t>(rangeoff & 1u);
+                    break;
+                default:
+                    break;
+                }
                 low += low_bias_after_rac + low_bias_after_one_rac;
                 return true;
             }
@@ -1081,6 +1106,7 @@ std::string describe_legacy_range_initial_state_probe(
             reader.low_bias_after_one_rac = variant.low_bias_after_one_rac;
             reader.low_bias_after_one_subtract = variant.low_bias_after_one_subtract;
             reader.low_bias_after_one_range_assign = variant.low_bias_after_one_range_assign;
+            reader.low_bias_after_one_mode = variant.low_bias_after_one_mode;
             reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
             reader.states[0] = initial_zero_state;
 
@@ -1281,6 +1307,26 @@ std::string describe_legacy_range_initial_state_probe(
                            [](RefillVariant& variant, std::uint16_t bias) {
                                variant.low_bias_after_one_range_assign = bias;
                            });
+        constexpr std::array<std::string_view, 5> one_mode_labels{
+            "rem",
+            "prodlsb",
+            "rangelsb",
+            "rangeofflsb",
+            "rem_rangeofflsb",
+        };
+        out << " ceil_one_mode_probe";
+        for (std::uint32_t mode = 1; mode <= one_mode_labels.size(); ++mode) {
+            RefillVariant variant{"", 256, 0, 255};
+            variant.low_bias_after_one_mode = mode;
+            const auto match = measure_variant(variant, zero_state);
+            out << " " << one_mode_labels[mode - 1]
+                << "=" << match.matched_samples;
+            if (match.failed) {
+                out << "/fail";
+            } else {
+                out << "@" << match.mismatch_x << "," << match.mismatch_y;
+            }
+        }
 
         const auto append_mini_state = [](std::ostringstream& trace_out,
                                           const MiniRangeReader& reader) {

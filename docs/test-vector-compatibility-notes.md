@@ -772,6 +772,12 @@ from 0 through 512 pre-symbols still found no exact first-sample match for the
 nonzero control, while all-zero controls continue to match from skip 0 onward.
 This rules out a simple hidden run of zero-valued pre-content symbols before
 Slice Content.
+A parameter-entry probe compared decoding the first sample directly from
+`after_keyframe` against the current `after_parameters` entry point, with both
+default and parsed custom transitions. The nonzero control still decodes the
+first sample as zero in every entry mode. This weakens the hypothesis that the
+current v0 parser merely reads too much embedded Parameters data before Slice
+Content.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

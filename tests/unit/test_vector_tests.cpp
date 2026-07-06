@@ -2903,6 +2903,146 @@ std::string describe_legacy_range_precontent_symbol_probe(
     return out.str();
 }
 
+std::string describe_legacy_range_parameter_entry_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    const auto& stream = bootstrap.stream;
+    if (stream.version != 0
+        || stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()
+        || vector.expected_planes.empty()
+        || vector.expected_planes.front().empty()
+        || stream.quant_table_sets.empty()) {
+        return {};
+    }
+
+    const auto& expected = vector.expected_planes.front().front();
+    if (expected.info.width == 0
+        || expected.info.height == 0
+        || expected.info.sample_format != mffv1::SampleFormat::UInt8) {
+        return {};
+    }
+
+    const std::array<std::size_t, 1> context_counts{
+        stream.quant_table_sets.front().context_count,
+    };
+    struct EntryCandidate {
+        std::string_view label;
+        mffv1::entropy::RangeCoder::ArithmeticState arithmetic_state;
+        bool use_custom_transition = false;
+        bool legacy_arithmetic = true;
+    };
+    const std::array candidates{
+        EntryCandidate{
+            "after_key_default",
+            bootstrap.range_state_after_keyframe,
+            false,
+            true,
+        },
+        EntryCandidate{
+            "after_key_custom",
+            bootstrap.range_state_after_keyframe,
+            true,
+            true,
+        },
+        EntryCandidate{
+            "after_params_current",
+            bootstrap.range_state_after_parameters,
+            true,
+            true,
+        },
+        EntryCandidate{
+            "after_params_normal",
+            bootstrap.range_state_after_parameters,
+            true,
+            false,
+        },
+    };
+
+    const auto measure = [&](const EntryCandidate& candidate) {
+        struct Result {
+            std::int64_t difference = 0;
+            std::uint32_t sample = 0;
+            std::uint32_t expected_sample = 0;
+            mffv1::entropy::RangeCoder::ArithmeticState before;
+            mffv1::entropy::RangeCoder::ArithmeticState after;
+            bool failed = false;
+        } result;
+
+        mffv1::entropy::RangeCoder reader;
+        auto status = reader.reset_from_arithmetic_state(
+            vector.frame_payloads.front(),
+            context_counts,
+            {},
+            candidate.use_custom_transition
+                ? stream.state_transition
+                : mffv1::syntax::kDefaultStateTransition,
+            candidate.arithmetic_state);
+        if (status.ok() && candidate.legacy_arithmetic) {
+            status = reader.set_legacy_v0_arithmetic(true);
+        }
+        if (!status.ok()) {
+            result.failed = true;
+            return result;
+        }
+
+        const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+        mffv1::syntax::LineState line;
+        status = line.reset(expected.info.width);
+        if (!status.ok()) {
+            result.failed = true;
+            return result;
+        }
+        const auto neighbors = line.neighbors(0);
+        const auto prediction = mffv1::syntax::Predictor::median_predict(
+            neighbors.left,
+            neighbors.top,
+            neighbors.top_left);
+        mffv1::syntax::ContextDecision context;
+        status = context_model.derive_context(neighbors, context);
+        if (!status.ok()) {
+            result.failed = true;
+            return result;
+        }
+        result.before = reader.arithmetic_state();
+        status = reader.read_signed(0, context.context, result.difference);
+        if (!status.ok()) {
+            result.failed = true;
+            return result;
+        }
+        auto reconstruction_difference = result.difference;
+        if (context.invert_difference) {
+            reconstruction_difference = -reconstruction_difference;
+        }
+        const auto sample = mffv1::syntax::Predictor::reconstruct(
+            prediction,
+            static_cast<std::int32_t>(reconstruction_difference),
+            stream.bits_per_raw_sample);
+        result.sample = static_cast<std::uint32_t>(sample);
+        result.expected_sample = sample_at(expected.samples, expected.info, 0, 0);
+        result.after = reader.arithmetic_state();
+        return result;
+    };
+
+    std::ostringstream out;
+    out << " parameter_entry_probe";
+    for (const auto& candidate : candidates) {
+        const auto result = measure(candidate);
+        out << " " << candidate.label << "=";
+        if (result.failed) {
+            out << "fail";
+            continue;
+        }
+        out << result.difference
+            << "/" << result.sample
+            << "/" << result.expected_sample
+            << " before{" << describe_range_state(result.before)
+            << "} after{" << describe_range_state(result.after) << "}";
+    }
+    return out.str();
+}
+
 std::string legacy_v1_sibling_name(std::string_view name)
 {
     constexpr std::string_view marker = "_v0_legacy_";
@@ -3013,6 +3153,7 @@ std::string describe_legacy_bootstrap_state(
             << describe_legacy_range_expected_residual_probe(vector, bootstrap)
             << describe_legacy_range_slice_header_probe(vector, bootstrap)
             << describe_legacy_range_precontent_symbol_probe(vector, bootstrap)
+            << describe_legacy_range_parameter_entry_probe(vector, bootstrap)
             << describe_legacy_golomb_rice_boundary_probe(vector, bootstrap)
             << describe_legacy_range_shifted_state_probe(vector, bootstrap)
             << describe_legacy_range_initial_state_probe(vector, bootstrap)

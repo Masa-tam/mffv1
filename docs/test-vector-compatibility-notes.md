@@ -799,3 +799,8 @@ all decode up to a candidate plane end and then report trailing bytes. The
 matching v1 Golomb-Rice legacy set passes in strict mode, so this is still
 best treated as a v0-specific payload-boundary or embedded-parameter placement
 gap rather than a shared Golomb-Rice sample decoder problem.
+The compact boundary summary now reports the best local byte/bit candidate for
+those v0 Golomb-Rice vectors. Across the `1x1` through `16x1` controls, the
+best candidate is consistently `byte=1 bit=0 matched_samples=1`, followed by a
+trailing-byte diagnostic. This means the current local search can align only
+the first zero sample; it does not find a boundary that scales with row width.

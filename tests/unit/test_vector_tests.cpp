@@ -3785,6 +3785,81 @@ std::string describe_golomb_rice_candidate_decode(
     return out.str();
 }
 
+struct GolombRiceBoundaryCandidateSummary {
+    std::uint64_t byte_offset = 0;
+    std::uint8_t bit_offset = 0;
+    std::size_t matched_samples = 0;
+    mffv1::Status status;
+    bool measured = false;
+};
+
+GolombRiceBoundaryCandidateSummary measure_golomb_rice_boundary_candidate(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::syntax::SliceDescriptor& candidate,
+    std::span<const mffv1_testvectors::PlaneVector> expected_planes)
+{
+    GolombRiceBoundaryCandidateSummary summary;
+    summary.byte_offset = candidate.content_byte_offset;
+    summary.bit_offset = candidate.content_bit_offset;
+
+    std::vector<std::vector<std::byte>> plane_storage;
+    std::vector<mffv1::MutablePlaneView> output_planes;
+    plane_storage.reserve(expected_planes.size());
+    output_planes.reserve(expected_planes.size());
+    for (const auto& expected : expected_planes) {
+        std::size_t expected_size = 0;
+        if (!compute_plane_size(expected, expected_size)) {
+            return summary;
+        }
+        plane_storage.emplace_back(expected_size, std::byte{0xa5});
+        output_planes.push_back(
+            mffv1::MutablePlaneView{plane_storage.back().data(), expected.info});
+    }
+
+    mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
+    mffv1::codec::SliceOutputWindow window;
+    auto status = window.validate(stream, output, candidate);
+    if (!status.ok()) {
+        summary.status = status;
+        summary.measured = true;
+        return summary;
+    }
+    mffv1::codec::SliceState state;
+    status = state.reset(stream, window);
+    if (!status.ok()) {
+        summary.status = status;
+        summary.measured = true;
+        return summary;
+    }
+
+    const auto content_offset = candidate.content_byte_offset - candidate.payload_byte_offset;
+    const auto content_payload = candidate.payload.subspan(content_offset);
+    std::vector<std::uint32_t> plane_quant_table_set_indexes;
+    plane_quant_table_set_indexes.reserve(output_planes.size());
+    for (std::size_t plane = 0; plane < output_planes.size(); ++plane) {
+        const auto index_slot = stream.version >= 3
+            ? mffv1::syntax::plane_quant_table_set_index_slot(stream, plane)
+            : plane;
+        if (index_slot >= candidate.quant_table_set_indexes.size()) {
+            return summary;
+        }
+        plane_quant_table_set_indexes.push_back(candidate.quant_table_set_indexes[index_slot]);
+    }
+
+    FirstGolombRiceMismatchObserver observer(
+        expected_planes,
+        content_payload,
+        stream.quant_table_sets,
+        plane_quant_table_set_indexes,
+        stream);
+    const mffv1::codec::SliceDecoder slice_decoder(stream);
+    status = slice_decoder.decode(candidate, window, state, &observer);
+    summary.status = status;
+    summary.matched_samples = observer.matched_sample_count();
+    summary.measured = true;
+    return summary;
+}
+
 std::string describe_legacy_golomb_rice_boundary_probe(
     const mffv1_testvectors::DecodeVector& vector,
     const mffv1::codec::LegacyFrameBootstrap& bootstrap)
@@ -3825,16 +3900,35 @@ std::string describe_legacy_golomb_rice_boundary_probe(
 
     std::ostringstream out;
     out << " gr_boundary_probe";
+    GolombRiceBoundaryCandidateSummary best_candidate;
     for (auto offset = begin; offset <= end; ++offset) {
         for (std::uint8_t bit = 0; bit < 8; ++bit) {
             candidate.content_byte_offset = offset;
             candidate.content_bit_offset = bit;
+            const auto summary = measure_golomb_rice_boundary_candidate(
+                stream,
+                candidate,
+                vector.expected_planes.front());
+            if (summary.measured
+                && (!best_candidate.measured
+                    || summary.matched_samples > best_candidate.matched_samples
+                    || (summary.matched_samples == best_candidate.matched_samples
+                        && summary.status.ok()
+                        && !best_candidate.status.ok()))) {
+                best_candidate = summary;
+            }
             out << "\n" << describe_golomb_rice_candidate_decode(
                 stream,
                 candidate,
                 vector.expected_planes.front(),
                 "legacy-gr");
         }
+    }
+    if (best_candidate.measured) {
+        out << "\nlegacy-gr-best byte=" << best_candidate.byte_offset
+            << " bit=" << static_cast<int>(best_candidate.bit_offset)
+            << " matched_samples=" << best_candidate.matched_samples
+            << " status: " << describe_status(best_candidate.status);
     }
     return out.str();
 }

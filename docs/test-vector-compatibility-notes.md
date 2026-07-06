@@ -506,3 +506,10 @@ reading the first eight range-coded signed differences from context 0 yields
 experiment is therefore to determine why FFmpeg's legacy v0 all-zero frame
 does not code a zero residual at the fourth scalar under the RFC-style v0
 fixed one-context table model currently used by mffv1.
+
+The v0 skip diagnostic now also probes the matching v1 sibling vector when it
+is present. For the gray and nominal yuv420p legacy range pairs, the v1 sibling
+probe reads eight zero differences and reaches the end of the payload, while
+the v0 probe diverges at the fourth difference. This confirms that the probe
+itself follows the passing v1 decode path and that the v0 issue is not merely a
+test-vector output comparison artifact.

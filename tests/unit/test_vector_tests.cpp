@@ -158,6 +158,52 @@ std::string describe_legacy_range_symbol_probe(
     return out.str();
 }
 
+std::string legacy_v1_sibling_name(std::string_view name)
+{
+    constexpr std::string_view marker = "_v0_legacy_";
+    const auto marker_pos = name.find(marker);
+    if (marker_pos == std::string_view::npos) {
+        return {};
+    }
+
+    std::string sibling{name};
+    sibling.replace(marker_pos, marker.size(), "_v1_legacy_");
+    return sibling;
+}
+
+std::string describe_legacy_range_v1_sibling_probe(std::string_view name)
+{
+    const auto sibling_name = legacy_v1_sibling_name(name);
+    if (sibling_name.empty()
+        || name.find("range_") == std::string_view::npos) {
+        return {};
+    }
+    for (const auto& sibling : mffv1_testvectors::decode_vectors()) {
+        if (sibling.name != sibling_name) {
+            continue;
+        }
+        if (sibling.frame_payloads.empty()) {
+            return " v1_sibling_probe=empty";
+        }
+
+        mffv1::codec::LegacyFrameBootstrap bootstrap;
+        const mffv1::codec::LegacyFrameBootstrapParser bootstrap_parser;
+        const auto status = bootstrap_parser.parse(
+            sibling.frame_payloads.front(),
+            sibling.frame_width,
+            sibling.frame_height,
+            bootstrap);
+        if (!status.ok()) {
+            return std::string{" v1_sibling_probe="} + describe_status(status);
+        }
+        return std::string{" v1_sibling{"}
+            + sibling_name
+            + describe_legacy_range_symbol_probe(sibling, bootstrap.stream)
+            + "}";
+    }
+    return " v1_sibling_probe=missing";
+}
+
 std::string describe_legacy_bootstrap_state(
     const mffv1_testvectors::DecodeVector& vector)
 {
@@ -192,7 +238,8 @@ std::string describe_legacy_bootstrap_state(
             << " after_parameters{"
             << describe_range_state(bootstrap.range_state_after_parameters)
             << "}"
-            << describe_legacy_range_symbol_probe(vector, bootstrap.stream);
+            << describe_legacy_range_symbol_probe(vector, bootstrap.stream)
+            << describe_legacy_range_v1_sibling_probe(vector.name);
     }
     return out.str();
 }

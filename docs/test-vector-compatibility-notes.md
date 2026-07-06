@@ -611,3 +611,11 @@ then starts from `range=0xd39 low=0x2` and decodes `diff=1`, ending at
 `range=0x380 low=0x2ed byte=153`. The next useful probe should focus on the
 range split and first-bit interpretation at that exact zero/non-zero decision,
 rather than on long-term scalar context drift.
+
+The pivot split confirms why `state255` cannot keep sample 408 on the zero
+path with the current arithmetic rule. At sample 408, `range=0xd39` and
+`state=255` produce a zero/non-zero split of `14/3371`; `low=0x2` falls inside
+the non-zero side. The diagnostic reports `need_state=256`, so no 8-bit scalar
+state can make the current split decode zero at that point. This points the
+next investigation toward arithmetic-state alignment or historical split
+semantics, not merely a stronger context state.

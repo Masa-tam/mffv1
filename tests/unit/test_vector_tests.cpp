@@ -713,11 +713,24 @@ std::string describe_legacy_range_initial_state_probe(
                     out << " #" << decoded_samples
                         << "=" << static_cast<int>(copied_contexts.front().front()[0]);
                     if (decoded_samples == 407 || decoded_samples == 408) {
+                        const auto rangeoff = static_cast<std::uint32_t>(
+                            (static_cast<std::uint64_t>(before_symbol_state.range)
+                             * static_cast<std::uint64_t>(zero_state)) >> 8);
+                        const auto zero_span = before_symbol_state.range - rangeoff;
+                        const auto needed_state = before_symbol_state.low < zero_span
+                            ? (static_cast<std::uint64_t>(
+                                   before_symbol_state.range - before_symbol_state.low)
+                               * 256u + before_symbol_state.range - 1u)
+                                / static_cast<std::uint64_t>(before_symbol_state.range)
+                            : 0u;
                         out << "{before:"
                             << describe_range_state(before_symbol_state)
                             << " after:"
                             << describe_range_state(reader.arithmetic_state())
                             << " diff=" << difference64
+                            << " split=" << zero_span
+                            << "/" << rangeoff
+                            << " need_state=" << needed_state
                             << "}";
                     }
                     ++next_point;
@@ -742,6 +755,15 @@ std::string describe_legacy_range_initial_state_probe(
                         << "@" << x << "," << y
                         << " state0="
                         << static_cast<int>(copied_contexts.front().front()[0])
+                        << " split="
+                        << (before_symbol_state.range
+                            - static_cast<std::uint32_t>(
+                                (static_cast<std::uint64_t>(before_symbol_state.range)
+                                 * static_cast<std::uint64_t>(zero_state)) >> 8))
+                        << "/"
+                        << static_cast<std::uint32_t>(
+                            (static_cast<std::uint64_t>(before_symbol_state.range)
+                             * static_cast<std::uint64_t>(zero_state)) >> 8)
                         << " before{"
                         << describe_range_state(before_symbol_state)
                         << "} after{"

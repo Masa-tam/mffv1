@@ -674,6 +674,10 @@ also tested and rejected: the all-zero v0 range vectors begin producing
 nonzero samples at sample 3. The zero-bias override is therefore still needed
 for the verified all-zero legacy v0 cases, even though it is not sufficient for
 the nonzero sample vector.
+The range variant probe also tried omitting the scalar zero/nonzero flag and
+reading exponent/magnitude/sign directly. That `nozero_flag_probe` still
+mismatches at the first sample, so the remaining difference is not explained by
+a scalar coding order that simply lacks the leading zero flag.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

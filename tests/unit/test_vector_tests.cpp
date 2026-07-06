@@ -963,6 +963,7 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t low_bias_after_one_subtract = 0;
             std::uint32_t low_bias_after_one_range_assign = 0;
             std::uint32_t low_bias_after_one_mode = 0;
+            bool skip_zero_flag = false;
         };
         struct MiniRangeReader {
             std::span<const std::byte> payload;
@@ -982,6 +983,7 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t low_bias_after_one_subtract = 0;
             std::uint32_t low_bias_after_one_range_assign = 0;
             std::uint32_t low_bias_after_one_mode = 0;
+            bool skip_zero_flag = false;
             mffv1::entropy::RangeCoder::ScalarContextStates states{};
 
             void refill() noexcept
@@ -1089,11 +1091,14 @@ std::string describe_legacy_range_initial_state_probe(
 
             bool read_signed(std::int64_t& out_value) noexcept
             {
-                bool bit = read_rac(states[0]);
-                if (bit) {
-                    out_value = 0;
-                    low += low_bias_after_symbol;
-                    return true;
+                bool bit = false;
+                if (!skip_zero_flag) {
+                    bit = read_rac(states[0]);
+                    if (bit) {
+                        out_value = 0;
+                        low += low_bias_after_symbol;
+                        return true;
+                    }
                 }
 
                 std::uint32_t exponent = 0;
@@ -1150,6 +1155,7 @@ std::string describe_legacy_range_initial_state_probe(
             reader.low_bias_after_one_subtract = variant.low_bias_after_one_subtract;
             reader.low_bias_after_one_range_assign = variant.low_bias_after_one_range_assign;
             reader.low_bias_after_one_mode = variant.low_bias_after_one_mode;
+            reader.skip_zero_flag = variant.skip_zero_flag;
             reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
             reader.states[0] = initial_zero_state;
 
@@ -1377,6 +1383,17 @@ std::string describe_legacy_range_initial_state_probe(
             } else {
                 out << "@" << match.mismatch_x << "," << match.mismatch_y;
             }
+        }
+        RefillVariant nozero_variant{"", 256, 0, 255};
+        nozero_variant.skip_zero_flag = true;
+        const auto nozero_match = measure_variant(nozero_variant, zero_state);
+        out << " nozero_flag_probe="
+            << nozero_match.matched_samples;
+        if (nozero_match.failed) {
+            out << "/fail";
+        } else {
+            out << "@" << nozero_match.mismatch_x
+                << "," << nozero_match.mismatch_y;
         }
         RefillVariant bothrem_variant{"", 256, 0, 255};
         bothrem_variant.low_bias_after_one_mode = 10;

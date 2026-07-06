@@ -676,6 +676,29 @@ std::string describe_legacy_range_initial_state_probe(
             out << " zero_state_trace=err(" << describe_status(status) << ")";
             return;
         }
+        const auto append_split = [](
+                                      std::ostringstream& out,
+                                      const mffv1::entropy::RangeCoder::ArithmeticState& state,
+                                      std::uint8_t zero_state) {
+            const auto product = static_cast<std::uint64_t>(state.range)
+                * static_cast<std::uint64_t>(zero_state);
+            const auto current_zero_span = static_cast<std::uint32_t>(product >> 8);
+            const auto current_nonzero_span = state.range - current_zero_span;
+            const auto ceil_zero_span = static_cast<std::uint32_t>((product + 255u) >> 8);
+            const auto ceil_nonzero_span = state.range - ceil_zero_span;
+            const auto midpoint_zero_span = static_cast<std::uint32_t>((product + 128u) >> 8);
+            const auto midpoint_nonzero_span = state.range - midpoint_zero_span;
+            const auto needed_state = state.low < current_nonzero_span
+                ? (static_cast<std::uint64_t>(state.range - state.low)
+                   * 256u + state.range - 1u)
+                    / static_cast<std::uint64_t>(state.range)
+                : 0u;
+            out << " split_nonzero/zero="
+                << current_nonzero_span << "/" << current_zero_span
+                << " ceil_nonzero=" << ceil_nonzero_span
+                << " mid_nonzero=" << midpoint_nonzero_span
+                << " need_state=" << needed_state;
+        };
 
         for (std::uint32_t y = 0; y < expected.info.height; ++y) {
             for (std::uint32_t x = 0; x < expected.info.width; ++x) {
@@ -713,25 +736,13 @@ std::string describe_legacy_range_initial_state_probe(
                     out << " #" << decoded_samples
                         << "=" << static_cast<int>(copied_contexts.front().front()[0]);
                     if (decoded_samples == 407 || decoded_samples == 408) {
-                        const auto rangeoff = static_cast<std::uint32_t>(
-                            (static_cast<std::uint64_t>(before_symbol_state.range)
-                             * static_cast<std::uint64_t>(zero_state)) >> 8);
-                        const auto zero_span = before_symbol_state.range - rangeoff;
-                        const auto needed_state = before_symbol_state.low < zero_span
-                            ? (static_cast<std::uint64_t>(
-                                   before_symbol_state.range - before_symbol_state.low)
-                               * 256u + before_symbol_state.range - 1u)
-                                / static_cast<std::uint64_t>(before_symbol_state.range)
-                            : 0u;
                         out << "{before:"
                             << describe_range_state(before_symbol_state)
                             << " after:"
                             << describe_range_state(reader.arithmetic_state())
-                            << " diff=" << difference64
-                            << " split=" << zero_span
-                            << "/" << rangeoff
-                            << " need_state=" << needed_state
-                            << "}";
+                            << " diff=" << difference64;
+                        append_split(out, before_symbol_state, zero_state);
+                        out << "}";
                     }
                     ++next_point;
                 }
@@ -754,17 +765,9 @@ std::string describe_legacy_range_initial_state_probe(
                     out << " mismatch=" << decoded_samples
                         << "@" << x << "," << y
                         << " state0="
-                        << static_cast<int>(copied_contexts.front().front()[0])
-                        << " split="
-                        << (before_symbol_state.range
-                            - static_cast<std::uint32_t>(
-                                (static_cast<std::uint64_t>(before_symbol_state.range)
-                                 * static_cast<std::uint64_t>(zero_state)) >> 8))
-                        << "/"
-                        << static_cast<std::uint32_t>(
-                            (static_cast<std::uint64_t>(before_symbol_state.range)
-                             * static_cast<std::uint64_t>(zero_state)) >> 8)
-                        << " before{"
+                        << static_cast<int>(copied_contexts.front().front()[0]);
+                    append_split(out, before_symbol_state, zero_state);
+                    out << " before{"
                         << describe_range_state(before_symbol_state)
                         << "} after{"
                         << describe_range_state(reader.arithmetic_state())

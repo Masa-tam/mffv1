@@ -613,9 +613,13 @@ range split and first-bit interpretation at that exact zero/non-zero decision,
 rather than on long-term scalar context drift.
 
 The pivot split confirms why `state255` cannot keep sample 408 on the zero
-path with the current arithmetic rule. At sample 408, `range=0xd39` and
-`state=255` produce a zero/non-zero split of `14/3371`; `low=0x2` falls inside
-the non-zero side. The diagnostic reports `need_state=256`, so no 8-bit scalar
-state can make the current split decode zero at that point. This points the
-next investigation toward arithmetic-state alignment or historical split
-semantics, not merely a stronger context state.
+path with the current arithmetic rule. In mffv1's range symbol model, the
+first bit's false path means "non-zero" and its true path means "zero". At
+sample 408, `range=0xd39` and `state=255` produce a non-zero/zero split of
+`14/3371`; `low=0x2` falls inside the non-zero side. Ceiling or midpoint
+rounding for the split would still leave a non-zero span of 13, so those simple
+rounding variants do not explain the mismatch. The diagnostic reports
+`need_state=256`, so no 8-bit scalar state can make the current split decode
+zero at that point. This points the next investigation toward arithmetic-state
+alignment or a more substantial historical split semantic, not merely a
+stronger context state.

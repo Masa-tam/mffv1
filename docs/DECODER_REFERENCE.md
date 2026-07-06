@@ -433,7 +433,7 @@ The current decoder implements:
 - Y-only, YCbCr with subsampling, extra plane, RGB, and RGBA layouts.
 - Version 3 slice headers, footers, error status, and optional slice CRC.
 - Multiple version 3 slices with deterministic parallel execution.
-- Legacy version 1 range-coded and Golomb-Rice single-slice AVI-style payloads
+- Legacy version 0/1 range-coded and Golomb-Rice single-slice AVI-style payloads
   with empty Codec Private data can be bootstrapped from keyframe-embedded
   parameters.
 - Keyframes and non-keyframes with per-slice entropy-state continuation.

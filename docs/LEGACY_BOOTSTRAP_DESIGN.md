@@ -1,12 +1,12 @@
 # Legacy Frame Bootstrap Design
 
-This document designs future decoder support for FFV1 version 0/1 streams whose
+This document records decoder support for FFV1 version 0/1 streams whose
 `Parameters()` syntax is embedded in keyframes instead of provided through an
 external Configuration Record or Codec Private block.
 
 This document records the design behind the decoder's legacy bootstrap API.
 Some implementation details may continue to evolve, but the public API
-described here is the intended integration model for version 0/1 streams whose
+described here is the supported integration model for version 0/1 streams whose
 parameters are embedded in keyframes.
 
 ## Problem
@@ -46,7 +46,7 @@ FFV1 entropy parsing. mffv1 therefore needs a decoder-side bootstrap path.
   state.
 - Do not make `Status::message` a programmatic parameter-change signal.
 
-## Proposed Public Types
+## Public Types
 
 The public API should expose parameter state as data, not as diagnostic text:
 
@@ -79,7 +79,7 @@ The enum gives adapters a stable branch point:
   from the current stream configuration. The decoder remains unchanged.
 - `NoEmbeddedParameters`: the frame did not contain bootstrap parameters.
 
-## Proposed Decoder API
+## Decoder API
 
 `IDecoder` exposes an explicit method:
 
@@ -166,9 +166,12 @@ descriptor therefore represents:
 - content byte offset,
 - whether slice content continues from the frame range-coder state.
 
-For Golomb-Rice legacy streams, a bit-level reader is required. The current
-Golomb-Rice reader is sample-difference oriented and does not yet expose a
-general `ur` `SymbolReader` for headers or parameters.
+For Golomb-Rice legacy streams, the bootstrap parser reads the range-coded
+keyframe and embedded `Parameters()` header, then records the bit-level payload
+boundary used by the Golomb-Rice slice decoder. Version 0 embedded
+`Parameters()` carry a quantization-table set like version 1; treating version
+0 as an implicit zero-table stream causes false early content boundaries and
+incorrect context selection.
 
 Legacy multi-slice streams are not a primary compatibility target. Historical
 multi-slice support started in the experimental version 2 line, and the stable
@@ -180,19 +183,19 @@ real compatibility requirement appears.
 ## Implementation Stages
 
 1. Done: add internal `LegacyFrameBootstrapParser` that can parse version 0/1
-   range-coded keyframe `Parameters()` into `StreamParameters` without
-   committing decoder state.
+   keyframe-embedded `Parameters()` into `StreamParameters` without committing
+   decoder state.
 2. Done: add parameter-equivalence tests for equal and changed normalized
    streams.
 3. Done: add public result types and `IDecoder::bootstrap_legacy_frame()`.
 4. Done: decode the same bootstrap frame after configuration for single-slice
-   range streams.
-5. Done: validate real AVI-derived version 1 range-coded single-slice legacy
+   range-coded streams.
+5. Done: validate real AVI-derived version 0/1 range-coded single-slice legacy
    vectors with empty Codec Private data.
-6. Investigate version 0 legacy payload boundaries separately from the version
-   1 range path.
-7. Add Golomb-Rice bootstrap only after a general Golomb-Rice `ur` symbol reader
-   exists.
+6. Done: validate real AVI-derived version 0/1 Golomb-Rice single-slice legacy
+   vectors with empty Codec Private data.
+7. Done: parse version 0 embedded quantization tables instead of assuming an
+   implicit zero-table stream.
 
 ## Error Policy
 

@@ -943,6 +943,7 @@ std::string describe_legacy_range_initial_state_probe(
             std::int32_t byte_bias = 0;
             std::uint32_t split_bias = 0;
             bool inclusive_nonzero = false;
+            std::uint32_t low_bias_after_symbol = 0;
         };
         struct MiniRangeReader {
             std::span<const std::byte> payload;
@@ -955,6 +956,7 @@ std::string describe_legacy_range_initial_state_probe(
             std::int32_t byte_bias = 0;
             std::uint32_t split_bias = 0;
             bool inclusive_nonzero = false;
+            std::uint32_t low_bias_after_symbol = 0;
             mffv1::entropy::RangeCoder::ScalarContextStates states{};
 
             void refill() noexcept
@@ -1008,6 +1010,7 @@ std::string describe_legacy_range_initial_state_probe(
                 bool bit = read_rac(states[0]);
                 if (bit) {
                     out_value = 0;
+                    low += low_bias_after_symbol;
                     return true;
                 }
 
@@ -1038,6 +1041,7 @@ std::string describe_legacy_range_initial_state_probe(
                     signed_value = -signed_value;
                 }
                 out_value = signed_value;
+                low += low_bias_after_symbol;
                 return true;
             }
         };
@@ -1057,6 +1061,7 @@ std::string describe_legacy_range_initial_state_probe(
             reader.byte_bias = variant.byte_bias;
             reader.split_bias = variant.split_bias;
             reader.inclusive_nonzero = variant.inclusive_nonzero;
+            reader.low_bias_after_symbol = variant.low_bias_after_symbol;
             reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
             reader.states[0] = initial_zero_state;
 
@@ -1111,7 +1116,7 @@ std::string describe_legacy_range_initial_state_probe(
             return match;
         };
 
-        constexpr std::array<RefillVariant, 10> variants{{
+        constexpr std::array<RefillVariant, 12> variants{{
             {"cur", 256, 0},
             {"plus1", 256, 1},
             {"minus1", 256, -1},
@@ -1122,6 +1127,8 @@ std::string describe_legacy_range_initial_state_probe(
             {"ceil", 256, 0, 255},
             {"incl", 256, 0, 0, true},
             {"ceilincl", 256, 0, 255, true},
+            {"ceilb1", 256, 0, 255, false, 1},
+            {"ceilb2", 256, 0, 255, false, 2},
         }};
         out << " refill_variant_probe/" << measured_sample_count;
         for (const auto& variant : variants) {
@@ -1180,6 +1187,30 @@ std::string describe_legacy_range_initial_state_probe(
         out << " ceil_zero_best";
         for (const auto& match : ceil_zero_matches) {
             out << " state" << match.state
+                << "=" << match.matched_samples;
+            if (match.failed) {
+                out << "/fail";
+            } else {
+                out << "@" << match.mismatch_x << "," << match.mismatch_y;
+            }
+        }
+
+        std::vector<CandidateMatch> ceil_low_bias_matches;
+        ceil_low_bias_matches.reserve(8);
+        for (std::uint16_t bias = 0; bias <= 32; ++bias) {
+            const RefillVariant variant{"",
+                                        256,
+                                        0,
+                                        255,
+                                        false,
+                                        static_cast<std::uint32_t>(bias)};
+            auto match = measure_variant(variant, zero_state);
+            match.state = bias;
+            append_top_match(ceil_low_bias_matches, match);
+        }
+        out << " ceil_low_bias_best";
+        for (const auto& match : ceil_low_bias_matches) {
+            out << " bias" << match.state
                 << "=" << match.matched_samples;
             if (match.failed) {
                 out << "/fail";

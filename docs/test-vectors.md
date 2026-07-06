@@ -137,12 +137,13 @@ Recommended naming pattern for local generated headers:
 - `range_yuv420p_v1_legacy_1slice`
 - `gr_gray_v1_legacy_1slice`
 - `gr_yuv420p_v1_legacy_1slice`
-- `range_gray_v0_legacy_1x1`
-- `range_gray_v0_legacy_4x1`
-- `range_gray_v0_legacy_32x16`
-- `gr_gray_v0_legacy_1x1`
-- `gr_gray_v0_legacy_4x1`
-- `gr_gray_v0_legacy_16x1`
+- `range_gray_v0_legacy_1slice_1x1`
+- `range_gray_v0_legacy_1slice_4x1`
+- `range_gray_v0_legacy_1slice_32x16`
+- `range_gray_v0_legacy_1slice_16x1_nonzero`
+- `gr_gray_v0_legacy_1slice_1x1`
+- `gr_gray_v0_legacy_1slice_4x1`
+- `gr_gray_v0_legacy_1slice_16x1`
 
 When possible, keep the frame size modest, for example 32x24 or 64x48. Smaller
 vectors keep diagnostics and generated headers easier to inspect, while still

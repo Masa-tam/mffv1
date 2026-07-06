@@ -2617,6 +2617,21 @@ bool matches_test_vector_filter(std::string_view name, std::string_view filter)
     return filter.empty() || name.find(filter) != std::string_view::npos;
 }
 
+bool has_nonzero_expected_sample(const mffv1_testvectors::DecodeVector& vector)
+{
+    for (const auto frame_planes : vector.expected_planes) {
+        for (const auto& plane : frame_planes) {
+            if (std::any_of(
+                    plane.samples.begin(),
+                    plane.samples.end(),
+                    [](std::byte value) { return value != std::byte{0}; })) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::string unsupported_decode_vector_reason(
     const mffv1_testvectors::DecodeVector& vector)
 {
@@ -2644,6 +2659,11 @@ std::string unsupported_decode_vector_reason(
     if (bootstrap.stream.version == 0
         && bootstrap.stream.entropy_mode == mffv1::EntropyMode::GolombRice) {
         return "legacy version 0 Golomb-Rice payload boundaries are not implemented";
+    }
+    if (bootstrap.stream.version == 0
+        && bootstrap.stream.entropy_mode == mffv1::EntropyMode::Range
+        && has_nonzero_expected_sample(vector)) {
+        return "legacy version 0 range-coded nonzero sample reconstruction is not implemented";
     }
     return {};
 }

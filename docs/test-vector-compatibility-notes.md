@@ -640,3 +640,19 @@ rounding variants do not explain the mismatch. The diagnostic reports
 zero at that point. This points the next investigation toward arithmetic-state
 alignment or a more substantial historical split semantic, not merely a
 stronger context state.
+
+The refreshed tiny v0/v1 legacy set confirms that version 0 range-coded
+all-zero gray payloads now pass through 32x16. The remaining range-coded v0
+failure is isolated by `range_gray_v0_legacy_1slice_16x1_nonzero.avi`: the
+generated reference is `128,0,0,128,0,...,128`, but mffv1 reconstructs the
+first sample as zero. The matching v1 sibling decodes successfully, so the
+generator and public decode path are usable as a black-box comparison. This
+rules out a broad v0 range bootstrap failure and narrows the next range-coded
+v0 work to nonzero symbol reconstruction or the v0-specific scalar context
+mapping used for nonzero residuals.
+
+The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
+boundary probe still finds only short zero-prefix matches with trailing-data
+or first-sample mismatch diagnostics, so they continue to support the earlier
+conclusion: the missing piece is a legacy v0 Golomb-Rice payload boundary or
+embedded-parameter convention, not ordinary sample reconstruction.

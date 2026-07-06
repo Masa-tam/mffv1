@@ -977,19 +977,28 @@ bool matches_test_vector_filter(std::string_view name, std::string_view filter)
     return filter.empty() || name.find(filter) != std::string_view::npos;
 }
 
-bool is_supported_decode_vector(const mffv1_testvectors::DecodeVector& vector)
+std::string_view unsupported_decode_vector_reason(
+    const mffv1_testvectors::DecodeVector& vector)
 {
     if (!vector.configuration_record.empty()) {
-        return true;
+        return {};
     }
     const auto name = vector.name;
     if (name.find("_v1_legacy_") == std::string_view::npos) {
-        return false;
+        return "legacy version 0 payload boundaries are not implemented";
     }
     if (name.find("gr_") != std::string_view::npos) {
-        return false;
+        return "legacy Golomb-Rice bootstrap is not implemented";
     }
-    return name.find("range_") != std::string_view::npos;
+    if (name.find("range_") == std::string_view::npos) {
+        return "legacy vector entropy mode is not recognized";
+    }
+    return {};
+}
+
+bool is_supported_decode_vector(const mffv1_testvectors::DecodeVector& vector)
+{
+    return unsupported_decode_vector_reason(vector).empty();
 }
 
 } // namespace
@@ -1012,12 +1021,17 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
     const auto filter = current_test_vector_filter();
     std::size_t matched_count = 0;
     std::size_t decoded_count = 0;
+    std::vector<std::string> unsupported_vectors;
     for (const auto& vector : mffv1_testvectors::decode_vectors()) {
         if (!matches_test_vector_filter(vector.name, filter)) {
             continue;
         }
         ++matched_count;
-        if (!is_supported_decode_vector(vector)) {
+        const auto unsupported_reason = unsupported_decode_vector_reason(vector);
+        if (!unsupported_reason.empty()) {
+            std::ostringstream entry;
+            entry << vector.name << ": " << unsupported_reason;
+            unsupported_vectors.push_back(entry.str());
             continue;
         }
         ++decoded_count;
@@ -1027,7 +1041,12 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
         GTEST_SKIP() << "no generated FFV1 test vectors matched the active filter";
     }
     if (decoded_count == 0) {
-        GTEST_SKIP() << "matched generated FFV1 test vectors are not supported by this build";
+        std::ostringstream message;
+        message << "matched generated FFV1 test vectors are not supported by this build";
+        for (const auto& entry : unsupported_vectors) {
+            message << "\n  " << entry;
+        }
+        GTEST_SKIP() << message.str();
     }
 #endif
 }

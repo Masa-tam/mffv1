@@ -426,6 +426,7 @@ std::string describe_legacy_range_initial_state_probe(
     enum class InitialStatePattern {
         Uniform,
         ZeroOnly,
+        FrozenZero,
         ExponentOnly,
         SignOnly,
         MagnitudeOnly,
@@ -482,6 +483,9 @@ std::string describe_legacy_range_initial_state_probe(
         case InitialStatePattern::ZeroOnly:
             states[0] = candidate_state;
             break;
+        case InitialStatePattern::FrozenZero:
+            states[0] = candidate_state;
+            break;
         case InitialStatePattern::ExponentOnly:
             fill_range(1, 11);
             break;
@@ -535,6 +539,32 @@ std::string describe_legacy_range_initial_state_probe(
                 if (!status.ok()) {
                     out_match.failed = true;
                     return true;
+                }
+                if (pattern == InitialStatePattern::FrozenZero) {
+                    mffv1::entropy::RangeCoder::ContextStateBanks copied_contexts;
+                    status = reader.copy_contexts(copied_contexts);
+                    if (!status.ok() || copied_contexts.empty()
+                        || copied_contexts.front().empty()) {
+                        out_match.failed = true;
+                        return true;
+                    }
+                    copied_contexts.front().front()[0] = candidate_state;
+                    const std::array copied_state_banks{
+                        std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{
+                            copied_contexts.front().data(),
+                            copied_contexts.front().size(),
+                        },
+                    };
+                    status = reader.reset_from_arithmetic_state(
+                        payload,
+                        context_counts,
+                        copied_state_banks,
+                        transition,
+                        reader.arithmetic_state());
+                    if (!status.ok()) {
+                        out_match.failed = true;
+                        return true;
+                    }
                 }
                 if (context.invert_difference) {
                     difference64 = -difference64;
@@ -655,6 +685,7 @@ std::string describe_legacy_range_initial_state_probe(
     append_best_matches(out, "default_best", mffv1::syntax::kDefaultStateTransition, InitialStatePattern::Uniform);
     append_best_matches(out, "swapped_custom_best", swapped_custom_transition, InitialStatePattern::Uniform);
     append_best_matches(out, "zero_only_best", stream.state_transition, InitialStatePattern::ZeroOnly);
+    append_best_matches(out, "frozen_zero_best", stream.state_transition, InitialStatePattern::FrozenZero);
     append_best_matches(out, "exponent_only_best", stream.state_transition, InitialStatePattern::ExponentOnly);
     append_best_matches(out, "sign_only_best", stream.state_transition, InitialStatePattern::SignOnly);
     append_best_matches(out, "magnitude_only_best", stream.state_transition, InitialStatePattern::MagnitudeOnly);

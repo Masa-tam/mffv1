@@ -590,3 +590,10 @@ best result as changing all 32 states (`state255=408/512`), while changing only
 the exponent, sign, or magnitude groups still diverges at the fourth sample.
 This narrows the useful part of the hypothesis to the first zero/non-zero
 decision bit used by range-coded signed symbols.
+
+Freezing `states[0]` after every decoded symbol does not improve the result:
+the best frozen-zero candidate still matches 408 of 512 luma samples, the same
+as the best mutable `zero_only` and uniform candidates. The useful signal is
+therefore not "keep the zero/non-zero state fixed"; it is that the initial and
+early evolution of the zero/non-zero decision state differs from the current
+model.

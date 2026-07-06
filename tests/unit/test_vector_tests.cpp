@@ -1004,7 +1004,11 @@ std::string describe_legacy_range_initial_state_probe(
                     static_cast<std::uint64_t>(pre_range) * state + split_bias;
                 const std::uint32_t rangeoff =
                     static_cast<std::uint32_t>(product >> 8);
+                const auto nonzero_product =
+                    static_cast<std::uint64_t>(pre_range) * (256u - state)
+                    + (255u - split_bias);
                 range -= rangeoff;
+                const auto nonzero_span = range;
                 const bool is_nonzero_path = inclusive_nonzero
                     ? low <= range
                     : low < range;
@@ -1036,6 +1040,32 @@ std::string describe_legacy_range_initial_state_probe(
                 case 5:
                     low += ((product & 0xffu) != 0 ? 1u : 0u)
                         + static_cast<std::uint32_t>(rangeoff & 1u);
+                    break;
+                case 6:
+                    low += (nonzero_product & 0xffu) != 0 ? 1u : 0u;
+                    break;
+                case 7:
+                    low += static_cast<std::uint32_t>(nonzero_product & 1u);
+                    break;
+                case 8:
+                    low += static_cast<std::uint32_t>(nonzero_span & 1u);
+                    break;
+                case 9:
+                    low += ((nonzero_product & 0xffu) != 0 ? 1u : 0u)
+                        + static_cast<std::uint32_t>(nonzero_span & 1u);
+                    break;
+                case 10:
+                    low += ((product & 0xffu) != 0 ? 1u : 0u)
+                        + ((nonzero_product & 0xffu) != 0 ? 1u : 0u);
+                    break;
+                case 11:
+                    low += static_cast<std::uint32_t>(rangeoff & 1u)
+                        + static_cast<std::uint32_t>(nonzero_span & 1u);
+                    break;
+                case 12:
+                    low += ((product & 0xffu) != 0 ? 1u : 0u)
+                        + static_cast<std::uint32_t>(rangeoff & 1u)
+                        + static_cast<std::uint32_t>(nonzero_span & 1u);
                     break;
                 default:
                     break;
@@ -1307,12 +1337,19 @@ std::string describe_legacy_range_initial_state_probe(
                            [](RefillVariant& variant, std::uint16_t bias) {
                                variant.low_bias_after_one_range_assign = bias;
                            });
-        constexpr std::array<std::string_view, 5> one_mode_labels{
+        constexpr std::array<std::string_view, 12> one_mode_labels{
             "rem",
             "prodlsb",
             "rangelsb",
             "rangeofflsb",
             "rem_rangeofflsb",
+            "nonzerorem",
+            "nonzeroprodlsb",
+            "nonzerospanlsb",
+            "nonzerorem_spanlsb",
+            "bothrem",
+            "bothspanlsb",
+            "rem_bothspanlsb",
         };
         out << " ceil_one_mode_probe";
         for (std::uint32_t mode = 1; mode <= one_mode_labels.size(); ++mode) {

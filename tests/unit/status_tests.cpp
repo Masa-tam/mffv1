@@ -52,6 +52,20 @@ TEST(StatusTest, MakeByteErrorSetsInitialByteLocation)
     EXPECT_FALSE(status.location.has_slice_index);
 }
 
+TEST(StatusTest, AppendStatusMessageFollowsDiagnosticMessageSetting)
+{
+    auto status =
+        mffv1::make_error(mffv1::ErrorCode::SyntaxError, "bad syntax");
+
+    mffv1::append_status_message(status, " with context");
+
+#if MFFV1_ENABLE_STATUS_MESSAGES
+    EXPECT_EQ(status.message, "bad syntax with context");
+#else
+    EXPECT_TRUE(status.message.empty());
+#endif
+}
+
 TEST(StatusTest, LocationHelpersDoNotOverwriteExistingLocations)
 {
     auto status = mffv1::make_byte_error(

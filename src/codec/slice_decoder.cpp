@@ -292,16 +292,20 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 status = entropy::read_golomb_rice_run_segment(
                     bit_reader, run_state, x, width, segment);
                 if (!status.ok()) {
-                    status.message += " while reading GR run segment"
-                        + format_golomb_rice_context_trace(
-                            plane,
-                            y,
-                            run_start_x,
-                            neighbors,
-                            prediction,
-                            context,
-                            run_state,
-                            run_start_bit);
+                    if constexpr (status_messages_enabled) {
+                        append_status_message(
+                            status,
+                            " while reading GR run segment"
+                                + format_golomb_rice_context_trace(
+                                    plane,
+                                    y,
+                                    run_start_x,
+                                    neighbors,
+                                    prediction,
+                                    context,
+                                    run_state,
+                                    run_start_bit));
+                    }
                     set_reader_byte_offset(
                         status, payload_offset, bit_reader.byte_position());
                     return status;
@@ -358,17 +362,21 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                     failure_neighbors.left,
                     failure_neighbors.top,
                     failure_neighbors.top_left);
-                status.message += " while reading GR run interruption"
-                    + format_golomb_rice_context_trace(
-                        plane,
-                        y,
-                        x,
-                        failure_neighbors,
-                        failure_prediction,
-                        context,
-                        run_state,
-                        bit_reader.bit_position())
-                    + format_golomb_rice_adaptive_state(adaptive_state);
+                if constexpr (status_messages_enabled) {
+                    append_status_message(
+                        status,
+                        " while reading GR run interruption"
+                            + format_golomb_rice_context_trace(
+                                plane,
+                                y,
+                                x,
+                                failure_neighbors,
+                                failure_prediction,
+                                context,
+                                run_state,
+                                bit_reader.bit_position())
+                            + format_golomb_rice_adaptive_state(adaptive_state));
+                }
                 set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
                 return status;
             }
@@ -415,17 +423,21 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
             reconstruction_bits,
             difference);
         if (!status.ok()) {
-            status.message += " while reading GR scalar symbol"
-                + format_golomb_rice_context_trace(
-                    plane,
-                    y,
-                    x,
-                    neighbors,
-                    prediction,
-                    context,
-                    run_state,
-                    bit_reader.bit_position())
-                + format_golomb_rice_adaptive_state(adaptive_state);
+            if constexpr (status_messages_enabled) {
+                append_status_message(
+                    status,
+                    " while reading GR scalar symbol"
+                        + format_golomb_rice_context_trace(
+                            plane,
+                            y,
+                            x,
+                            neighbors,
+                            prediction,
+                            context,
+                            run_state,
+                            bit_reader.bit_position())
+                        + format_golomb_rice_adaptive_state(adaptive_state));
+            }
             set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
             return status;
         }
@@ -666,10 +678,12 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  state,
                                                  observer);
                 if (!status.ok()) {
-                    status.message += " at GR plane "
-                        + std::to_string(plane)
-                        + " y "
-                        + std::to_string(y);
+                    if constexpr (status_messages_enabled) {
+                        append_status_message(
+                            status,
+                            " at GR plane " + std::to_string(plane)
+                                + " y " + std::to_string(y));
+                    }
                     return status;
                 }
             }
@@ -703,10 +717,12 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  state,
                                                  observer);
                 if (!status.ok()) {
-                    status.message += " at GR plane "
-                        + std::to_string(plane)
-                        + " y "
-                        + std::to_string(y);
+                    if constexpr (status_messages_enabled) {
+                        append_status_message(
+                            status,
+                            " at GR plane " + std::to_string(plane)
+                                + " y " + std::to_string(y));
+                    }
                     return status;
                 }
                 status = store_planar_line(stream, output, plane, y, line);

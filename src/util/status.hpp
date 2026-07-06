@@ -2,11 +2,24 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "mffv1/result.hpp"
 
 namespace mffv1 {
+
+inline constexpr bool status_messages_enabled = MFFV1_ENABLE_STATUS_MESSAGES != 0;
+
+inline void append_status_message(Status& status, std::string_view message)
+{
+#if MFFV1_ENABLE_STATUS_MESSAGES
+    status.message += message;
+#else
+    (void)status;
+    (void)message;
+#endif
+}
 
 inline void set_byte_location_if_missing(Status& status, std::uint64_t byte_offset) noexcept
 {

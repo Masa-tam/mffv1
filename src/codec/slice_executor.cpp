@@ -147,11 +147,16 @@ void append_golomb_rice_candidate_context(
     Status& status,
     const syntax::SliceDescriptor& candidate)
 {
-    status.message += " while decoding Golomb-Rice content candidate at byte offset "
-        + std::to_string(candidate.content_byte_offset);
-    if (candidate.content_bit_offset != 0) {
-        status.message += " bit offset "
-            + std::to_string(candidate.content_bit_offset);
+    if constexpr (status_messages_enabled) {
+        append_status_message(
+            status,
+            " while decoding Golomb-Rice content candidate at byte offset "
+                + std::to_string(candidate.content_byte_offset));
+        if (candidate.content_bit_offset != 0) {
+            append_status_message(
+                status,
+                " bit offset " + std::to_string(candidate.content_bit_offset));
+        }
     }
 }
 

@@ -22,52 +22,59 @@ if(NOT GTest_FOUND)
     endif()
 endif()
 
-add_executable(mffv1_unit_tests
-    unit/bit_reader_tests.cpp
-    unit/bit_writer_tests.cpp
-    unit/color_transform_tests.cpp
-    unit/context_model_tests.cpp
-    unit/cpu_features_tests.cpp
-    unit/crc32_tests.cpp
-    unit/decoder_tests.cpp
-    unit/encoder_tests.cpp
-    unit/encoder_profile_tests.cpp
-    unit/frame_info_builder_tests.cpp
-    unit/frame_parser_tests.cpp
-    unit/configuration_parser_tests.cpp
-    unit/configuration_record_parser_tests.cpp
-    unit/configuration_record_writer_tests.cpp
-    unit/frame_validator_tests.cpp
-    unit/golomb_rice_context_tests.cpp
-    unit/golomb_rice_reader_tests.cpp
-    unit/golomb_rice_run_tests.cpp
-    unit/golomb_rice_writer_tests.cpp
-    unit/predictor_tests.cpp
-    unit/plane_window_math_tests.cpp
-    unit/profile_constraints_tests.cpp
-    unit/range_coder_tests.cpp
-    unit/range_encoder_tests.cpp
-    unit/rfc_math_tests.cpp
-    unit/sample_format_tests.cpp
-    unit/simd_color_transform_tests.cpp
-    unit/multi_slice_decode_tests.cpp
-    unit/slice_decoder_tests.cpp
-    unit/slice_encode_executor_tests.cpp
-    unit/slice_encoder_tests.cpp
-    unit/slice_executor_tests.cpp
-    unit/slice_footer_parser_tests.cpp
-    unit/slice_footer_writer_tests.cpp
-    unit/slice_header_parser_tests.cpp
-    unit/slice_header_writer_tests.cpp
-    unit/slice_input_window_tests.cpp
-    unit/slice_output_window_tests.cpp
-    unit/slice_payload_locator_tests.cpp
-    unit/slice_raster_validator_tests.cpp
+set(mffv1_unit_test_sources
     unit/status_tests.cpp
-    unit/stream_parameters_tests.cpp
-    unit/test_vector_tests.cpp
-    unit/version3_constraints_tests.cpp
 )
+
+if(NOT MFFV1_BUILD_STATUS_CONTRACT_TESTS_ONLY)
+    list(PREPEND mffv1_unit_test_sources
+        unit/bit_reader_tests.cpp
+        unit/bit_writer_tests.cpp
+        unit/color_transform_tests.cpp
+        unit/context_model_tests.cpp
+        unit/cpu_features_tests.cpp
+        unit/crc32_tests.cpp
+        unit/decoder_tests.cpp
+        unit/encoder_tests.cpp
+        unit/encoder_profile_tests.cpp
+        unit/frame_info_builder_tests.cpp
+        unit/frame_parser_tests.cpp
+        unit/configuration_parser_tests.cpp
+        unit/configuration_record_parser_tests.cpp
+        unit/configuration_record_writer_tests.cpp
+        unit/frame_validator_tests.cpp
+        unit/golomb_rice_context_tests.cpp
+        unit/golomb_rice_reader_tests.cpp
+        unit/golomb_rice_run_tests.cpp
+        unit/golomb_rice_writer_tests.cpp
+        unit/predictor_tests.cpp
+        unit/plane_window_math_tests.cpp
+        unit/profile_constraints_tests.cpp
+        unit/range_coder_tests.cpp
+        unit/range_encoder_tests.cpp
+        unit/rfc_math_tests.cpp
+        unit/sample_format_tests.cpp
+        unit/simd_color_transform_tests.cpp
+        unit/multi_slice_decode_tests.cpp
+        unit/slice_decoder_tests.cpp
+        unit/slice_encode_executor_tests.cpp
+        unit/slice_encoder_tests.cpp
+        unit/slice_executor_tests.cpp
+        unit/slice_footer_parser_tests.cpp
+        unit/slice_footer_writer_tests.cpp
+        unit/slice_header_parser_tests.cpp
+        unit/slice_header_writer_tests.cpp
+        unit/slice_input_window_tests.cpp
+        unit/slice_output_window_tests.cpp
+        unit/slice_payload_locator_tests.cpp
+        unit/slice_raster_validator_tests.cpp
+        unit/stream_parameters_tests.cpp
+        unit/test_vector_tests.cpp
+        unit/version3_constraints_tests.cpp
+    )
+endif()
+
+add_executable(mffv1_unit_tests ${mffv1_unit_test_sources})
 
 set(mffv1_test_vector_include_dir "${PROJECT_SOURCE_DIR}/testvectors")
 set(mffv1_test_vector_header

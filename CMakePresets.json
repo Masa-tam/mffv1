@@ -54,6 +54,7 @@
       "inherits": "vs2026-x64",
       "binaryDir": "${sourceDir}/build/vs2026-x64-no-status-tests",
       "cacheVariables": {
+        "MFFV1_BUILD_STATUS_CONTRACT_TESTS_ONLY": "ON",
         "MFFV1_ENABLE_STATUS_MESSAGES": "OFF"
       }
     }

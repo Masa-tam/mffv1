@@ -19,6 +19,7 @@ The preset uses the Visual Studio 2026 generator with the x64 architecture.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `MFFV1_BUILD_FUZZERS` | `OFF` | Build standalone fuzz harness executables. |
+| `MFFV1_BUILD_STATUS_CONTRACT_TESTS_ONLY` | `OFF` | Build only the lightweight `Status` contract tests. Intended for the no-status test preset. |
 | `MFFV1_BUILD_TESTS` | `ON` | Build the GoogleTest-based unit and conformance tests. |
 | `MFFV1_ENABLE_SANITIZERS` | `OFF` | Enable supported compiler sanitizer instrumentation. MSVC uses AddressSanitizer; Clang and GCC use AddressSanitizer plus UndefinedBehaviorSanitizer. |
 | `MFFV1_ENABLE_STATUS_MESSAGES` | `ON` | Store diagnostic text in `Status::message`. When `OFF`, `Status::message` remains part of the public API but library-generated messages are empty. |
@@ -45,8 +46,8 @@ storage and copying in production-oriented builds. The no-status preset also
 sets `MFFV1_BUILD_TESTS=OFF` because many unit tests intentionally assert exact
 diagnostic text.
 
-To verify the no-status `Status` contract without running the diagnostics-heavy
-unit tests:
+To verify the no-status `Status` contract without building or running the
+diagnostics-heavy unit tests:
 
 ```powershell
 cmake --preset vs2026-x64-no-status-tests

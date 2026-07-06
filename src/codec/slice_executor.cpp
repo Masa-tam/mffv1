@@ -41,9 +41,14 @@ bool can_try_golomb_rice_read_ahead_boundary(
     const syntax::StreamParameters& stream,
     const syntax::SliceDescriptor& slice) noexcept
 {
-    return stream.version >= 3
-        && stream.entropy_mode == EntropyMode::GolombRice
-        && slice.content_byte_offset > slice.payload_byte_offset;
+    if (stream.entropy_mode != EntropyMode::GolombRice
+        || slice.content_byte_offset <= slice.payload_byte_offset) {
+        return false;
+    }
+    if (stream.version >= 3) {
+        return true;
+    }
+    return stream.version <= 1 && slice.content_bit_offset == 0;
 }
 
 syntax::SliceDescriptor make_golomb_rice_read_ahead_boundary(

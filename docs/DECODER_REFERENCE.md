@@ -433,8 +433,9 @@ The current decoder implements:
 - Y-only, YCbCr with subsampling, extra plane, RGB, and RGBA layouts.
 - Version 3 slice headers, footers, error status, and optional slice CRC.
 - Multiple version 3 slices with deterministic parallel execution.
-- Legacy version 1 range-coded single-slice AVI-style payloads with empty
-  Codec Private data can be bootstrapped from keyframe-embedded parameters.
+- Legacy version 1 range-coded and Golomb-Rice single-slice AVI-style payloads
+  with empty Codec Private data can be bootstrapped from keyframe-embedded
+  parameters.
 - Keyframes and non-keyframes with per-slice entropy-state continuation.
 - Reordered non-keyframe slices matched to prior state by raster geometry.
 - Runtime CPU dispatch with scalar, SSE2, and AVX2 RGB inverse color
@@ -448,8 +449,8 @@ The current decoder implements:
 - Colorspace types other than YCbCr and RGB are unsupported.
 - Legacy version 0/1 frame-embedded `Parameters()` require an explicit
   `bootstrap_legacy_frame()` call before inspecting or decoding.
-- Legacy version 0 payload boundary handling and legacy Golomb-Rice bootstrap
-  are still under investigation.
+- Legacy version 0 Golomb-Rice payload boundary handling is still under
+  investigation.
 - Legacy version 0/1 multi-slice is not a primary compatibility target because
   stable multi-slice usage is associated with version 3 rather than the
   abandoned experimental version 2 line.

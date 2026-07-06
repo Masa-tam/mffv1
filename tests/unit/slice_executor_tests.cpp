@@ -216,6 +216,33 @@ TEST(SliceExecutorTest, DecodesVersionThreeGolombRiceReadAheadBoundary)
     EXPECT_TRUE(executor.has_reference_state());
 }
 
+TEST(SliceExecutorTest, DecodesLegacyGolombRiceEmbeddedReadAheadBoundary)
+{
+    auto stream = make_stream();
+    stream.version = 1;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 1> payload{std::byte{0x80}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 1;
+    slice.height = 1;
+    slice.payload = payload;
+    slice.content_byte_offset = 1;
+    slice.content_bit_offset = 0;
+    slice.quant_table_set_indexes = {0};
+    const std::array slices{slice};
+
+    mffv1::codec::SliceExecutor executor(stream);
+    const auto status = executor.decode(output, slices, true);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
+    EXPECT_TRUE(executor.has_reference_state());
+}
+
 TEST(SliceExecutorTest, PrefersPrimaryGolombRiceBoundaryWithReadAheadByte)
 {
     auto stream = make_stream();

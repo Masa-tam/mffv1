@@ -3317,7 +3317,8 @@ std::string describe_first_partial_mismatch(
     std::span<const std::byte> expected,
     std::size_t plane_index,
     const mffv1::PlaneInfo& plane,
-    std::uint8_t bits_per_raw_sample)
+    std::uint8_t bits_per_raw_sample,
+    bool skip_unwritten = true)
 {
     const auto bytes_per_sample = plane.sample_format == mffv1::SampleFormat::UInt16
         ? std::size_t{2}
@@ -3331,7 +3332,9 @@ std::string describe_first_partial_mismatch(
         const auto mismatch = std::mismatch(
             actual_row.begin(), actual_row.end(), expected_row.begin());
         auto actual_it = mismatch.first;
-        while (actual_it != actual_row.end() && *actual_it == std::byte{0xa5}) {
+        while (skip_unwritten
+               && actual_it != actual_row.end()
+               && *actual_it == std::byte{0xa5}) {
             ++actual_it;
         }
         if (actual_it == actual_row.end()) {
@@ -3791,6 +3794,7 @@ struct GolombRiceBoundaryCandidateSummary {
     std::size_t matched_samples = 0;
     mffv1::Status status;
     bool output_matches = false;
+    std::string first_output_mismatch;
     bool measured = false;
 };
 
@@ -3871,6 +3875,15 @@ GolombRiceBoundaryCandidateSummary measure_golomb_rice_boundary_candidate(
                         plane_storage[index].begin(),
                         plane_storage[index].begin() + expected_size)) {
             summary.output_matches = false;
+            if (summary.first_output_mismatch.empty()) {
+                summary.first_output_mismatch = describe_first_partial_mismatch(
+                    plane_storage[index],
+                    expected_bytes,
+                    index,
+                    expected_planes[index].info,
+                    stream.bits_per_raw_sample,
+                    false);
+            }
             break;
         }
     }
@@ -3954,6 +3967,10 @@ std::string describe_legacy_golomb_rice_boundary_probe(
             << " matched_traced_samples=" << best_candidate.matched_samples
             << " output_match=" << best_candidate.output_matches
             << " status: " << describe_status(best_candidate.status);
+        if (!best_candidate.first_output_mismatch.empty()) {
+            out << "\nlegacy-gr-best-output "
+                << best_candidate.first_output_mismatch;
+        }
         std::size_t peer_count = 0;
         std::size_t peer_output_match_count = 0;
         out << "\nlegacy-gr-best-peers";

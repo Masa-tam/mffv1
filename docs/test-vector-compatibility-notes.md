@@ -812,3 +812,9 @@ The diagnostic now distinguishes traced sample matches from full output-plane
 matches. Only the `1x1` control reaches an output match before trailing-byte
 failure; the `2x1` and wider controls do not. Relaxing trailing-byte handling
 alone would therefore not close the v0 Golomb-Rice gap.
+The best-candidate output summary now reports the first output-plane mismatch
+without hiding untouched sentinel bytes. For `2x1` and wider flat controls, the
+first mismatch is consistently `x=1 y=0` with actual sample `0xa5`, meaning the
+second sample remains unwritten. The current interpretation decodes the first
+zero run sample and then treats the plane as ended, rather than reconstructing
+the remaining flat run.

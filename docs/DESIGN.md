@@ -413,9 +413,11 @@ Decoder::decode_frame()
   -> return diagnostics or success
 ```
 
-Strict mode should reject malformed or unsupported bitstreams early. Non-strict
-mode may permit carefully documented compatibility behavior, but it must never
-read out of bounds or write outside caller-provided frames.
+Strict mode rejects malformed or unsupported bitstreams early. The public
+`DecoderOptions::strict` field is reserved for a future relaxed compatibility
+mode, but the current factory rejects `strict == false` with
+`UnsupportedFeature`. Any future relaxed mode must never read out of bounds or
+write outside caller-provided frames.
 
 ## Encoder Flow
 

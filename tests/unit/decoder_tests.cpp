@@ -277,6 +277,19 @@ TEST(DecoderTest, FactoryCreatesDecoder)
     EXPECT_NE(result.decoder, nullptr);
 }
 
+TEST(DecoderTest, FactoryRejectsRelaxedParsingMode)
+{
+    mffv1::DecoderOptions options;
+    options.strict = false;
+
+    const auto result = mffv1::create_decoder(options);
+
+    EXPECT_FALSE(result.status.ok());
+    EXPECT_EQ(result.status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(result.status.message, "decoder relaxed parsing is not implemented");
+    EXPECT_EQ(result.decoder, nullptr);
+}
+
 TEST(DecoderTest, FactoryAcceptsExternalFrameDimensions)
 {
     mffv1::DecoderOptions options;

@@ -76,10 +76,14 @@ On success, `status.ok()` is true and `decoder` is non-null. On failure,
 | --- | --- |
 | `thread_count` | `0` selects hardware concurrency, `1` forces serial slice decoding, and positive values set the maximum slice workers. Negative values are rejected. |
 | `verify_crc` | Verifies version 3+ slice CRC parity when the stream enables error status. Configuration Record CRC is always verified. |
-| `strict` | Reserved for a future relaxed parsing mode. It currently has no effect; decoding remains strict. |
+| `strict` | Must be `true`. `false` is reserved for a future relaxed parsing mode and is currently rejected by `create_decoder()`. |
 | `frame_width` | Coded frame width supplied by the container. |
 | `frame_height` | Coded frame height supplied by the container. |
 | `cpu` | Controls runtime CPU feature selection. Dispatch is resolved once when the decoder is configured. |
+
+`create_decoder()` rejects `strict == false` with `UnsupportedFeature` because
+the current decoder has only one parsing contract: strict validation with no
+relaxed compatibility mode.
 
 `frame_width` and `frame_height` must either both be zero or both be non-zero.
 They should normally be supplied because FFV1 version 3 Configuration Records
@@ -399,9 +403,10 @@ The current decoder implements:
 - Colorspace types other than YCbCr and RGB are unsupported.
 - Legacy version 0/1 frame-embedded `Parameters()` are not automatically
   extracted; see Configuring A Stream.
+- Relaxed parsing mode is not implemented; `DecoderOptions::strict` must stay
+  true.
 - SIMD coverage is currently limited to the RGB inverse color transform on
   SSE2 and AVX2 targets.
-- `strict = false` does not currently enable relaxed parsing.
 - `FrameInfo` exposes stream-level layout metadata and a required plane table,
   but callers still choose buffer ownership and any stride padding.
 - The library does not demultiplex containers or parse codec container
@@ -418,4 +423,3 @@ Before declaring a stable decoder release, the project should complete:
 4. AddressSanitizer, UndefinedBehaviorSanitizer, and equivalent MSVC checks
    where available.
 5. Changelog, release metadata, and support-policy documents.
-6. Explicit tests or API changes for the currently reserved `strict` option.

@@ -133,6 +133,11 @@ DecoderFactoryResult create_decoder(const DecoderOptions& options)
         result.status = make_error(ErrorCode::InvalidArgument, "decoder thread count must not be negative");
         return result;
     }
+    if (!options.strict) {
+        result.status = make_error(ErrorCode::UnsupportedFeature,
+                                   "decoder relaxed parsing is not implemented");
+        return result;
+    }
     if ((options.frame_width == 0) != (options.frame_height == 0)) {
         result.status = make_error(ErrorCode::InvalidArgument,
                                    "decoder frame dimensions must be both set or both zero");

@@ -947,6 +947,8 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t low_bias_after_rac = 0;
             std::uint32_t low_bias_after_zero_rac = 0;
             std::uint32_t low_bias_after_one_rac = 0;
+            std::uint32_t low_bias_after_one_subtract = 0;
+            std::uint32_t low_bias_after_one_range_assign = 0;
         };
         struct MiniRangeReader {
             std::span<const std::byte> payload;
@@ -963,6 +965,8 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t low_bias_after_rac = 0;
             std::uint32_t low_bias_after_zero_rac = 0;
             std::uint32_t low_bias_after_one_rac = 0;
+            std::uint32_t low_bias_after_one_subtract = 0;
+            std::uint32_t low_bias_after_one_range_assign = 0;
             mffv1::entropy::RangeCoder::ScalarContextStates states{};
 
             void refill() noexcept
@@ -1006,7 +1010,9 @@ std::string describe_legacy_range_initial_state_probe(
                     return false;
                 }
                 low -= range;
+                low += low_bias_after_one_subtract;
                 range = rangeoff;
+                low += low_bias_after_one_range_assign;
                 state = mffv1::syntax::range_one_state(*transition, state);
                 refill();
                 low += low_bias_after_rac + low_bias_after_one_rac;
@@ -1073,6 +1079,8 @@ std::string describe_legacy_range_initial_state_probe(
             reader.low_bias_after_rac = variant.low_bias_after_rac;
             reader.low_bias_after_zero_rac = variant.low_bias_after_zero_rac;
             reader.low_bias_after_one_rac = variant.low_bias_after_one_rac;
+            reader.low_bias_after_one_subtract = variant.low_bias_after_one_subtract;
+            reader.low_bias_after_one_range_assign = variant.low_bias_after_one_range_assign;
             reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
             reader.states[0] = initial_zero_state;
 
@@ -1264,6 +1272,14 @@ std::string describe_legacy_range_initial_state_probe(
         append_bias_family("ceil_one_rac_bias_best",
                            [](RefillVariant& variant, std::uint16_t bias) {
                                variant.low_bias_after_one_rac = bias;
+                           });
+        append_bias_family("ceil_one_sub_bias_best",
+                           [](RefillVariant& variant, std::uint16_t bias) {
+                               variant.low_bias_after_one_subtract = bias;
+                           });
+        append_bias_family("ceil_one_range_bias_best",
+                           [](RefillVariant& variant, std::uint16_t bias) {
+                               variant.low_bias_after_one_range_assign = bias;
                            });
 
         const auto append_mini_state = [](std::ostringstream& trace_out,

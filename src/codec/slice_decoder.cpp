@@ -212,6 +212,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                std::uint64_t payload_offset,
                                const syntax::ContextModel& context_model,
                                std::size_t plane,
+                               std::size_t run_state_plane,
                                std::uint32_t y,
                                std::size_t context_bank,
                                std::uint32_t width,
@@ -220,7 +221,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                SliceDecodeObserver* observer)
 {
     auto& line = state.line_state(plane);
-    auto& run_state = state.golomb_rice_run_state(plane);
+    auto& run_state = state.golomb_rice_run_state(run_state_plane);
     std::uint32_t x = 0;
     while (x < width) {
         if (run_state.pending_count != 0) {
@@ -657,6 +658,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  payload_offset,
                                                  context_models[plane],
                                                  plane,
+                                                 0,
                                                  y,
                                                  context_bank_indexes[plane],
                                                  width,
@@ -692,6 +694,7 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
                                                  reader,
                                                  payload_offset,
                                                  context_models[plane],
+                                                 plane,
                                                  plane,
                                                  y,
                                                  context_bank_indexes[plane],

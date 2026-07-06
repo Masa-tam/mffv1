@@ -651,6 +651,14 @@ rules out a broad v0 range bootstrap failure and narrows the next range-coded
 v0 work to nonzero symbol reconstruction or the v0-specific scalar context
 mapping used for nonzero residuals.
 
+The skip diagnostic now includes an `expected_residual_probe` that follows the
+actual decoder's v0 arithmetic path. For the same nonzero vector, the expected
+coded residuals at samples 0, 3, and 15 are `-128`, while the v0 decoder reads
+`0` at each position and reconstructs zero. The contexts are all context 0
+with no inversion, so the mismatch occurs before sign or prediction can matter:
+the first zero/nonzero decision for a required nonzero residual takes the zero
+path under the current v0 range model.
+
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data
 or first-sample mismatch diagnostics, so they continue to support the earlier

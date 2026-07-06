@@ -38,6 +38,10 @@ std::string describe_legacy_golomb_rice_boundary_probe(
     const mffv1_testvectors::DecodeVector& vector,
     const mffv1::codec::LegacyFrameBootstrap& bootstrap);
 
+std::string describe_legacy_range_expected_residual_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap);
+
 std::uint32_t read_sample(std::span<const std::byte> bytes,
                           std::size_t sample_offset,
                           mffv1::SampleFormat format);
@@ -1550,6 +1554,115 @@ std::string describe_legacy_range_initial_state_probe(
     return out.str();
 }
 
+std::string describe_legacy_range_expected_residual_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    const auto& stream = bootstrap.stream;
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()
+        || vector.expected_planes.empty()
+        || vector.expected_planes.front().empty()
+        || stream.quant_table_sets.size() != 1
+        || stream.quant_table_sets.front().context_count != 1) {
+        return {};
+    }
+
+    const auto& expected = vector.expected_planes.front().front();
+    if (expected.info.sample_format != mffv1::SampleFormat::UInt8
+        || expected.info.width == 0
+        || expected.info.height == 0) {
+        return {};
+    }
+
+    constexpr std::size_t kProbeSampleCount = 16;
+    const std::array<std::size_t, 1> context_counts{1};
+    mffv1::entropy::RangeCoder reader;
+    auto status = reader.reset_from_arithmetic_state(
+        vector.frame_payloads.front(),
+        context_counts,
+        {},
+        stream.state_transition,
+        bootstrap.range_state_after_parameters);
+    if (!status.ok()) {
+        return std::string{" expected_residual_probe="} + describe_status(status);
+    }
+    if (stream.version == 0) {
+        status = reader.set_legacy_v0_arithmetic(true);
+        if (!status.ok()) {
+            return std::string{" expected_residual_probe="} + describe_status(status);
+        }
+    }
+
+    const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+    mffv1::syntax::LineState line;
+    status = line.reset(expected.info.width);
+    if (!status.ok()) {
+        return std::string{" expected_residual_probe="} + describe_status(status);
+    }
+
+    std::ostringstream out;
+    out << " expected_residual_probe";
+    std::size_t decoded_samples = 0;
+    for (std::uint32_t y = 0; y < expected.info.height; ++y) {
+        for (std::uint32_t x = 0; x < expected.info.width; ++x) {
+            if (decoded_samples >= kProbeSampleCount) {
+                return out.str();
+            }
+            const auto neighbors = line.neighbors(x);
+            const auto prediction = mffv1::syntax::Predictor::median_predict(
+                neighbors.left,
+                neighbors.top,
+                neighbors.top_left);
+            mffv1::syntax::ContextDecision context;
+            status = context_model.derive_context(neighbors, context);
+            if (!status.ok()) {
+                out << " err(" << describe_status(status) << ")";
+                return out.str();
+            }
+            const auto expected_sample = sample_at(expected.samples, expected.info, x, y);
+            auto expected_difference = mffv1::syntax::Predictor::difference(
+                static_cast<std::int32_t>(expected_sample),
+                prediction,
+                stream.bits_per_raw_sample);
+            if (context.invert_difference) {
+                expected_difference = -expected_difference;
+            }
+
+            std::int64_t actual_difference = 0;
+            status = reader.read_signed(0, context.context, actual_difference);
+            if (!status.ok()) {
+                out << " #" << decoded_samples
+                    << "@(" << x << "," << y << ")=err("
+                    << describe_status(status) << ")";
+                return out.str();
+            }
+            auto reconstruction_difference = actual_difference;
+            if (context.invert_difference) {
+                reconstruction_difference = -reconstruction_difference;
+            }
+            const auto actual_sample = mffv1::syntax::Predictor::reconstruct(
+                prediction,
+                static_cast<std::int32_t>(reconstruction_difference),
+                stream.bits_per_raw_sample);
+
+            out << " #" << decoded_samples
+                << "@(" << x << "," << y << ")"
+                << " ctx=" << context.context
+                << " inv=" << context.invert_difference
+                << " pred=" << prediction
+                << " exp_sample=" << expected_sample
+                << " exp_diff=" << expected_difference
+                << " act_diff=" << actual_difference
+                << " act_sample=" << static_cast<int>(actual_sample);
+            line.mutable_current()[x] = actual_sample;
+            ++decoded_samples;
+        }
+        line.swap_lines();
+    }
+    return out.str();
+}
+
 std::string legacy_v1_sibling_name(std::string_view name)
 {
     constexpr std::string_view marker = "_v0_legacy_";
@@ -1644,6 +1757,7 @@ std::string describe_legacy_bootstrap_state(
                 vector, bootstrap.stream, true, "range_probe")
             << describe_legacy_range_symbol_probe(
                 vector, bootstrap.stream, false, "range_probe_carry_context")
+            << describe_legacy_range_expected_residual_probe(vector, bootstrap)
             << describe_legacy_golomb_rice_boundary_probe(vector, bootstrap)
             << describe_legacy_range_shifted_state_probe(vector, bootstrap)
             << describe_legacy_range_initial_state_probe(vector, bootstrap)

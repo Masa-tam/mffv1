@@ -1830,6 +1830,75 @@ std::string describe_legacy_range_expected_residual_probe(
                   << "/" << low_best[i].sample
                   << "/err" << low_best[i].error;
         }
+
+        struct ByteLowResult {
+            std::uint64_t byte_position = 0;
+            std::uint32_t low = 0;
+            std::int64_t difference = 0;
+            std::uint32_t sample = 0;
+            std::uint32_t error = 0;
+        };
+        std::array<ByteLowResult, 8> byte_low_best{};
+        std::size_t byte_low_best_count = 0;
+        std::size_t byte_low_exact_count = 0;
+        const auto byte_begin = state.byte_position > 2 ? state.byte_position - 2 : std::uint64_t{0};
+        const auto byte_end = std::min<std::uint64_t>(
+            state.byte_position + 4,
+            static_cast<std::uint64_t>(vector.frame_payloads.front().size()));
+        for (auto byte_position = byte_begin; byte_position <= byte_end; ++byte_position) {
+            for (std::uint32_t low = 0; low < state.range; ++low) {
+                auto candidate_state = state;
+                candidate_state.byte_position = byte_position;
+                candidate_state.end = byte_position >= vector.frame_payloads.front().size();
+                candidate_state.low = low;
+                CandidateResult result;
+                const auto probe_status = evaluate_candidate_at_state(
+                    255,
+                    candidate_state,
+                    result);
+                if (!probe_status.ok() || !result.valid) {
+                    continue;
+                }
+                if (result.sample == expected_sample) {
+                    ++byte_low_exact_count;
+                }
+                ByteLowResult byte_low_result{
+                    byte_position,
+                    low,
+                    result.difference,
+                    result.sample,
+                    result.error,
+                };
+                if (byte_low_best_count < byte_low_best.size()) {
+                    byte_low_best[byte_low_best_count] = byte_low_result;
+                    ++byte_low_best_count;
+                } else if (byte_low_result.error < byte_low_best[byte_low_best_count - 1].error) {
+                    byte_low_best[byte_low_best_count - 1] = byte_low_result;
+                } else {
+                    continue;
+                }
+                std::sort(
+                    byte_low_best.begin(),
+                    byte_low_best.begin() + static_cast<std::ptrdiff_t>(byte_low_best_count),
+                    [](const ByteLowResult& lhs, const ByteLowResult& rhs) {
+                        if (lhs.error != rhs.error) {
+                            return lhs.error < rhs.error;
+                        }
+                        if (lhs.byte_position != rhs.byte_position) {
+                            return lhs.byte_position < rhs.byte_position;
+                        }
+                        return lhs.low < rhs.low;
+                    });
+            }
+        }
+        trace << " byte_low_sweep_s0_255 exact=" << byte_low_exact_count << " best";
+        for (std::size_t i = 0; i < byte_low_best_count; ++i) {
+            trace << " @" << byte_low_best[i].byte_position
+                  << "/low=" << byte_low_best[i].low
+                  << ":" << byte_low_best[i].difference
+                  << "/" << byte_low_best[i].sample
+                  << "/err" << byte_low_best[i].error;
+        }
     };
     std::size_t decoded_samples = 0;
     for (std::uint32_t y = 0; y < expected.info.height; ++y) {

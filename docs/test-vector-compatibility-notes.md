@@ -705,6 +705,10 @@ closest low candidate reconstructed 193, not 128. This makes a simple local
 low adjustment unlikely; the remaining explanation likely involves how v0
 defines the interval before the first residual or how the scalar body consumes
 the following bits after the zero/nonzero decision.
+Sweeping the nearby restored byte positions together with every `low` value
+also produced no exact match with `s0=255`; the closest candidate was byte
+position 150 with `low=66`, reconstructing 151. This weakens the hypothesis
+that the v0 nonzero failure is only a small byte-position restore error.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

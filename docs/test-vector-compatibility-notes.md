@@ -699,6 +699,12 @@ reconstructed the expected sample 128; the closest observed candidate was
 `s0=48`, which reconstructed 107. This rules out a single zero-state override
 as the compatibility fix and points back to the arithmetic position, interval
 semantics, or another historical v0 scalar-body convention.
+Keeping the current `s0=255` and sweeping the restored arithmetic `low` value
+across the entire current range also found no exact first-sample match. The
+closest low candidate reconstructed 193, not 128. This makes a simple local
+low adjustment unlikely; the remaining explanation likely involves how v0
+defines the interval before the first residual or how the scalar body consumes
+the following bits after the zero/nonzero decision.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

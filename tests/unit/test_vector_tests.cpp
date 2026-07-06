@@ -1671,8 +1671,9 @@ std::string describe_legacy_range_expected_residual_probe(
             std::uint32_t error = 0;
             bool valid = false;
         };
-        const auto evaluate_candidate = [&](std::uint8_t candidate,
-                                            CandidateResult& result) {
+        const auto evaluate_candidate_at_state = [&](std::uint8_t candidate,
+                                                     const mffv1::entropy::RangeCoder::ArithmeticState& arithmetic_state,
+                                                     CandidateResult& result) {
             result.state = candidate;
             mffv1::entropy::RangeCoder::ScalarContextStates states{};
             states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
@@ -1686,7 +1687,7 @@ std::string describe_legacy_range_expected_residual_probe(
                 context_counts,
                 {},
                 stream.state_transition,
-                state);
+                arithmetic_state);
             if (probe_status.ok()) {
                 probe_status = probe_reader.set_legacy_v0_arithmetic(true);
             }
@@ -1696,7 +1697,7 @@ std::string describe_legacy_range_expected_residual_probe(
                     context_counts,
                     state_bank,
                     stream.state_transition,
-                    state);
+                    arithmetic_state);
             }
             if (!probe_status.ok()) {
                 return probe_status;
@@ -1722,6 +1723,10 @@ std::string describe_legacy_range_expected_residual_probe(
                 : expected_sample - result.sample;
             result.valid = true;
             return probe_status;
+        };
+        const auto evaluate_candidate = [&](std::uint8_t candidate,
+                                            CandidateResult& result) {
+            return evaluate_candidate_at_state(candidate, state, result);
         };
         const auto append_candidate = [&](std::uint8_t candidate) {
             CandidateResult result;
@@ -1780,6 +1785,50 @@ std::string describe_legacy_range_expected_residual_probe(
                   << ":" << best[i].difference
                   << "/" << best[i].sample
                   << "/err" << best[i].error;
+        }
+
+        std::array<CandidateResult, 8> low_best{};
+        std::size_t low_best_count = 0;
+        std::size_t low_exact_count = 0;
+        for (std::uint32_t low = 0; low < state.range; ++low) {
+            auto low_state = state;
+            low_state.low = low;
+            CandidateResult result;
+            const auto probe_status = evaluate_candidate_at_state(255, low_state, result);
+            if (!probe_status.ok() || !result.valid) {
+                continue;
+            }
+            if (result.sample == expected_sample) {
+                ++low_exact_count;
+            }
+            result.state = static_cast<std::uint16_t>(
+                low > static_cast<std::uint32_t>(std::numeric_limits<std::uint16_t>::max())
+                    ? std::numeric_limits<std::uint16_t>::max()
+                    : low);
+            if (low_best_count < low_best.size()) {
+                low_best[low_best_count] = result;
+                ++low_best_count;
+            } else if (result.error < low_best[low_best_count - 1].error) {
+                low_best[low_best_count - 1] = result;
+            } else {
+                continue;
+            }
+            std::sort(
+                low_best.begin(),
+                low_best.begin() + static_cast<std::ptrdiff_t>(low_best_count),
+                [](const CandidateResult& lhs, const CandidateResult& rhs) {
+                    if (lhs.error != rhs.error) {
+                        return lhs.error < rhs.error;
+                    }
+                    return lhs.state < rhs.state;
+                });
+        }
+        trace << " low_sweep_s0_255 exact=" << low_exact_count << " best";
+        for (std::size_t i = 0; i < low_best_count; ++i) {
+            trace << " low=" << low_best[i].state
+                  << ":" << low_best[i].difference
+                  << "/" << low_best[i].sample
+                  << "/err" << low_best[i].error;
         }
     };
     std::size_t decoded_samples = 0;

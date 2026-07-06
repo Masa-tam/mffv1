@@ -23,6 +23,17 @@ public:
     static constexpr std::size_t kMaxContextBankCount = 4;
     static constexpr std::uint8_t kDefaultInitialState = 128;
 
+    struct ArithmeticState {
+        std::uint32_t range = 0;
+        std::uint32_t low = 0;
+        std::uint64_t byte_position = 0;
+        bool end = false;
+        bool initialized = false;
+
+        friend bool operator==(const ArithmeticState&,
+                               const ArithmeticState&) = default;
+    };
+
     Status reset(ByteSpan payload,
                  std::size_t scalar_context_count = 1,
                  std::uint8_t initial_state = kDefaultInitialState);
@@ -47,6 +58,7 @@ public:
     Status copy_contexts(ContextStateBanks& out_context_banks) const;
 
     [[nodiscard]] std::uint64_t byte_position() const noexcept override;
+    [[nodiscard]] ArithmeticState arithmetic_state() const noexcept;
 
     Status read_bool(bool& out_value) override;
     Status read_termination_sentinel();

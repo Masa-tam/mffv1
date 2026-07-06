@@ -116,6 +116,63 @@ TEST(RangeCoderTest, BytePositionAdvancesAfterRefill)
     EXPECT_GT(coder.byte_position(), 2u);
 }
 
+TEST(RangeCoderTest, ExposesArithmeticStateForDiagnostics)
+{
+    const std::array<std::byte, 3> payload{
+        std::byte{0x7f},
+        std::byte{0x80},
+        std::byte{0x55},
+    };
+    mffv1::entropy::RangeCoder coder;
+
+    const auto initial_state = coder.arithmetic_state();
+
+    EXPECT_FALSE(initial_state.initialized);
+    EXPECT_EQ(initial_state.range, 0u);
+    EXPECT_EQ(initial_state.low, 0u);
+    EXPECT_EQ(initial_state.byte_position, 0u);
+    EXPECT_FALSE(initial_state.end);
+
+    ASSERT_TRUE(coder.reset(payload).ok());
+    const auto reset_state = coder.arithmetic_state();
+
+    EXPECT_TRUE(reset_state.initialized);
+    EXPECT_EQ(reset_state.range, 0xff00u);
+    EXPECT_EQ(reset_state.low, 0x7f80u);
+    EXPECT_EQ(reset_state.byte_position, 2u);
+    EXPECT_FALSE(reset_state.end);
+
+    bool value = false;
+    ASSERT_TRUE(coder.read_bool(value).ok());
+    const auto advanced_state = coder.arithmetic_state();
+
+    EXPECT_TRUE(advanced_state.initialized);
+    EXPECT_NE(advanced_state, reset_state);
+    EXPECT_EQ(advanced_state.byte_position, coder.byte_position());
+}
+
+TEST(RangeCoderTest, ContextReconfigurationKeepsArithmeticState)
+{
+    const std::array<std::byte, 4> payload{
+        std::byte{0xff},
+        std::byte{0x00},
+        std::byte{0xaa},
+        std::byte{0xbb},
+    };
+    mffv1::entropy::RangeCoder coder;
+    ASSERT_TRUE(coder.reset(payload).ok());
+
+    bool frame_flag = false;
+    ASSERT_TRUE(coder.read_bool(frame_flag).ok());
+    const auto before_reconfigure = coder.arithmetic_state();
+    const std::array<std::size_t, 2> context_counts{1, 2};
+
+    ASSERT_TRUE(coder.reconfigure_contexts(context_counts).ok());
+    const auto after_reconfigure = coder.arithmetic_state();
+
+    EXPECT_EQ(after_reconfigure, before_reconfigure);
+}
+
 TEST(RangeCoderTest, DecodesHighInitialStateAsZeroSignedSymbol)
 {
     const std::array<std::byte, 2> payload{

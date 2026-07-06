@@ -212,6 +212,17 @@ std::uint64_t RangeCoder::byte_position() const noexcept
     return byte_position_;
 }
 
+RangeCoder::ArithmeticState RangeCoder::arithmetic_state() const noexcept
+{
+    return ArithmeticState{
+        range_,
+        low_,
+        byte_position_,
+        end_,
+        initialized_,
+    };
+}
+
 Status RangeCoder::read_bool(bool& out_value)
 {
     if (scalar_context_bank_sizes_.empty() || scalar_context_bank_sizes_[0] == 0) {

@@ -604,3 +604,10 @@ mismatch (`sample=408`, `x=24,y=12`). This means the candidate path is not
 gradually drifting through the zero/non-zero context state. It stays maximally
 biased toward zero until the arithmetic state first decodes a non-zero symbol
 where the generated reference plane still expects zero.
+
+The same trace records the arithmetic state around that transition. Sample 407
+decodes zero from `range=0xd47 low=0x10` to `range=0xd39 low=0x2`; sample 408
+then starts from `range=0xd39 low=0x2` and decodes `diff=1`, ending at
+`range=0x380 low=0x2ed byte=153`. The next useful probe should focus on the
+range split and first-bit interpretation at that exact zero/non-zero decision,
+rather than on long-term scalar context drift.

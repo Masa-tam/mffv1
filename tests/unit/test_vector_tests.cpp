@@ -690,6 +690,7 @@ std::string describe_legacy_range_initial_state_probe(
                     out << " zero_state_trace=err(" << describe_status(status) << ")";
                     return;
                 }
+                const auto before_symbol_state = reader.arithmetic_state();
                 std::int64_t difference64 = 0;
                 status = reader.read_signed(0, context.context, difference64);
                 if (!status.ok()) {
@@ -711,6 +712,14 @@ std::string describe_legacy_range_initial_state_probe(
                     }
                     out << " #" << decoded_samples
                         << "=" << static_cast<int>(copied_contexts.front().front()[0]);
+                    if (decoded_samples == 407 || decoded_samples == 408) {
+                        out << "{before:"
+                            << describe_range_state(before_symbol_state)
+                            << " after:"
+                            << describe_range_state(reader.arithmetic_state())
+                            << " diff=" << difference64
+                            << "}";
+                    }
                     ++next_point;
                 }
                 if (context.invert_difference) {
@@ -732,7 +741,12 @@ std::string describe_legacy_range_initial_state_probe(
                     out << " mismatch=" << decoded_samples
                         << "@" << x << "," << y
                         << " state0="
-                        << static_cast<int>(copied_contexts.front().front()[0]);
+                        << static_cast<int>(copied_contexts.front().front()[0])
+                        << " before{"
+                        << describe_range_state(before_symbol_state)
+                        << "} after{"
+                        << describe_range_state(reader.arithmetic_state())
+                        << "} diff=" << difference64;
                     return;
                 }
                 line.mutable_current()[x] = reconstructed;

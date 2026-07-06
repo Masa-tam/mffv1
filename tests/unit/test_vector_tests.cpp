@@ -1042,7 +1042,8 @@ std::string describe_legacy_range_initial_state_probe(
             }
         };
 
-        const auto measure_variant = [&](const RefillVariant& variant) {
+        const auto measure_variant = [&](const RefillVariant& variant,
+                                         std::uint8_t initial_zero_state) {
             CandidateMatch match;
             MiniRangeReader reader;
             reader.payload = payload;
@@ -1057,7 +1058,7 @@ std::string describe_legacy_range_initial_state_probe(
             reader.split_bias = variant.split_bias;
             reader.inclusive_nonzero = variant.inclusive_nonzero;
             reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
-            reader.states[0] = zero_state;
+            reader.states[0] = initial_zero_state;
 
             const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
             mffv1::syntax::LineState line;
@@ -1124,8 +1125,62 @@ std::string describe_legacy_range_initial_state_probe(
         }};
         out << " refill_variant_probe/" << measured_sample_count;
         for (const auto& variant : variants) {
-            const auto match = measure_variant(variant);
+            const auto match = measure_variant(variant, zero_state);
             out << " " << variant.label << "=" << match.matched_samples;
+            if (match.failed) {
+                out << "/fail";
+            } else {
+                out << "@" << match.mismatch_x << "," << match.mismatch_y;
+            }
+        }
+
+        const auto append_top_match = [](std::vector<CandidateMatch>& best_matches,
+                                         CandidateMatch match) {
+            best_matches.push_back(match);
+            std::sort(best_matches.begin(),
+                      best_matches.end(),
+                      [](const CandidateMatch& lhs, const CandidateMatch& rhs) {
+                          if (lhs.matched_samples != rhs.matched_samples) {
+                              return lhs.matched_samples > rhs.matched_samples;
+                          }
+                          return lhs.state < rhs.state;
+                      });
+            if (best_matches.size() > 8) {
+                best_matches.pop_back();
+            }
+        };
+
+        std::vector<CandidateMatch> split_bias_matches;
+        split_bias_matches.reserve(8);
+        for (std::uint16_t bias = 0; bias <= 255; ++bias) {
+            const RefillVariant variant{"", 256, 0, static_cast<std::uint32_t>(bias)};
+            auto match = measure_variant(variant, zero_state);
+            match.state = bias;
+            append_top_match(split_bias_matches, match);
+        }
+        out << " split_bias_best";
+        for (const auto& match : split_bias_matches) {
+            out << " bias" << match.state
+                << "=" << match.matched_samples;
+            if (match.failed) {
+                out << "/fail";
+            } else {
+                out << "@" << match.mismatch_x << "," << match.mismatch_y;
+            }
+        }
+
+        std::vector<CandidateMatch> ceil_zero_matches;
+        ceil_zero_matches.reserve(8);
+        const RefillVariant ceil_variant{"", 256, 0, 255};
+        for (std::uint16_t candidate = 0; candidate <= 255; ++candidate) {
+            auto match = measure_variant(ceil_variant, static_cast<std::uint8_t>(candidate));
+            match.state = candidate;
+            append_top_match(ceil_zero_matches, match);
+        }
+        out << " ceil_zero_best";
+        for (const auto& match : ceil_zero_matches) {
+            out << " state" << match.state
+                << "=" << match.matched_samples;
             if (match.failed) {
                 out << "/fail";
             } else {

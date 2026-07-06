@@ -749,6 +749,22 @@ range model has proven it can leave the zero branch. The v1 all-zero siblings
 advance and adapt state normally, so v0 all-zero success should be treated as
 a narrow zero-run compatibility result rather than broad validation of v0
 range-coded scalar decoding.
+A focused mode probe compared `legacy_s255`, `legacy_s128`, `normal_s128`,
+and `normal_s255` at the same v0 content arithmetic state. The nonzero control
+still fails on the first sample in all four modes, while the 32x16 all-zero
+control is fully matched only by `legacy_s255`; `legacy_s128` and
+`normal_s128` fail at sample 3, and `normal_s255` fails after 408 samples.
+This rules out a fix based only on choosing a different zero-state initial
+value or toggling the v0 arithmetic split at Slice Content entry.
+The content-byte trace adds an important constraint: the v0 nonzero control
+and the passing v0 all-zero controls share the same after-Parameters arithmetic
+state and the same content byte prefix from offset 152 through offset 166; the
+payloads first differ around offset 167. With the current content=152
+carry-state model, a deterministic range decoder must therefore produce the
+same first samples for those files. Extending the independent reset-boundary
+probe through offset 175 did not produce the expected `-128` first residual,
+so the missing rule is not just "start decoding at the first differing byte"
+either.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

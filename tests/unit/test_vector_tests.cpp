@@ -81,6 +81,36 @@ std::string describe_range_state(
     return out.str();
 }
 
+std::string describe_payload_bytes(
+    std::span<const std::byte> payload,
+    std::uint64_t center_offset,
+    std::size_t before,
+    std::size_t count,
+    std::string_view label)
+{
+    if (payload.empty()) {
+        return {};
+    }
+    const auto start = center_offset > before
+        ? static_cast<std::size_t>(center_offset - before)
+        : std::size_t{0};
+    if (start >= payload.size()) {
+        return {};
+    }
+    const auto end = std::min(payload.size(), start + count);
+    std::ostringstream out;
+    out << " " << label << "@" << start << "=";
+    for (std::size_t i = start; i < end; ++i) {
+        if (i != start) {
+            out << ",";
+        }
+        out << std::hex << std::setw(2) << std::setfill('0')
+            << static_cast<unsigned>(payload[i])
+            << std::dec << std::setfill(' ');
+    }
+    return out.str();
+}
+
 std::string describe_stream_summary(const mffv1::syntax::StreamParameters& stream)
 {
     std::ostringstream out;
@@ -317,7 +347,7 @@ std::string describe_legacy_range_reset_boundary_probe(
     const auto center = bootstrap.content_byte_offset;
     const auto begin = center > 4 ? center - 4 : std::uint64_t{0};
     const auto end = std::min<std::uint64_t>(
-        center + 4,
+        center + 24,
         payload.size() > 2 ? static_cast<std::uint64_t>(payload.size() - 2) : 0);
 
     std::ostringstream out;
@@ -2235,6 +2265,131 @@ std::string describe_legacy_range_expected_residual_probe(
         append_body_full_sweep("s0_body_full", true, false);
         append_body_full_sweep("s0_body_full_away", true, true);
     };
+    const auto append_mode_probe = [&] {
+        if (stream.version != 0) {
+            return;
+        }
+        struct ModeCandidate {
+            std::string_view label;
+            bool legacy_arithmetic = false;
+            std::uint8_t zero_state = mffv1::entropy::RangeCoder::kDefaultInitialState;
+        };
+        constexpr std::array candidates{
+            ModeCandidate{"legacy_s255", true, 255},
+            ModeCandidate{"legacy_s128", true, 128},
+            ModeCandidate{"normal_s128", false, 128},
+            ModeCandidate{"normal_s255", false, 255},
+        };
+        const auto measure = [&](const ModeCandidate& candidate) {
+            struct Result {
+                std::size_t matched = 0;
+                std::uint32_t mismatch_x = 0;
+                std::uint32_t mismatch_y = 0;
+                std::uint32_t sample = 0;
+                std::uint32_t expected_sample = 0;
+                std::int64_t difference = 0;
+                bool failed = false;
+            } result;
+
+            mffv1::entropy::RangeCoder::ScalarContextStates states{};
+            states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+            states[0] = candidate.zero_state;
+            const std::array state_bank{
+                std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{&states, 1},
+            };
+            mffv1::entropy::RangeCoder probe_reader;
+            auto probe_status = probe_reader.reset_from_arithmetic_state(
+                vector.frame_payloads.front(),
+                context_counts,
+                {},
+                stream.state_transition,
+                bootstrap.range_state_after_parameters);
+            if (probe_status.ok() && candidate.legacy_arithmetic) {
+                probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+            }
+            if (probe_status.ok()) {
+                probe_status = probe_reader.reset_from_arithmetic_state(
+                    vector.frame_payloads.front(),
+                    context_counts,
+                    state_bank,
+                    stream.state_transition,
+                    bootstrap.range_state_after_parameters);
+            }
+            if (!probe_status.ok()) {
+                result.failed = true;
+                return result;
+            }
+
+            const mffv1::syntax::ContextModel probe_context_model(
+                stream.quant_table_sets.front());
+            mffv1::syntax::LineState probe_line;
+            probe_status = probe_line.reset(expected.info.width);
+            if (!probe_status.ok()) {
+                result.failed = true;
+                return result;
+            }
+            for (std::uint32_t yy = 0; yy < expected.info.height; ++yy) {
+                for (std::uint32_t xx = 0; xx < expected.info.width; ++xx) {
+                    const auto neighbors = probe_line.neighbors(xx);
+                    const auto prediction = mffv1::syntax::Predictor::median_predict(
+                        neighbors.left,
+                        neighbors.top,
+                        neighbors.top_left);
+                    mffv1::syntax::ContextDecision context;
+                    probe_status = probe_context_model.derive_context(neighbors, context);
+                    if (!probe_status.ok()) {
+                        result.failed = true;
+                        return result;
+                    }
+                    std::int64_t difference64 = 0;
+                    probe_status = probe_reader.read_signed(
+                        0, context.context, difference64);
+                    if (!probe_status.ok()) {
+                        result.failed = true;
+                        return result;
+                    }
+                    if (context.invert_difference) {
+                        difference64 = -difference64;
+                    }
+                    const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                        prediction,
+                        static_cast<std::int32_t>(difference64),
+                        stream.bits_per_raw_sample);
+                    const auto expected_sample = sample_at(
+                        expected.samples,
+                        expected.info,
+                        xx,
+                        yy);
+                    if (static_cast<std::uint32_t>(reconstructed) != expected_sample) {
+                        result.mismatch_x = xx;
+                        result.mismatch_y = yy;
+                        result.sample = static_cast<std::uint32_t>(reconstructed);
+                        result.expected_sample = expected_sample;
+                        result.difference = difference64;
+                        return result;
+                    }
+                    probe_line.mutable_current()[xx] = reconstructed;
+                    ++result.matched;
+                }
+                probe_line.swap_lines();
+            }
+            return result;
+        };
+
+        out << " mode_probe";
+        for (const auto& candidate : candidates) {
+            const auto result = measure(candidate);
+            out << " " << candidate.label << "=" << result.matched;
+            if (result.failed) {
+                out << "/fail";
+            } else if (result.matched != expected.info.width * expected.info.height) {
+                out << "@" << result.mismatch_x << "," << result.mismatch_y
+                    << ":" << result.sample << "/" << result.expected_sample
+                    << "/d" << result.difference;
+            }
+        }
+    };
+    append_mode_probe();
     std::size_t decoded_samples = 0;
     std::ostringstream compact_sequence;
     compact_sequence << " compact_seq";
@@ -2539,6 +2694,12 @@ std::string describe_legacy_range_v1_sibling_probe(std::string_view name)
             + " after_parameters{"
             + describe_range_state(bootstrap.range_state_after_parameters)
             + "}"
+            + describe_payload_bytes(
+                sibling.frame_payloads.front(),
+                bootstrap.content_byte_offset,
+                4,
+                24,
+                "content_bytes")
             + describe_legacy_range_parameter_trace(
                 sibling, bootstrap.stream, "param_trace")
             + describe_legacy_range_expected_residual_probe(sibling, bootstrap)
@@ -2583,6 +2744,12 @@ std::string describe_legacy_bootstrap_state(
             << " after_parameters{"
             << describe_range_state(bootstrap.range_state_after_parameters)
             << "}"
+            << describe_payload_bytes(
+                vector.frame_payloads.front(),
+                bootstrap.content_byte_offset,
+                4,
+                24,
+                "content_bytes")
             << describe_legacy_range_parameter_trace(
                 vector, bootstrap.stream, "param_trace")
             << describe_legacy_range_symbol_probe(

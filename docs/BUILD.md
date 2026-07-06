@@ -45,6 +45,15 @@ storage and copying in production-oriented builds. The no-status preset also
 sets `MFFV1_BUILD_TESTS=OFF` because many unit tests intentionally assert exact
 diagnostic text.
 
+To verify the no-status `Status` contract without running the diagnostics-heavy
+unit tests:
+
+```powershell
+cmake --preset vs2026-x64-no-status-tests
+cmake --build --preset vs2026-x64-no-status-tests-debug
+ctest --preset vs2026-x64-no-status-tests-debug --output-on-failure
+```
+
 ## Tests
 
 GoogleTest is the project test framework. CMake first searches for it with

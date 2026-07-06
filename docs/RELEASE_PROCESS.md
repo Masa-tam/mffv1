@@ -37,6 +37,14 @@ cmake --preset vs2026-x64-no-status
 cmake --build --preset vs2026-x64-no-status-release
 ```
 
+Verify the no-status `Status` contract:
+
+```powershell
+cmake --preset vs2026-x64-no-status-tests
+cmake --build --preset vs2026-x64-no-status-tests-debug
+ctest --preset vs2026-x64-no-status-tests-debug --output-on-failure
+```
+
 Run the sanitizer workflow when the toolchain supports it:
 
 ```powershell

@@ -47,6 +47,15 @@
         "MFFV1_BUILD_TESTS": "OFF",
         "MFFV1_ENABLE_STATUS_MESSAGES": "OFF"
       }
+    },
+    {
+      "name": "vs2026-x64-no-status-tests",
+      "displayName": "Visual Studio 2026 x64 no-status contract tests",
+      "inherits": "vs2026-x64",
+      "binaryDir": "${sourceDir}/build/vs2026-x64-no-status-tests",
+      "cacheVariables": {
+        "MFFV1_ENABLE_STATUS_MESSAGES": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -74,6 +83,11 @@
       "name": "vs2026-x64-no-status-release",
       "configurePreset": "vs2026-x64-no-status",
       "configuration": "Release"
+    },
+    {
+      "name": "vs2026-x64-no-status-tests-debug",
+      "configurePreset": "vs2026-x64-no-status-tests",
+      "configuration": "Debug"
     }
   ],
   "testPresets": [
@@ -97,6 +111,19 @@
       "name": "vs2026-x64-fuzz-debug",
       "configurePreset": "vs2026-x64-fuzz",
       "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "vs2026-x64-no-status-tests-debug",
+      "configurePreset": "vs2026-x64-no-status-tests",
+      "configuration": "Debug",
+      "filter": {
+        "include": {
+          "name": "StatusTest\\..*"
+        }
+      },
       "output": {
         "outputOnFailure": true
       }

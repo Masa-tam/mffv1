@@ -4148,6 +4148,11 @@ bool require_all_generated_test_vectors_supported()
     return environment_flag_enabled("MFFV1_TEST_VECTOR_REQUIRE_ALL_SUPPORTED");
 }
 
+bool try_unsupported_generated_test_vectors()
+{
+    return environment_flag_enabled("MFFV1_TEST_VECTOR_TRY_UNSUPPORTED");
+}
+
 bool matches_test_vector_filter(std::string_view name, std::string_view filter)
 {
     return filter.empty() || name.find(filter) != std::string_view::npos;
@@ -4233,13 +4238,14 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
     std::vector<std::string> unsupported_vectors;
     std::vector<std::string> traced_vectors;
     const bool trace_bootstrap = trace_successful_legacy_bootstrap();
+    const bool try_unsupported = try_unsupported_generated_test_vectors();
     for (const auto& vector : mffv1_testvectors::decode_vectors()) {
         if (!matches_test_vector_filter(vector.name, filter)) {
             continue;
         }
         ++matched_count;
         const auto unsupported_reason = unsupported_decode_vector_reason(vector);
-        if (!unsupported_reason.empty()) {
+        if (!unsupported_reason.empty() && !try_unsupported) {
             std::ostringstream entry;
             entry << vector.name << ": " << unsupported_reason;
             if (trace_bootstrap) {

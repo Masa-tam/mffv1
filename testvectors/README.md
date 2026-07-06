@@ -34,6 +34,8 @@ The generated-vector tests accept these optional environment variables:
   diagnostics for matched legacy vectors, including unsupported-vector reports.
 - `MFFV1_TEST_VECTOR_REQUIRE_ALL_SUPPORTED`: when nonzero, fail if any matched
   generated vector is still classified as an unsupported compatibility gap.
+- `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED`: when nonzero, attempt to decode matched
+  vectors even if they are classified as known unsupported compatibility gaps.
 
 ## Local Vector Use
 

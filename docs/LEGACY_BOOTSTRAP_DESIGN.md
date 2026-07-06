@@ -157,9 +157,9 @@ The bootstrap parser must preserve the boundary between embedded `Parameters()`
 and frame slice content.
 
 For range-coded legacy streams, the range coder state after `Parameters()`
-matters. The existing single-slice legacy range path currently replays the
-frame header before decoding content. Bootstrap support must extend that model
-so the slice descriptor can represent:
+matters. The single-slice legacy range path replays the frame header and, when
+present, matching embedded `Parameters()` before decoding content. The slice
+descriptor therefore represents:
 
 - keyframe symbol consumed,
 - optional embedded `Parameters()` consumed,
@@ -178,8 +178,8 @@ general `ur` `SymbolReader` for headers or parameters.
 2. Done: add parameter-equivalence tests for equal and changed normalized
    streams.
 3. Done: add public result types and `IDecoder::bootstrap_legacy_frame()`.
-4. Decode the same bootstrap frame after configuration for single-slice range
-   streams.
+4. Done: decode the same bootstrap frame after configuration for single-slice
+   range streams.
 5. Extend the model to legacy range multi-slice content once content boundary
    replay is fully represented.
 6. Add Golomb-Rice bootstrap only after a general Golomb-Rice `ur` symbol reader

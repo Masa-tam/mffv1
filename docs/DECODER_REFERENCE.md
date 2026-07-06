@@ -164,6 +164,10 @@ virtual LegacyBootstrapResult bootstrap_legacy_frame(ByteSpan frame_payload) = 0
 
 `bootstrap_legacy_frame()` parses a complete FFV1 version 0/1 frame far enough
 to read keyframe-embedded `Parameters()`. It does not decode samples.
+For range-coded single-slice legacy keyframes, the same frame payload can be
+passed to `decode_frame()` after a successful bootstrap; the decoder preserves
+the embedded-parameter boundary and continues slice content from the correct
+range-coder state.
 
 On success, inspect `bootstrap.info.state`:
 

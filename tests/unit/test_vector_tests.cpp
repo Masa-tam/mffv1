@@ -1010,14 +1010,24 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
     GTEST_SKIP() << "external FFV1 test vectors have not been generated";
 #else
     const auto filter = current_test_vector_filter();
+    std::size_t matched_count = 0;
+    std::size_t decoded_count = 0;
     for (const auto& vector : mffv1_testvectors::decode_vectors()) {
         if (!matches_test_vector_filter(vector.name, filter)) {
             continue;
         }
+        ++matched_count;
         if (!is_supported_decode_vector(vector)) {
             continue;
         }
+        ++decoded_count;
         expect_decodes_vector(vector);
+    }
+    if (matched_count == 0) {
+        GTEST_SKIP() << "no generated FFV1 test vectors matched the active filter";
+    }
+    if (decoded_count == 0) {
+        GTEST_SKIP() << "matched generated FFV1 test vectors are not supported by this build";
     }
 #endif
 }

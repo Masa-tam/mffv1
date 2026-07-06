@@ -1652,6 +1652,136 @@ std::string describe_legacy_range_expected_residual_probe(
               << " s[22]=" << state_at(before, context, 22)
               << "->" << state_at(after, context, 22);
     };
+    const auto append_first_sample_zero_state_probe = [&](
+                                                          std::ostringstream& trace,
+                                                          const mffv1::entropy::RangeCoder::ArithmeticState& state,
+                                                          std::uint32_t prediction,
+                                                          mffv1::entropy::ContextId context_id,
+                                                          bool invert_difference,
+                                                          std::uint32_t expected_sample) {
+        if (stream.version != 0) {
+            return;
+        }
+        constexpr std::array<std::uint8_t, 8> candidates{
+            0, 1, 32, 64, 96, 128, 192, 255};
+        struct CandidateResult {
+            std::uint16_t state = 0;
+            std::int64_t difference = 0;
+            std::uint32_t sample = 0;
+            std::uint32_t error = 0;
+            bool valid = false;
+        };
+        const auto evaluate_candidate = [&](std::uint8_t candidate,
+                                            CandidateResult& result) {
+            result.state = candidate;
+            mffv1::entropy::RangeCoder::ScalarContextStates states{};
+            states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+            states[0] = candidate;
+            const std::array state_bank{
+                std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{&states, 1},
+            };
+            mffv1::entropy::RangeCoder probe_reader;
+            auto probe_status = probe_reader.reset_from_arithmetic_state(
+                vector.frame_payloads.front(),
+                context_counts,
+                {},
+                stream.state_transition,
+                state);
+            if (probe_status.ok()) {
+                probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+            }
+            if (probe_status.ok()) {
+                probe_status = probe_reader.reset_from_arithmetic_state(
+                    vector.frame_payloads.front(),
+                    context_counts,
+                    state_bank,
+                    stream.state_transition,
+                    state);
+            }
+            if (!probe_status.ok()) {
+                return probe_status;
+            }
+
+            std::int64_t difference = 0;
+            probe_status = probe_reader.read_signed(0, context_id, difference);
+            if (!probe_status.ok()) {
+                return probe_status;
+            }
+            auto reconstruction_difference = difference;
+            if (invert_difference) {
+                reconstruction_difference = -reconstruction_difference;
+            }
+            const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                prediction,
+                static_cast<std::int32_t>(reconstruction_difference),
+                stream.bits_per_raw_sample);
+            result.difference = difference;
+            result.sample = static_cast<std::uint32_t>(reconstructed);
+            result.error = result.sample > expected_sample
+                ? result.sample - expected_sample
+                : expected_sample - result.sample;
+            result.valid = true;
+            return probe_status;
+        };
+        const auto append_candidate = [&](std::uint8_t candidate) {
+            CandidateResult result;
+            const auto probe_status = evaluate_candidate(candidate, result);
+            trace << " s0=" << static_cast<int>(candidate) << ":";
+            if (!probe_status.ok()) {
+                trace << "err(" << describe_status(probe_status) << ")";
+                return;
+            }
+            trace << result.difference << "/" << result.sample
+                  << (result.sample == expected_sample
+                          ? ":ok"
+                          : ":bad");
+        };
+
+        trace << " first_s0_probe";
+        for (const auto candidate : candidates) {
+            append_candidate(candidate);
+        }
+
+        std::array<CandidateResult, 8> best{};
+        std::size_t best_count = 0;
+        std::size_t exact_count = 0;
+        for (std::uint16_t candidate = 0; candidate <= 255; ++candidate) {
+            CandidateResult result;
+            const auto probe_status = evaluate_candidate(
+                static_cast<std::uint8_t>(candidate),
+                result);
+            if (!probe_status.ok() || !result.valid) {
+                continue;
+            }
+            if (result.sample == expected_sample) {
+                ++exact_count;
+            }
+            if (best_count < best.size()) {
+                best[best_count] = result;
+                ++best_count;
+            } else if (result.error < best[best_count - 1].error) {
+                best[best_count - 1] = result;
+            } else {
+                continue;
+            }
+            std::sort(
+                best.begin(),
+                best.begin() + static_cast<std::ptrdiff_t>(best_count),
+                [](const CandidateResult& lhs, const CandidateResult& rhs) {
+                    if (lhs.error != rhs.error) {
+                        return lhs.error < rhs.error;
+                    }
+                    return lhs.state < rhs.state;
+                });
+        }
+        trace << " exact=" << exact_count << " best";
+        for (std::size_t i = 0; i < best_count; ++i) {
+            trace << " s0=" << best[i].state
+                  << ":" << best[i].difference
+                  << "/" << best[i].sample
+                  << "/err" << best[i].error;
+        }
+    };
     std::size_t decoded_samples = 0;
     for (std::uint32_t y = 0; y < expected.info.height; ++y) {
         for (std::uint32_t x = 0; x < expected.info.width; ++x) {
@@ -1733,6 +1863,15 @@ std::string describe_legacy_range_expected_residual_probe(
                     before_contexts,
                     after_contexts,
                     context.context);
+                if (decoded_samples == 0) {
+                    append_first_sample_zero_state_probe(
+                        out,
+                        before_state,
+                        prediction,
+                        context.context,
+                        context.invert_difference,
+                        expected_sample);
+                }
             }
             line.mutable_current()[x] = actual_sample;
             ++decoded_samples;

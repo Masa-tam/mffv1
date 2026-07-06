@@ -693,6 +693,12 @@ the exponent and magnitude states, and reconstructs `-128`. This further
 narrows the v0 issue to the historical initial zero-symbol state or its
 interaction with the v0 arithmetic interval after embedded parameters, rather
 than to the signed residual body.
+The first-sample probe also exhaustively varied only the v0 zero-symbol state
+from 0 through 255 while preserving the v0 arithmetic split. No candidate
+reconstructed the expected sample 128; the closest observed candidate was
+`s0=48`, which reconstructed 107. This rules out a single zero-state override
+as the compatibility fix and points back to the arithmetic position, interval
+semantics, or another historical v0 scalar-body convention.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

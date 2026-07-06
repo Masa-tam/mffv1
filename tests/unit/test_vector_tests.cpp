@@ -3903,6 +3903,7 @@ std::string describe_legacy_golomb_rice_boundary_probe(
     std::ostringstream out;
     out << " gr_boundary_probe";
     GolombRiceBoundaryCandidateSummary best_candidate;
+    std::vector<GolombRiceBoundaryCandidateSummary> measured_candidates;
     for (auto offset = begin; offset <= end; ++offset) {
         for (std::uint8_t bit = 0; bit < 8; ++bit) {
             candidate.content_byte_offset = offset;
@@ -3911,6 +3912,9 @@ std::string describe_legacy_golomb_rice_boundary_probe(
                 stream,
                 candidate,
                 vector.expected_planes.front());
+            if (summary.measured) {
+                measured_candidates.push_back(summary);
+            }
             if (summary.measured
                 && (!best_candidate.measured
                     || summary.matched_samples > best_candidate.matched_samples
@@ -3931,6 +3935,20 @@ std::string describe_legacy_golomb_rice_boundary_probe(
             << " bit=" << static_cast<int>(best_candidate.bit_offset)
             << " matched_samples=" << best_candidate.matched_samples
             << " status: " << describe_status(best_candidate.status);
+        std::size_t peer_count = 0;
+        out << "\nlegacy-gr-best-peers";
+        for (const auto& summary : measured_candidates) {
+            if (summary.matched_samples != best_candidate.matched_samples) {
+                continue;
+            }
+            ++peer_count;
+            if (peer_count <= 8) {
+                out << " [" << summary.byte_offset
+                    << ":" << static_cast<int>(summary.bit_offset)
+                    << "]";
+            }
+        }
+        out << " count=" << peer_count;
     }
     return out.str();
 }

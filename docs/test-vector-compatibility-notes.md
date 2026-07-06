@@ -805,3 +805,6 @@ start moves the best candidate to `byte=0 bit=0`, but the `1x1` through `16x1`
 controls still match only the first zero sample and then report trailing bytes.
 This makes a simple nearby content-boundary shift unlikely; the remaining gap
 is more likely in the v0 Golomb-Rice payload or embedded-parameter convention.
+The peer summary reinforces that interpretation: each tiny v0 Golomb-Rice
+control has 25 byte/bit candidates tied at the same single-sample match count.
+The first zero sample is therefore not a strong alignment signal by itself.

@@ -18,6 +18,7 @@ The preset uses the Visual Studio 2026 generator with the x64 architecture.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
+| `MFFV1_BUILD_FUZZERS` | `OFF` | Build standalone fuzz harness executables. |
 | `MFFV1_BUILD_TESTS` | `ON` | Build the GoogleTest-based unit and conformance tests. |
 | `MFFV1_ENABLE_SANITIZERS` | `OFF` | Enable supported compiler sanitizer instrumentation. MSVC uses AddressSanitizer; Clang and GCC use AddressSanitizer plus UndefinedBehaviorSanitizer. |
 | `MFFV1_ENABLE_STATUS_MESSAGES` | `ON` | Store diagnostic text in `Status::message`. When `OFF`, `Status::message` remains part of the public API but library-generated messages are empty. |
@@ -67,6 +68,25 @@ UndefinedBehaviorSanitizer.
 When tests use the bundled `third-party/googletest` submodule, the sanitizer
 flags are applied to GoogleTest as well. If an externally installed GoogleTest
 package is used instead, it must be built with sanitizer-compatible options.
+
+## Fuzz Harnesses
+
+Fuzz harnesses are opt-in and build as standalone executables that accept zero
+or more input files. When no file is supplied, each harness reads bytes from
+standard input.
+
+```powershell
+cmake --preset vs2026-x64-fuzz
+cmake --build --preset vs2026-x64-fuzz-debug
+.\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_configuration_record.exe sample.bin
+.\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_frame_decode.exe sample.bin
+.\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_encoder.exe sample.bin
+```
+
+The current harnesses exercise Configuration Record parsing, frame inspection
+and decoding, and encoder input handling through the public API. They are
+intended as corpus and sanitizer entry points; they do not define compatibility
+behavior by themselves.
 
 ## Install
 

@@ -419,7 +419,8 @@ Before declaring a stable decoder release, the project should complete:
 
 1. Licensed external conformance vectors covering supported profiles.
 2. Black-box interoperability checks against independently produced streams.
-3. Parser and slice-decoder fuzz targets with retained regression corpus.
+3. Expanded parser and slice-decoder fuzz corpora retained from the standalone
+   fuzz harnesses.
 4. Passing sanitizer runs on supported toolchains, including the documented
    Visual Studio AddressSanitizer preset.
 5. Final versioned release notes, release tag, and support window declaration.

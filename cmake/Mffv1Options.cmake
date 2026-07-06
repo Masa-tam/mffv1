@@ -1,4 +1,5 @@
 option(MFFV1_BUILD_TESTS "Build FFV1 unit and conformance tests" ON)
+option(MFFV1_BUILD_FUZZERS "Build standalone fuzz harness executables" OFF)
 option(MFFV1_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(MFFV1_ENABLE_STATUS_MESSAGES "Store diagnostic text in Status::message" ON)
 option(MFFV1_ENABLE_SANITIZERS "Enable compiler sanitizer instrumentation when supported" OFF)

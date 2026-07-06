@@ -90,6 +90,10 @@ if(BUILD_TESTING AND MFFV1_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+if(MFFV1_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
+endif()
+
 install(
     TARGETS mffv1
     EXPORT mffv1Targets

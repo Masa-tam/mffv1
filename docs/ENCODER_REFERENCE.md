@@ -429,7 +429,7 @@ Before declaring a stable encoder release, the project should complete:
 
 1. Licensed external conformance vectors for every supported profile.
 2. Black-box interoperability checks with independent FFV1 decoders.
-3. Encoder fuzzing and retained regression corpora.
+3. Expanded encoder fuzz corpora retained from the standalone fuzz harnesses.
 4. Passing sanitizer runs on supported toolchains, including the documented
    Visual Studio AddressSanitizer preset.
 5. Final versioned release notes, release tag, and support window declaration.

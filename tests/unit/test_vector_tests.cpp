@@ -395,6 +395,73 @@ std::string describe_legacy_range_shifted_state_probe(
     return out.str();
 }
 
+std::string describe_legacy_range_initial_state_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    const auto& stream = bootstrap.stream;
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()
+        || stream.quant_table_sets.size() != 1
+        || stream.quant_table_sets.front().context_count != 1) {
+        return {};
+    }
+
+    const auto payload = vector.frame_payloads.front();
+    constexpr std::array<std::size_t, 1> context_counts{1};
+    std::ostringstream out;
+    out << " initial_state_probe";
+    std::size_t match_count = 0;
+    constexpr std::size_t kProbeSampleCount = 16;
+    for (std::uint16_t candidate = 0; candidate <= 255; ++candidate) {
+        mffv1::entropy::RangeCoder::ScalarContextStates states{};
+        states.fill(static_cast<std::uint8_t>(candidate));
+        const std::array state_bank{std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{
+            &states,
+            1,
+        }};
+
+        mffv1::entropy::RangeCoder reader;
+        auto status = reader.reset_from_arithmetic_state(
+            payload,
+            context_counts,
+            state_bank,
+            stream.state_transition,
+            bootstrap.range_state_after_parameters);
+        if (!status.ok()) {
+            continue;
+        }
+
+        std::array<std::int64_t, kProbeSampleCount> diffs{};
+        bool all_zero = true;
+        for (auto& difference : diffs) {
+            status = reader.read_signed(0, 0, difference);
+            if (!status.ok()) {
+                all_zero = false;
+                break;
+            }
+            all_zero = all_zero && difference == 0;
+        }
+        if (!all_zero) {
+            continue;
+        }
+
+        if (match_count < 8) {
+            out << " state" << candidate << "=[";
+            for (std::size_t i = 0; i < diffs.size(); ++i) {
+                if (i != 0) {
+                    out << ",";
+                }
+                out << diffs[i];
+            }
+            out << "]";
+        }
+        ++match_count;
+    }
+    out << " matches=" << match_count;
+    return out.str();
+}
+
 std::string legacy_v1_sibling_name(std::string_view name)
 {
     constexpr std::string_view marker = "_v0_legacy_";
@@ -490,6 +557,7 @@ std::string describe_legacy_bootstrap_state(
             << describe_legacy_range_symbol_probe(
                 vector, bootstrap.stream, false, "range_probe_carry_context")
             << describe_legacy_range_shifted_state_probe(vector, bootstrap)
+            << describe_legacy_range_initial_state_probe(vector, bootstrap)
             << describe_legacy_range_reset_boundary_probe(vector, bootstrap)
             << describe_legacy_range_v1_sibling_probe(vector.name);
     }

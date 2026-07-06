@@ -550,3 +550,12 @@ the same `range=0x1005` after the state-transition table but with different
 `bits_per_raw_sample` and its quantization table before slice content. The
 remaining investigation should therefore keep separating syntax-length effects
 from the v0-specific one-context content model.
+
+An `initial_state_probe` now scans a uniform scalar context initial state while
+preserving the Parameters-after arithmetic state. For the gray and nominal
+yuv420p v0 controls, the default state 128 is not among the states that decode
+the first 16 sample differences as zero, while higher states such as 184, 200,
+and 210 do. The scan still leaves many candidates, so it is not a fix by
+itself. It does show that the v0 mismatch is sensitive to Slice Content
+context-state initialization rather than only to the byte boundary or arithmetic
+`range/low` carry state.

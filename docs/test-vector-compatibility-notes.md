@@ -765,6 +765,13 @@ same first samples for those files. Extending the independent reset-boundary
 probe through offset 175 did not produce the expected `-128` first residual,
 so the missing rule is not just "start decoding at the first differing byte"
 either.
+A pre-content symbol probe also tried consuming one to four unsigned or signed
+range-coded symbols before the first sample; all of them decoded as zero and
+left the first sample at zero. Extending that idea to an unsigned skip sweep
+from 0 through 512 pre-symbols still found no exact first-sample match for the
+nonzero control, while all-zero controls continue to match from skip 0 onward.
+This rules out a simple hidden run of zero-valued pre-content symbols before
+Slice Content.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

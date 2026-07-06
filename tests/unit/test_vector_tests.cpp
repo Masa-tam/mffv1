@@ -944,6 +944,9 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t split_bias = 0;
             bool inclusive_nonzero = false;
             std::uint32_t low_bias_after_symbol = 0;
+            std::uint32_t low_bias_after_rac = 0;
+            std::uint32_t low_bias_after_zero_rac = 0;
+            std::uint32_t low_bias_after_one_rac = 0;
         };
         struct MiniRangeReader {
             std::span<const std::byte> payload;
@@ -957,6 +960,9 @@ std::string describe_legacy_range_initial_state_probe(
             std::uint32_t split_bias = 0;
             bool inclusive_nonzero = false;
             std::uint32_t low_bias_after_symbol = 0;
+            std::uint32_t low_bias_after_rac = 0;
+            std::uint32_t low_bias_after_zero_rac = 0;
+            std::uint32_t low_bias_after_one_rac = 0;
             mffv1::entropy::RangeCoder::ScalarContextStates states{};
 
             void refill() noexcept
@@ -996,12 +1002,14 @@ std::string describe_legacy_range_initial_state_probe(
                 if (is_nonzero_path) {
                     state = mffv1::syntax::range_zero_state(*transition, state);
                     refill();
+                    low += low_bias_after_rac + low_bias_after_zero_rac;
                     return false;
                 }
                 low -= range;
                 range = rangeoff;
                 state = mffv1::syntax::range_one_state(*transition, state);
                 refill();
+                low += low_bias_after_rac + low_bias_after_one_rac;
                 return true;
             }
 
@@ -1062,6 +1070,9 @@ std::string describe_legacy_range_initial_state_probe(
             reader.split_bias = variant.split_bias;
             reader.inclusive_nonzero = variant.inclusive_nonzero;
             reader.low_bias_after_symbol = variant.low_bias_after_symbol;
+            reader.low_bias_after_rac = variant.low_bias_after_rac;
+            reader.low_bias_after_zero_rac = variant.low_bias_after_zero_rac;
+            reader.low_bias_after_one_rac = variant.low_bias_after_one_rac;
             reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
             reader.states[0] = initial_zero_state;
 
@@ -1218,6 +1229,42 @@ std::string describe_legacy_range_initial_state_probe(
                 out << "@" << match.mismatch_x << "," << match.mismatch_y;
             }
         }
+
+        const auto append_bias_family = [&](
+                                            std::string_view label,
+                                            auto configure_variant) {
+            std::vector<CandidateMatch> matches;
+            matches.reserve(8);
+            for (std::uint16_t bias = 0; bias <= 8; ++bias) {
+                RefillVariant variant{"", 256, 0, 255};
+                configure_variant(variant, bias);
+                auto match = measure_variant(variant, zero_state);
+                match.state = bias;
+                append_top_match(matches, match);
+            }
+            out << " " << label;
+            for (const auto& match : matches) {
+                out << " bias" << match.state
+                    << "=" << match.matched_samples;
+                if (match.failed) {
+                    out << "/fail";
+                } else {
+                    out << "@" << match.mismatch_x << "," << match.mismatch_y;
+                }
+            }
+        };
+        append_bias_family("ceil_rac_bias_best",
+                           [](RefillVariant& variant, std::uint16_t bias) {
+                               variant.low_bias_after_rac = bias;
+                           });
+        append_bias_family("ceil_zero_rac_bias_best",
+                           [](RefillVariant& variant, std::uint16_t bias) {
+                               variant.low_bias_after_zero_rac = bias;
+                           });
+        append_bias_family("ceil_one_rac_bias_best",
+                           [](RefillVariant& variant, std::uint16_t bias) {
+                               variant.low_bias_after_one_rac = bias;
+                           });
 
         const auto append_mini_state = [](std::ostringstream& trace_out,
                                           const MiniRangeReader& reader) {

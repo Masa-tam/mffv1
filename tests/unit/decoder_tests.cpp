@@ -13,39 +13,54 @@
 
 namespace {
 
-std::array<std::byte, 3> minimal_v0_y_only_configuration_record()
+void write_zero_quant_table_set(mffv1::entropy::RangeEncoder& writer)
 {
-    return {
-        std::byte{0x94},
-        std::byte{0x35},
-        std::byte{0x00},
-    };
+    for (int table = 0; table < 5; ++table) {
+        EXPECT_TRUE(writer.begin_independent_scalar_contexts(1).ok());
+        EXPECT_TRUE(writer.write_unsigned(127).ok());
+        EXPECT_TRUE(writer.end_independent_scalar_contexts().ok());
+    }
 }
 
-std::array<std::byte, 2> minimal_v0_golomb_rice_y_only_configuration_record()
+std::vector<std::byte> minimal_v0_configuration_record(
+    mffv1::EntropyMode entropy_mode,
+    bool rgb)
 {
-    return {
-        std::byte{0xe5},
-        std::byte{0x5e},
-    };
+    mffv1::entropy::RangeEncoder writer;
+    EXPECT_TRUE(writer.reset().ok());
+    EXPECT_TRUE(writer.write_unsigned(0).ok()); // version
+    EXPECT_TRUE(writer.write_unsigned(
+        entropy_mode == mffv1::EntropyMode::GolombRice ? 0 : 1).ok());
+    EXPECT_TRUE(writer.write_unsigned(rgb ? 1 : 0).ok()); // colorspace_type
+    EXPECT_TRUE(writer.write_bool(rgb).ok());
+    EXPECT_TRUE(writer.write_unsigned(0).ok()); // log2_h_chroma_subsample
+    EXPECT_TRUE(writer.write_unsigned(0).ok()); // log2_v_chroma_subsample
+    EXPECT_TRUE(writer.write_bool(false).ok()); // extra_plane
+    write_zero_quant_table_set(writer);
+
+    std::vector<std::byte> record;
+    EXPECT_TRUE(writer.finalize(record).ok());
+    return record;
 }
 
-std::array<std::byte, 3> minimal_v0_rgb_configuration_record()
+std::vector<std::byte> minimal_v0_y_only_configuration_record()
 {
-    return {
-        std::byte{0x86},
-        std::byte{0x87},
-        std::byte{0x00},
-    };
+    return minimal_v0_configuration_record(mffv1::EntropyMode::Range, false);
 }
 
-std::array<std::byte, 3> minimal_v0_golomb_rice_rgb_configuration_record()
+std::vector<std::byte> minimal_v0_golomb_rice_y_only_configuration_record()
 {
-    return {
-        std::byte{0xc8},
-        std::byte{0xf9},
-        std::byte{0x00},
-    };
+    return minimal_v0_configuration_record(mffv1::EntropyMode::GolombRice, false);
+}
+
+std::vector<std::byte> minimal_v0_rgb_configuration_record()
+{
+    return minimal_v0_configuration_record(mffv1::EntropyMode::Range, true);
+}
+
+std::vector<std::byte> minimal_v0_golomb_rice_rgb_configuration_record()
+{
+    return minimal_v0_configuration_record(mffv1::EntropyMode::GolombRice, true);
 }
 
 std::vector<std::byte> minimal_v3_y_only_configuration_record()
@@ -105,8 +120,7 @@ std::vector<std::byte> make_legacy_bootstrap_frame(
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_bool(extra_plane).ok());
-    EXPECT_TRUE(writer.reconfigure_contexts(parameter_context_counts).ok());
-    EXPECT_TRUE(writer.write_signed(0).ok());
+    write_zero_quant_table_set(writer);
 
     std::vector<std::byte> payload;
     EXPECT_TRUE(writer.finalize(payload).ok());
@@ -536,7 +550,7 @@ TEST(DecoderTest, DecodeFrameAcceptsBootstrappedLegacyKeyframe)
     const auto status = result.decoder->decode_frame(payload, output);
 
     EXPECT_TRUE(status.ok()) << status.message;
-    EXPECT_EQ(storage[0], 0u);
+    EXPECT_EQ(storage[0], 1u);
 }
 
 TEST(DecoderTest, BootstrapLegacyFrameReportsMatchingCurrentConfiguration)

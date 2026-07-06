@@ -36,6 +36,11 @@ std::vector<std::byte> make_legacy_frame_parameters(
         EXPECT_TRUE(writer.write_unsigned(log2_h_chroma_subsample).ok());
         EXPECT_TRUE(writer.write_unsigned(log2_v_chroma_subsample).ok());
         EXPECT_TRUE(writer.write_bool(extra_plane).ok());
+        for (int table = 0; table < 5; ++table) {
+            EXPECT_TRUE(writer.begin_independent_scalar_contexts(1).ok());
+            EXPECT_TRUE(writer.write_unsigned(127).ok());
+            EXPECT_TRUE(writer.end_independent_scalar_contexts().ok());
+        }
     }
 
     std::vector<std::byte> payload;

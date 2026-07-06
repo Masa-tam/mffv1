@@ -449,8 +449,6 @@ The current decoder implements:
 - Colorspace types other than YCbCr and RGB are unsupported.
 - Legacy version 0/1 frame-embedded `Parameters()` require an explicit
   `bootstrap_legacy_frame()` call before inspecting or decoding.
-- Legacy version 0 Golomb-Rice payload boundary handling is still under
-  investigation.
 - Legacy version 0/1 multi-slice is not a primary compatibility target because
   stable multi-slice usage is associated with version 3 rather than the
   abandoned experimental version 2 line. Range-coded legacy multi-slice parsing

@@ -161,6 +161,15 @@ std::vector<std::byte> make_range_header_payload(
     return payload;
 }
 
+void write_zero_quant_table_set(mffv1::entropy::RangeEncoder& writer)
+{
+    for (int table = 0; table < 5; ++table) {
+        EXPECT_TRUE(writer.begin_independent_scalar_contexts(1).ok());
+        EXPECT_TRUE(writer.write_unsigned(127).ok());
+        EXPECT_TRUE(writer.end_independent_scalar_contexts().ok());
+    }
+}
+
 std::vector<std::byte> make_legacy_range_multi_slice_header_payload(
     const mffv1::syntax::StreamParameters& stream,
     std::span<const mffv1::codec::SliceHeaderValues> values,
@@ -180,6 +189,7 @@ std::vector<std::byte> make_legacy_range_multi_slice_header_payload(
         EXPECT_TRUE(writer.write_unsigned(stream.log2_h_chroma_subsample).ok());
         EXPECT_TRUE(writer.write_unsigned(stream.log2_v_chroma_subsample).ok());
         EXPECT_TRUE(writer.write_bool(stream.extra_plane).ok());
+        write_zero_quant_table_set(writer);
     }
     const mffv1::codec::SliceHeaderWriter header_writer;
     for (const auto& slice_header : values) {

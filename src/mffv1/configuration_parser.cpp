@@ -230,15 +230,11 @@ Status ConfigurationParser::parse(entropy::SymbolReader& reader,
         }
     }
 
-    if (stream.version == 0) {
-        stream.quant_table_sets.push_back(make_zero_quant_table_set());
-    } else {
-        stream.quant_table_sets.resize(static_cast<std::size_t>(quant_table_set_count));
-        for (auto& set : stream.quant_table_sets) {
-            status = parse_quant_table_set(reader, set);
-            if (!status.ok()) {
-                return status;
-            }
+    stream.quant_table_sets.resize(static_cast<std::size_t>(quant_table_set_count));
+    for (auto& set : stream.quant_table_sets) {
+        status = parse_quant_table_set(reader, set);
+        if (!status.ok()) {
+            return status;
         }
     }
 

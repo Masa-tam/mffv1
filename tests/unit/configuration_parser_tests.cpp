@@ -182,6 +182,13 @@ Symbol s(std::int64_t value)
     return {SymbolKind::Signed, value};
 }
 
+void append_zero_quant_table_set(std::deque<Symbol>& symbols)
+{
+    for (int table = 0; table < 5; ++table) {
+        symbols.push_back(u(127)); // one run of 128 zero entries
+    }
+}
+
 std::deque<Symbol> minimal_v3_y_only_symbols()
 {
     std::deque<Symbol> symbols{
@@ -199,9 +206,7 @@ std::deque<Symbol> minimal_v3_y_only_symbols()
         u(1),     // quant_table_set_count
     };
 
-    for (int table = 0; table < 5; ++table) {
-        symbols.push_back(u(127)); // one run of 128 zero entries
-    }
+    append_zero_quant_table_set(symbols);
 
     symbols.push_back(b(false)); // states_coded
     symbols.push_back(u(0));     // ec
@@ -800,7 +805,7 @@ TEST(ConfigurationParserTest, RejectsReservedIntraModeWithAccurateDiagnostic)
     EXPECT_EQ(status.message, "unsupported intra mode");
 }
 
-TEST(ConfigurationParserTest, Version0UsesDefaultZeroQuantTableSet)
+TEST(ConfigurationParserTest, Version0ParsesEmbeddedQuantTableSet)
 {
     std::deque<Symbol> symbols{
         u(0),     // version
@@ -811,6 +816,7 @@ TEST(ConfigurationParserTest, Version0UsesDefaultZeroQuantTableSet)
         u(0),     // log2_v_chroma_subsample
         b(false), // extra_plane
     };
+    append_zero_quant_table_set(symbols);
 
     ScriptedSymbolReader reader(std::move(symbols));
     mffv1::syntax::ConfigurationParser parser;
@@ -822,6 +828,8 @@ TEST(ConfigurationParserTest, Version0UsesDefaultZeroQuantTableSet)
     EXPECT_EQ(stream.version, 0);
     ASSERT_EQ(stream.quant_table_sets.size(), 1u);
     EXPECT_EQ(stream.quant_table_sets[0].context_count, 1u);
+    EXPECT_EQ(reader.independent_scalar_begin_count(), 5u);
+    EXPECT_EQ(reader.independent_scalar_end_count(), 5u);
 }
 
 TEST(ConfigurationParserTest, QuantTableMirrorsNegativeHalf)

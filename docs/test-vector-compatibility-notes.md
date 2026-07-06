@@ -834,3 +834,13 @@ content candidates from `15:5` through `18:0`, and only the expected output
 selects the right one. Production decoding must not adopt a generic
 "first/last candidate that parses" heuristic without another deterministic
 legacy boundary rule or more constraining vectors.
+The expanded v0/v1 Golomb-Rice vector set resolved the ambiguity. Version 0
+embedded Parameters carry a quant table set just like the matching version 1
+vectors; treating v0 as an implicit zero-quant-table stream left every
+gradient in context 0, which made nonzero samples followed by flat samples
+look like a run continuation. Parsing the v0 quant table set moves the
+bootstrap content boundary to the actual Golomb-Rice payload and lets the
+public decoder pass the v0 flat, single-nonzero, checker, and gradient legacy
+Golomb-Rice vectors. The same correction also removes the generated-vector
+skip for v0 range-coded nonzero controls, so the current local single-slice
+legacy v0/v1 vector set has no known unsupported entries.

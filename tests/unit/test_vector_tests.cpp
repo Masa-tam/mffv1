@@ -3800,6 +3800,7 @@ struct GolombRiceBoundaryCandidateSummary {
     std::size_t matched_samples = 0;
     mffv1::Status status;
     bool output_matches = false;
+    std::string trace_mismatch;
     std::string first_output_mismatch;
     bool measured = false;
 };
@@ -3874,6 +3875,7 @@ GolombRiceBoundaryCandidateSummary measure_golomb_rice_boundary_candidate(
     status = slice_decoder.decode(candidate, window, state, &observer);
     summary.status = status;
     summary.matched_samples = observer.matched_sample_count();
+    summary.trace_mismatch = observer.description();
     summary.output_matches = true;
     for (std::size_t index = 0; index < expected_planes.size(); ++index) {
         std::size_t expected_size = 0;
@@ -4019,6 +4021,10 @@ std::string describe_golomb_rice_boundary_summary(
     if (!candidate.first_output_mismatch.empty()) {
         out << "\n" << label << "-output "
             << candidate.first_output_mismatch;
+    }
+    if (!candidate.trace_mismatch.empty()) {
+        out << "\n" << label << "-trace "
+            << candidate.trace_mismatch;
     }
     return out.str();
 }
@@ -4180,6 +4186,17 @@ std::string describe_legacy_golomb_rice_boundary_probe(
             << ":" << static_cast<int>(scan.first_ok_candidate.bit_offset)
             << " last=" << scan.last_ok_candidate.byte_offset
             << ":" << static_cast<int>(scan.last_ok_candidate.bit_offset);
+    }
+    if (stream.version == 0 && payload.size() > 18) {
+        auto fixed_candidate = candidate;
+        fixed_candidate.content_byte_offset = 18;
+        fixed_candidate.content_bit_offset = 0;
+        out << "\n" << describe_golomb_rice_boundary_summary(
+            "legacy-gr-byte18",
+            measure_golomb_rice_boundary_candidate(
+                stream,
+                fixed_candidate,
+                vector.expected_planes.front()));
     }
     out << "\n" << describe_golomb_rice_boundary_summary(
         "legacy-gr-scan-best",
@@ -4506,21 +4523,6 @@ bool matches_test_vector_filter(std::string_view name, std::string_view filter)
     return filter.empty() || name.find(filter) != std::string_view::npos;
 }
 
-bool has_nonzero_expected_sample(const mffv1_testvectors::DecodeVector& vector)
-{
-    for (const auto frame_planes : vector.expected_planes) {
-        for (const auto& plane : frame_planes) {
-            if (std::any_of(
-                    plane.samples.begin(),
-                    plane.samples.end(),
-                    [](std::byte value) { return value != std::byte{0}; })) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 std::string unsupported_decode_vector_reason(
     const mffv1_testvectors::DecodeVector& vector)
 {
@@ -4545,22 +4547,12 @@ std::string unsupported_decode_vector_reason(
     if (!bootstrap.has_embedded_parameters) {
         return "legacy vector has no embedded parameters";
     }
-    if (bootstrap.stream.version == 0
-        && bootstrap.stream.entropy_mode == mffv1::EntropyMode::GolombRice) {
-        return "legacy version 0 Golomb-Rice payload boundaries are not implemented";
-    }
-    if (bootstrap.stream.version == 0
-        && bootstrap.stream.entropy_mode == mffv1::EntropyMode::Range
-        && has_nonzero_expected_sample(vector)) {
-        return "legacy version 0 range-coded nonzero sample reconstruction is not implemented";
-    }
     return {};
 }
 
-bool is_known_unsupported_decode_vector_reason(std::string_view reason)
+bool is_known_unsupported_decode_vector_reason(std::string_view)
 {
-    return reason == "legacy version 0 Golomb-Rice payload boundaries are not implemented"
-        || reason == "legacy version 0 range-coded nonzero sample reconstruction is not implemented";
+    return false;
 }
 
 } // namespace

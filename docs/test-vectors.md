@@ -89,14 +89,13 @@ decoding across the compatibility cases that most recently drove fixes:
   grids where available. These validate RGB line-plane run-state continuity,
   RCT output reconstruction, and slot-local adaptive VLC state for coded RCT
   Y versus coded Cb/Cr.
-- AVI-derived legacy version 1 range-coded and Golomb-Rice 8-bit single-slice
+- AVI-derived legacy version 0/1 range-coded and Golomb-Rice 8-bit single-slice
   payloads with empty Codec Private data. These validate explicit
   `bootstrap_legacy_frame()` setup and decode of the same keyframe payload.
 
 Legacy version 0 AVI-derived vectors may be kept in a local generated header as
-investigation material. The current test harness decodes version 0 range-coded
-vectors when present and skips version 0 Golomb-Rice vectors until their
-payload-boundary rules are implemented.
+investigation material. The current test harness decodes the generated
+single-slice version 0 range-coded and Golomb-Rice vectors when present.
 
 If version 0 compatibility needs more evidence, prefer tiny diagnostic vectors
 over broad coverage expansion:

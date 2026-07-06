@@ -514,6 +514,82 @@ TEST(RangeCoderTest, RestoresCopiedContextBanksForNewPayload)
     EXPECT_EQ(restored.byte_position(), 2u);
 }
 
+TEST(RangeCoderTest, RestoresArithmeticStateForContinuation)
+{
+    const std::array<std::byte, 4> payload{
+        std::byte{0x7f},
+        std::byte{0x80},
+        std::byte{0xaa},
+        std::byte{0xbb},
+    };
+    const std::array<std::size_t, 1> context_counts{1};
+    mffv1::entropy::RangeCoder source;
+    ASSERT_TRUE(source.reset(payload, context_counts).ok());
+    bool first_bit = false;
+    ASSERT_TRUE(source.read_bool(first_bit).ok());
+    const auto saved_state = source.arithmetic_state();
+    mffv1::entropy::RangeCoder::ContextStateBanks saved_contexts;
+    ASSERT_TRUE(source.copy_contexts(saved_contexts).ok());
+
+    mffv1::entropy::RangeCoder restored;
+    const std::array<std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>, 1>
+        initial_state_banks{std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>(
+            saved_contexts[0].data(), saved_contexts[0].size())};
+    ASSERT_TRUE(restored.reset_from_arithmetic_state(
+        payload,
+        context_counts,
+        initial_state_banks,
+        mffv1::syntax::kDefaultStateTransition,
+        saved_state).ok());
+
+    bool source_next = false;
+    bool restored_next = false;
+    ASSERT_TRUE(source.read_bool(source_next).ok());
+    ASSERT_TRUE(restored.read_bool(restored_next).ok());
+
+    EXPECT_EQ(restored_next, source_next);
+    EXPECT_EQ(restored.arithmetic_state(), source.arithmetic_state());
+}
+
+TEST(RangeCoderTest, RejectsInvalidArithmeticStateRestore)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0x7f},
+        std::byte{0x80},
+    };
+    const std::array<std::size_t, 1> context_counts{1};
+    mffv1::entropy::RangeCoder coder;
+
+    auto status = coder.reset_from_arithmetic_state(
+        payload,
+        context_counts,
+        {},
+        mffv1::syntax::kDefaultStateTransition,
+        {});
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "range coder arithmetic state is not initialized");
+
+    mffv1::entropy::RangeCoder::ArithmeticState state;
+    state.initialized = true;
+    state.range = 1;
+    state.byte_position = 3;
+    status = coder.reset_from_arithmetic_state(
+        payload,
+        context_counts,
+        {},
+        mffv1::syntax::kDefaultStateTransition,
+        state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "range coder arithmetic byte position is outside the payload");
+    EXPECT_TRUE(status.location.has_byte_offset);
+    EXPECT_EQ(status.location.byte_offset, 3u);
+}
+
 TEST(RangeCoderTest, RejectsEmptyRestoredContextBank)
 {
     const std::array<std::byte, 2> payload{

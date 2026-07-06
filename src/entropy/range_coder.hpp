@@ -52,6 +52,12 @@ public:
         ByteSpan payload,
         const ContextStateBanks& context_banks,
         const syntax::StateTransitionTable& state_transition = syntax::kDefaultStateTransition);
+    Status reset_from_arithmetic_state(
+        ByteSpan payload,
+        std::span<const std::size_t> scalar_context_counts,
+        std::span<const std::span<const ScalarContextStates>> initial_state_banks,
+        const syntax::StateTransitionTable& state_transition,
+        const ArithmeticState& arithmetic_state);
     Status reconfigure_contexts(
         std::span<const std::size_t> scalar_context_counts,
         std::span<const std::span<const ScalarContextStates>> initial_state_banks = {});

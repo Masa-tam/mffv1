@@ -86,6 +86,44 @@ Status RangeCoder::reset_from_contexts(
                       state_transition);
 }
 
+Status RangeCoder::reset_from_arithmetic_state(
+    ByteSpan payload,
+    std::span<const std::size_t> scalar_context_counts,
+    std::span<const std::span<const ScalarContextStates>> initial_state_banks,
+    const syntax::StateTransitionTable& state_transition,
+    const ArithmeticState& arithmetic_state)
+{
+    if (!arithmetic_state.initialized) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "range coder arithmetic state is not initialized");
+    }
+    if (arithmetic_state.range == 0) {
+        return make_error(ErrorCode::InvalidArgument,
+                          "range coder arithmetic state range must be non-zero");
+    }
+    if (arithmetic_state.byte_position > payload.size()) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "range coder arithmetic byte position is outside the payload",
+                               arithmetic_state.byte_position);
+    }
+
+    Status status = initialize_contexts(scalar_context_counts,
+                                        initial_state_banks,
+                                        kDefaultInitialState);
+    if (!status.ok()) {
+        return status;
+    }
+
+    payload_ = payload;
+    range_ = arithmetic_state.range;
+    low_ = arithmetic_state.low;
+    byte_position_ = arithmetic_state.byte_position;
+    end_ = arithmetic_state.end || byte_position_ >= payload_.size();
+    initialized_ = true;
+    state_transition_ = state_transition;
+    return ok_status();
+}
+
 Status RangeCoder::reset_impl(
     ByteSpan payload,
     std::span<const std::size_t> scalar_context_counts,

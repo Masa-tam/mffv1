@@ -529,3 +529,10 @@ is useful as a boundary-smoke diagnostic, but it should not be treated as a
 candidate fix by itself: the legacy range path is expected to continue the
 arithmetic state from the keyframe and Parameters header, and the passing v1
 sibling follows that carry-state path.
+
+The shifted-state probe restores the Parameters-after arithmetic state and then
+varies only the next byte position around the computed content boundary. For
+the same v0 controls, every tested byte position from 150 through 154 still
+decodes `0,0,0,-3`. That makes a simple off-by-one refill position unlikely:
+with the current arithmetic `range/low`, the fourth scalar diverges regardless
+of the nearby byte position.

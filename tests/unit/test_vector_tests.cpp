@@ -12,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -882,6 +883,29 @@ void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
     }
 }
 
+std::string current_test_vector_filter()
+{
+#if defined(_MSC_VER)
+    char* value = nullptr;
+    std::size_t size = 0;
+    if (_dupenv_s(&value, &size, "MFFV1_TEST_VECTOR_FILTER") != 0
+        || value == nullptr) {
+        return {};
+    }
+    std::string filter{value};
+    std::free(value);
+    return filter;
+#else
+    const auto* filter = std::getenv("MFFV1_TEST_VECTOR_FILTER");
+    return filter == nullptr ? std::string{} : std::string{filter};
+#endif
+}
+
+bool matches_test_vector_filter(std::string_view name, std::string_view filter)
+{
+    return filter.empty() || name.find(filter) != std::string_view::npos;
+}
+
 } // namespace
 #endif
 
@@ -899,7 +923,11 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
 #if defined(NO_DEFINE_TEST_VECTOR_DATA)
     GTEST_SKIP() << "external FFV1 test vectors have not been generated";
 #else
+    const auto filter = current_test_vector_filter();
     for (const auto& vector : mffv1_testvectors::decode_vectors()) {
+        if (!matches_test_vector_filter(vector.name, filter)) {
+            continue;
+        }
         expect_decodes_vector(vector);
     }
 #endif

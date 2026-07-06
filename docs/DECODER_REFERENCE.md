@@ -363,13 +363,15 @@ YCbCr streams with chroma planes, luma uses slot 0 and both Cb and Cr use slot
 1. An optional extra plane uses its own slot. This behavior is part of the
 current compatibility baseline for generated FFV1 version 3 vectors.
 
-Version 3 YCbCr Golomb-Rice content uses the same quantization-table index
-slot mapping for adaptive VLC context state: luma uses slot 0, Cb and Cr share
-slot 1, and an optional extra plane uses slot 2. Border samples are zero for
-all planes, including chroma; neutral chroma values are reconstructed as coded
-residuals from that zero border. Full-run remainders may carry across row
-boundaries, but a run that reaches a plane edge is clipped at that edge rather
-than carried into nonexistent samples.
+Version 3 Golomb-Rice content uses the same quantization-table index slot
+mapping for adaptive VLC context state. For YCbCr, luma uses slot 0, Cb and Cr
+share slot 1, and an optional extra plane uses slot 2. For RGB/RGBA, the coded
+RCT Y plane uses slot 0, coded Cb and Cr share slot 1, and alpha uses slot 2.
+Border samples are zero for all planes, including chroma/RCT chroma; neutral
+chroma values are reconstructed as coded residuals from that zero border.
+Full-run remainders may carry across row boundaries, but a run that reaches a
+plane edge is clipped at that edge rather than carried into nonexistent
+samples.
 
 ## Implemented Decoder Coverage
 

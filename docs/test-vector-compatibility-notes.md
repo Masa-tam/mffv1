@@ -39,12 +39,13 @@ Several previously rejected probes remain useful guardrails:
   is not compatible with the passing controls. Full-run remainders may carry
   across rows, but a run segment that reaches the end of a plane is clipped
   there instead of creating a pending run beyond the plane.
-- YCbCr Golomb-Rice borders are zero, including chroma. Flat chroma therefore
-  starts as a residual from predictor zero, not from a neutral 128 baseline.
-- Version 3 YCbCr Golomb-Rice adaptive VLC contexts are slot-local: luma uses
-  slot 0, Cb and Cr share slot 1, and an optional extra plane uses slot 2.
-  Sharing by literal quantization-table-set value or by coded plane breaks the
-  current external-vector baseline.
+- Golomb-Rice borders are zero, including YCbCr chroma and RGB/RGBA RCT
+  chroma. Flat chroma therefore starts as a residual from predictor zero, not
+  from a neutral 128 baseline.
+- Version 3 Golomb-Rice adaptive VLC contexts are slot-local: coded luma/RCT Y
+  uses slot 0, coded Cb and Cr share slot 1, and an optional extra/alpha plane
+  uses slot 2. Sharing by literal quantization-table-set value or by coded
+  plane breaks the current external-vector baseline.
 
 The previous `smptebars_*` local set showed that 8-bit Golomb-Rice vectors
 parse their slice footers and CRC correctly, but slice 0 reaches a
@@ -110,11 +111,22 @@ vectors.
 
 ### Golomb-Rice Slot-Local Context State
 
-For version 3 YCbCr Golomb-Rice content, adaptive VLC context state is local
-to the Slice Header quantization-table index slot rather than to the literal
-quantization-table-set value or the coded plane. Luma uses slot 0, Cb and Cr
-share slot 1, and an optional extra plane uses slot 2. This is the current
-passing baseline for generated 4:2:0 Golomb-Rice vectors.
+For version 3 Golomb-Rice content, adaptive VLC context state is local to the
+Slice Header quantization-table index slot rather than to the literal
+quantization-table-set value or every coded plane. For YCbCr, luma uses slot 0,
+Cb and Cr share slot 1, and an optional extra plane uses slot 2. For RGB/RGBA,
+the coded RCT Y plane uses slot 0, coded Cb and Cr share slot 1, and alpha uses
+slot 2. This is the current passing baseline for generated 4:2:0 and RGB
+Golomb-Rice vectors.
+
+The RGB Golomb-Rice vectors exposed this because black vectors need the run
+index to continue in line-plane order across the three coded RCT planes, while
+colored vectors need the adaptive VLC context state split by quantization-table
+index slot. Sharing all RGB VLC state by the literal qset value decodes the
+first RCT Y row but shifts the first coded chroma sample; making every RGB
+plane fully independent fixes one chroma plane but breaks mffv1's internal
+round trips. The compatible model is therefore shared run state in RGB line
+order plus slot-local VLC context state.
 
 ### Slice-End Validation Probe
 
@@ -252,13 +264,15 @@ should not be repeated without new evidence:
   range-coded Slice Content. This breaks the internal multi-slice range decode
   test and worsens external vectors.
 
-## Next Investigation Targets
+## Historical Investigation Notes
 
-The remaining 8-bit Golomb-Rice mismatch is now isolated to the generated
-4:2:0 ramp vector. The single-plane gray ramp vector decodes successfully.
-The 4:2:0 vector still underflows in Y plane scalar decoding around row 29, so
-the next investigation should focus on multi-plane GR bit consumption rather
-than the generic v3 Slice Header boundary.
+The following notes are retained to document rejected hypotheses and the path
+to the current passing local-vector baseline. At the time of this investigation,
+the remaining 8-bit Golomb-Rice mismatch was isolated to the generated 4:2:0
+ramp vector. The single-plane gray ramp vector decoded successfully. The 4:2:0
+vector still underflowed in Y plane scalar decoding around row 29, so the
+investigation focused on multi-plane GR bit consumption rather than the generic
+v3 Slice Header boundary.
 
 Additional probing on `gr_intra_420p8_1slice_ramp.mkv` showed that the first
 observable Y-plane mismatch happens before the eventual underflow: row 1,

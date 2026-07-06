@@ -280,12 +280,13 @@ uses its own slot. The current public encoder writes the default quantization
 table set indexes, but this slot mapping is kept aligned with the decoder so
 custom table support can reuse the same state model later.
 
-Golomb-Rice adaptive VLC context state follows the same version 3 YCbCr slot
-mapping: luma uses slot 0, Cb and Cr share slot 1, and an optional extra plane
-uses slot 2. This is independent of whether two slots currently reference the
-same quantization-table-set value. Chroma borders are encoded against a zero
-border value, so neutral chroma samples are represented by their residual from
-zero at frame and slice edges.
+Golomb-Rice adaptive VLC context state follows the same version 3 slot mapping.
+For YCbCr, luma uses slot 0, Cb and Cr share slot 1, and an optional extra
+plane uses slot 2. For RGB/RGBA, the coded RCT Y plane uses slot 0, coded Cb
+and Cr share slot 1, and alpha uses slot 2. This is independent of whether two
+slots currently reference the same quantization-table-set value. Chroma and RCT
+chroma borders are encoded against a zero border value, so neutral chroma
+samples are represented by their residual from zero at frame and slice edges.
 
 ### Input Sample Validation
 

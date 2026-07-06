@@ -85,6 +85,10 @@ decoding across the compatibility cases that most recently drove fixes:
 - Golomb-Rice 8-bit 4:2:0 with flat Y plus flat or stepped chroma. These are
   compact controls for zero chroma borders, chroma-plane alignment, and
   slot-local adaptive VLC state.
+- Golomb-Rice 8-bit RGB black and primary-color controls, in 1-slice and 2x2
+  grids where available. These validate RGB line-plane run-state continuity,
+  RCT output reconstruction, and slot-local adaptive VLC state for coded RCT
+  Y versus coded Cb/Cr.
 
 No additional local vector is requested at this point. Keep the existing set
 available while working on entropy, prediction, slice, or frame-state changes.
@@ -98,6 +102,10 @@ Recommended naming pattern for local generated headers:
 - `range_intra_yuva8_1slice`
 - `range_intra_rgba8_1slice`, only if planar data is generated
 - `range_intra_420p8_1slice_qidx`
+- `rgb_black_1slice`
+- `rgb_red_1slice`
+- `rgb_green_1slice`
+- `rgb_blue_1slice`
 - `gr_intra_gray8_1slice_ygrad_small`
 - `gr_intra_gray8_1slice_xgrad_small`
 - `gr_intra_420p8_1slice_yflat_uvflat_small`

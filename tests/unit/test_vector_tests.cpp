@@ -659,6 +659,12 @@ std::string describe_golomb_rice_partial_decode(
     const auto& primary = frame.slices.front();
     out << describe_golomb_rice_candidate_decode(
         stream, primary, expected_planes, "partial primary");
+    for (std::uint8_t bit_offset = 1; bit_offset < 8; ++bit_offset) {
+        auto shifted = primary;
+        shifted.content_bit_offset = bit_offset;
+        out << "\n" << describe_golomb_rice_candidate_decode(
+            stream, shifted, expected_planes, "partial primary-bit");
+    }
     if (primary.content_byte_offset > primary.payload_byte_offset) {
         auto read_ahead = primary;
         --read_ahead.content_byte_offset;

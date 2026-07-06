@@ -3790,6 +3790,7 @@ struct GolombRiceBoundaryCandidateSummary {
     std::uint8_t bit_offset = 0;
     std::size_t matched_samples = 0;
     mffv1::Status status;
+    bool output_matches = false;
     bool measured = false;
 };
 
@@ -3856,6 +3857,23 @@ GolombRiceBoundaryCandidateSummary measure_golomb_rice_boundary_candidate(
     status = slice_decoder.decode(candidate, window, state, &observer);
     summary.status = status;
     summary.matched_samples = observer.matched_sample_count();
+    summary.output_matches = true;
+    for (std::size_t index = 0; index < expected_planes.size(); ++index) {
+        std::size_t expected_size = 0;
+        if (!compute_plane_size(expected_planes[index], expected_size)) {
+            summary.output_matches = false;
+            break;
+        }
+        const std::span<const std::byte> expected_bytes{
+            expected_planes[index].samples.data(), expected_size};
+        if (!std::equal(expected_bytes.begin(),
+                        expected_bytes.end(),
+                        plane_storage[index].begin(),
+                        plane_storage[index].begin() + expected_size)) {
+            summary.output_matches = false;
+            break;
+        }
+    }
     summary.measured = true;
     return summary;
 }
@@ -3933,22 +3951,29 @@ std::string describe_legacy_golomb_rice_boundary_probe(
     if (best_candidate.measured) {
         out << "\nlegacy-gr-best byte=" << best_candidate.byte_offset
             << " bit=" << static_cast<int>(best_candidate.bit_offset)
-            << " matched_samples=" << best_candidate.matched_samples
+            << " matched_traced_samples=" << best_candidate.matched_samples
+            << " output_match=" << best_candidate.output_matches
             << " status: " << describe_status(best_candidate.status);
         std::size_t peer_count = 0;
+        std::size_t peer_output_match_count = 0;
         out << "\nlegacy-gr-best-peers";
         for (const auto& summary : measured_candidates) {
             if (summary.matched_samples != best_candidate.matched_samples) {
                 continue;
             }
             ++peer_count;
+            if (summary.output_matches) {
+                ++peer_output_match_count;
+            }
             if (peer_count <= 8) {
                 out << " [" << summary.byte_offset
                     << ":" << static_cast<int>(summary.bit_offset)
+                    << (summary.output_matches ? "=out" : "")
                     << "]";
             }
         }
-        out << " count=" << peer_count;
+        out << " count=" << peer_count
+            << " output_match_count=" << peer_output_match_count;
     }
     return out.str();
 }

@@ -808,3 +808,7 @@ is more likely in the v0 Golomb-Rice payload or embedded-parameter convention.
 The peer summary reinforces that interpretation: each tiny v0 Golomb-Rice
 control has 25 byte/bit candidates tied at the same single-sample match count.
 The first zero sample is therefore not a strong alignment signal by itself.
+The diagnostic now distinguishes traced sample matches from full output-plane
+matches. Only the `1x1` control reaches an output match before trailing-byte
+failure; the `2x1` and wider controls do not. Relaxing trailing-byte handling
+alone would therefore not close the v0 Golomb-Rice gap.

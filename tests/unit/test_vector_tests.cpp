@@ -2067,6 +2067,173 @@ std::string describe_legacy_range_expected_residual_probe(
         };
         append_body_state_sweep("s0_body_sweep", true);
         append_body_state_sweep("normal_s0_body_sweep", false);
+
+        struct BodyFullResult {
+            std::uint16_t zero_state = 0;
+            std::uint16_t body_state = 0;
+            std::size_t matched_samples = 0;
+            std::uint32_t mismatch_x = 0;
+            std::uint32_t mismatch_y = 0;
+            std::int64_t difference = 0;
+            std::uint32_t sample = 0;
+            std::uint32_t expected = 0;
+            bool failed = false;
+        };
+        const auto measure_body_full = [&](std::uint8_t zero_state,
+                                           std::uint8_t body_state,
+                                           bool legacy_arithmetic,
+                                           bool away_from_zero,
+                                           BodyFullResult& result) {
+            result.zero_state = zero_state;
+            result.body_state = body_state;
+            mffv1::entropy::RangeCoder::ScalarContextStates states{};
+            states.fill(body_state);
+            states[0] = zero_state;
+            const std::array state_bank{
+                std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{&states, 1},
+            };
+            mffv1::entropy::RangeCoder probe_reader;
+            auto probe_status = probe_reader.reset_from_arithmetic_state(
+                vector.frame_payloads.front(),
+                context_counts,
+                {},
+                stream.state_transition,
+                state);
+            if (probe_status.ok() && legacy_arithmetic) {
+                probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+            }
+            if (probe_status.ok()) {
+                probe_status = probe_reader.reset_from_arithmetic_state(
+                    vector.frame_payloads.front(),
+                    context_counts,
+                    state_bank,
+                    stream.state_transition,
+                    state);
+            }
+            if (!probe_status.ok()) {
+                result.failed = true;
+                return false;
+            }
+
+            const mffv1::syntax::ContextModel full_context_model(
+                stream.quant_table_sets.front());
+            mffv1::syntax::LineState full_line;
+            probe_status = full_line.reset(expected.info.width);
+            if (!probe_status.ok()) {
+                result.failed = true;
+                return false;
+            }
+            for (std::uint32_t yy = 0; yy < expected.info.height; ++yy) {
+                for (std::uint32_t xx = 0; xx < expected.info.width; ++xx) {
+                    const auto full_neighbors = full_line.neighbors(xx);
+                    const auto full_prediction = mffv1::syntax::Predictor::median_predict(
+                        full_neighbors.left,
+                        full_neighbors.top,
+                        full_neighbors.top_left);
+                    mffv1::syntax::ContextDecision full_context;
+                    probe_status = full_context_model.derive_context(
+                        full_neighbors, full_context);
+                    if (!probe_status.ok()) {
+                        result.failed = true;
+                        return false;
+                    }
+                    std::int64_t difference64 = 0;
+                    probe_status = probe_reader.read_signed(
+                        0, full_context.context, difference64);
+                    if (!probe_status.ok()) {
+                        result.failed = true;
+                        return false;
+                    }
+                    if (away_from_zero) {
+                        if (difference64 > 0) {
+                            ++difference64;
+                        } else if (difference64 < 0) {
+                            --difference64;
+                        }
+                    }
+                    if (full_context.invert_difference) {
+                        difference64 = -difference64;
+                    }
+                    const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                        full_prediction,
+                        static_cast<std::int32_t>(difference64),
+                        stream.bits_per_raw_sample);
+                    const auto full_expected_sample = sample_at(
+                        expected.samples,
+                        expected.info,
+                        xx,
+                        yy);
+                    if (static_cast<std::uint32_t>(reconstructed) != full_expected_sample) {
+                        result.mismatch_x = xx;
+                        result.mismatch_y = yy;
+                        result.difference = difference64;
+                        result.sample = static_cast<std::uint32_t>(reconstructed);
+                        result.expected = full_expected_sample;
+                        return true;
+                    }
+                    full_line.mutable_current()[xx] = reconstructed;
+                    ++result.matched_samples;
+                }
+                full_line.swap_lines();
+            }
+            return true;
+        };
+        const auto append_body_full_sweep = [&](std::string_view label,
+                                                bool legacy_arithmetic,
+                                                bool away_from_zero) {
+            std::array<BodyFullResult, 8> best{};
+            std::size_t best_count = 0;
+            std::size_t exact_count = 0;
+            const auto sort_results = [](auto begin, auto end) {
+                std::sort(begin, end, [](const BodyFullResult& lhs,
+                                         const BodyFullResult& rhs) {
+                    if (lhs.matched_samples != rhs.matched_samples) {
+                        return lhs.matched_samples > rhs.matched_samples;
+                    }
+                    if (lhs.zero_state != rhs.zero_state) {
+                        return lhs.zero_state < rhs.zero_state;
+                    }
+                    return lhs.body_state < rhs.body_state;
+                });
+            };
+            for (std::uint16_t zero_state = 0; zero_state <= 255; ++zero_state) {
+                for (std::uint16_t body_state = 0; body_state <= 255; ++body_state) {
+                    BodyFullResult result;
+                    if (!measure_body_full(static_cast<std::uint8_t>(zero_state),
+                                           static_cast<std::uint8_t>(body_state),
+                                           legacy_arithmetic,
+                                           away_from_zero,
+                                           result)) {
+                        continue;
+                    }
+                    if (result.matched_samples == expected.info.width * expected.info.height) {
+                        ++exact_count;
+                    }
+                    if (best_count < best.size()) {
+                        best[best_count] = result;
+                        ++best_count;
+                    } else if (result.matched_samples > best[best_count - 1].matched_samples) {
+                        best[best_count - 1] = result;
+                    } else {
+                        continue;
+                    }
+                    sort_results(
+                        best.begin(),
+                        best.begin() + static_cast<std::ptrdiff_t>(best_count));
+                }
+            }
+            trace << " " << label << " exact=" << exact_count << " best";
+            for (std::size_t i = 0; i < best_count; ++i) {
+                trace << " s0=" << best[i].zero_state
+                      << "/body=" << best[i].body_state
+                      << ":" << best[i].matched_samples
+                      << "@" << best[i].mismatch_x << "," << best[i].mismatch_y
+                      << "=" << best[i].sample << "/" << best[i].expected
+                      << "/d" << best[i].difference;
+            }
+        };
+        append_body_full_sweep("s0_body_full", true, false);
+        append_body_full_sweep("s0_body_full_away", true, true);
     };
     std::size_t decoded_samples = 0;
     for (std::uint32_t y = 0; y < expected.info.height; ++y) {

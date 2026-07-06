@@ -728,6 +728,12 @@ such an adjustment globally; it is a diagnostic-only result. It does, however,
 make the remaining v0 range-coded nonzero gap look much more like a historical
 signed-scalar boundary or value-mapping convention than a byte restore,
 initial-state, or simple arithmetic split issue.
+Extending that probe from the first sample to the full 16-sample nonzero gray
+control found no exact `s0`/body-state pair. Without the away-from-zero
+adjustment every candidate still fails at the first sample; with the adjustment
+the best candidate matches only the first three samples before failing at the
+second expected nonzero sample. This rules out a simple fix made only from a
+uniform scalar-body initial state plus nonzero magnitude offset.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

@@ -456,6 +456,23 @@ compatibility work should add less uniform vectors with nonzero chroma
 gradients, explicit extra planes, and nonzero quantization-table-set indexes
 before changing generic range nonbinary decoding again.
 
+### Legacy Version 0 Golomb-Rice Probe
+
+The AVI-derived legacy v0 Golomb-Rice vectors still remain skipped. A focused
+probe on `gr_gray_v0_legacy_1slice.avi` showed that treating the range-decoded
+bootstrap result as embedded `Parameters()` gives `content=3`, but every
+byte/bit candidate around bytes 0 through 3 diverges within the first few
+samples. The best candidate observed was byte 1, bit 0, which matches eight
+initial zero samples before reading a run interruption where the generated
+reference remains zero.
+
+This suggests the current parser may be falsely accepting early Golomb-Rice
+payload bits as version 0 embedded parameters, or that legacy v0 Golomb-Rice
+uses an additional boundary convention not yet modeled. Keep v0 Golomb-Rice
+legacy vectors skipped until this is resolved with a smaller vector that
+separates keyframe-bit-only payloads from genuinely embedded-parameter
+payloads.
+
 The binary `ConfigurationRecordParser` now initializes the Parameter range
 reader with all 32 scalar contexts so `states_coded == 1` can decode
 `initial_state_delta[i][j][k]` with `k` as the context index. This improves v3

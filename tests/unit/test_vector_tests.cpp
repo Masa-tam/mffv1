@@ -4122,10 +4122,15 @@ std::string environment_setting(const char* name)
 #endif
 }
 
+bool test_vector_flag_setting_enabled(std::string_view setting) noexcept
+{
+    return !setting.empty() && setting != "0";
+}
+
 bool environment_flag_enabled(const char* name)
 {
     const auto setting = environment_setting(name);
-    return !setting.empty() && setting != "0";
+    return test_vector_flag_setting_enabled(setting);
 }
 
 std::string current_test_vector_filter()
@@ -4279,6 +4284,19 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
         }
         GTEST_SKIP() << message.str();
     }
+#endif
+}
+
+TEST(TestVectorTest, EnvironmentFlagSettingsTreatOnlyEmptyAndZeroAsDisabled)
+{
+#if defined(NO_DEFINE_TEST_VECTOR_DATA)
+    GTEST_SKIP() << "external FFV1 test vectors have not been generated";
+#else
+    EXPECT_FALSE(test_vector_flag_setting_enabled(""));
+    EXPECT_FALSE(test_vector_flag_setting_enabled("0"));
+    EXPECT_TRUE(test_vector_flag_setting_enabled("1"));
+    EXPECT_TRUE(test_vector_flag_setting_enabled("false"));
+    EXPECT_TRUE(test_vector_flag_setting_enabled("off"));
 #endif
 }
 

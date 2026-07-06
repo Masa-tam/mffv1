@@ -1586,7 +1586,7 @@ std::string describe_legacy_range_expected_residual_probe(
         || vector.expected_planes.empty()
         || vector.expected_planes.front().empty()
         || stream.quant_table_sets.size() != 1
-        || stream.quant_table_sets.front().context_count != 1) {
+        || stream.quant_table_sets.front().context_count == 0) {
         return {};
     }
 
@@ -1598,7 +1598,9 @@ std::string describe_legacy_range_expected_residual_probe(
     }
 
     constexpr std::size_t kProbeSampleCount = 16;
-    const std::array<std::size_t, 1> context_counts{1};
+    const std::array<std::size_t, 1> context_counts{
+        stream.quant_table_sets.front().context_count,
+    };
     mffv1::entropy::RangeCoder reader;
     auto status = reader.reset_from_arithmetic_state(
         vector.frame_payloads.front(),
@@ -1868,6 +1870,7 @@ std::string describe_legacy_range_v1_sibling_probe(std::string_view name)
             + "}"
             + describe_legacy_range_parameter_trace(
                 sibling, bootstrap.stream, "param_trace")
+            + describe_legacy_range_expected_residual_probe(sibling, bootstrap)
             + describe_legacy_range_symbol_probe(
                 sibling, bootstrap.stream, true, "range_probe")
             + "}";

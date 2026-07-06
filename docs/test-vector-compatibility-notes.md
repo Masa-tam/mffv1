@@ -678,6 +678,12 @@ The range variant probe also tried omitting the scalar zero/nonzero flag and
 reading exponent/magnitude/sign directly. That `nozero_flag_probe` still
 mismatches at the first sample, so the remaining difference is not explained by
 a scalar coding order that simply lacks the leading zero flag.
+The v1 sibling probe now emits the same expected-residual trace. It decodes the
+first sample as `act_diff=-128` and `act_sample=128`, and it also reconstructs
+the later nonzero samples at positions 3 and 15. This confirms that the
+expected-plane data and predictor path are valid; the remaining v0 difference
+is localized to the v0 range scalar/context/arithmetic-state path before the
+first residual decision.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

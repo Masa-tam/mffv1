@@ -22,6 +22,7 @@ The preset uses the Visual Studio 2026 generator with the x64 architecture.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `MFFV1_BUILD_TESTS` | `ON` | Build the GoogleTest-based unit and conformance tests. |
+| `MFFV1_ENABLE_SANITIZERS` | `OFF` | Enable supported compiler sanitizer instrumentation. MSVC uses AddressSanitizer; Clang and GCC use AddressSanitizer plus UndefinedBehaviorSanitizer. |
 | `MFFV1_ENABLE_STATUS_MESSAGES` | `ON` | Store diagnostic text in `Status::message`. When `OFF`, `Status::message` remains part of the public API but library-generated messages are empty. |
 | `MFFV1_ENABLE_WARNINGS_AS_ERRORS` | `OFF` | Treat compiler warnings as errors. |
 
@@ -50,6 +51,25 @@ When GoogleTest is available, tests should run through CTest:
 & 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-debug
 & 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-debug
 ```
+
+## Sanitizer Build
+
+Use the sanitizer preset when checking memory safety issues before release or
+after parser, entropy, threading, or buffer-boundary changes:
+
+```powershell
+& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --preset vs2026-x64-asan
+& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-asan-debug
+& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-asan-debug
+```
+
+The Visual Studio preset enables MSVC AddressSanitizer. On Clang and GCC,
+`MFFV1_ENABLE_SANITIZERS=ON` enables AddressSanitizer and
+UndefinedBehaviorSanitizer.
+
+When tests use the bundled `third-party/googletest` submodule, the sanitizer
+flags are applied to GoogleTest as well. If an externally installed GoogleTest
+package is used instead, it must be built with sanitizer-compatible options.
 
 ## Install
 

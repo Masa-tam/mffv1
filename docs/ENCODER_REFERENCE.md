@@ -430,6 +430,7 @@ Before declaring a stable encoder release, the project should complete:
 1. Licensed external conformance vectors for every supported profile.
 2. Black-box interoperability checks with independent FFV1 decoders.
 3. Encoder fuzzing and retained regression corpora.
-4. Sanitizer and MSVC runtime-analysis coverage.
+4. Passing sanitizer runs on supported toolchains, including the documented
+   Visual Studio AddressSanitizer preset.
 5. Final versioned release notes, release tag, and support window declaration.
 6. Measured SIMD kernels with exhaustive scalar equivalence tests.

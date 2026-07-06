@@ -29,6 +29,14 @@ Run the normal Visual Studio 2026 x64 workflow:
 & 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-debug --output-on-failure
 ```
 
+Run the sanitizer workflow when the toolchain supports it:
+
+```powershell
+& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --preset vs2026-x64-asan
+& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-asan-debug
+& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-asan-debug --output-on-failure
+```
+
 Also verify a package consumer build:
 
 ```powershell

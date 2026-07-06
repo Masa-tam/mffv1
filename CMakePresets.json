@@ -18,6 +18,15 @@
         "CMAKE_CXX_EXTENSIONS": "OFF",
         "MFFV1_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "vs2026-x64-asan",
+      "displayName": "Visual Studio 2026 x64 AddressSanitizer",
+      "inherits": "vs2026-x64",
+      "binaryDir": "${sourceDir}/build/vs2026-x64-asan",
+      "cacheVariables": {
+        "MFFV1_ENABLE_SANITIZERS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -30,6 +39,11 @@
       "name": "vs2026-x64-release",
       "configurePreset": "vs2026-x64",
       "configuration": "Release"
+    },
+    {
+      "name": "vs2026-x64-asan-debug",
+      "configurePreset": "vs2026-x64-asan",
+      "configuration": "Debug"
     }
   ],
   "testPresets": [
@@ -40,7 +54,14 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "vs2026-x64-asan-debug",
+      "configurePreset": "vs2026-x64-asan",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
-

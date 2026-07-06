@@ -8,6 +8,11 @@ if(NOT GTest_FOUND)
             "${PROJECT_BINARY_DIR}/third-party/googletest"
             EXCLUDE_FROM_ALL
         )
+        foreach(mffv1_gtest_target gtest gtest_main gmock gmock_main)
+            if(TARGET ${mffv1_gtest_target})
+                mffv1_apply_sanitizer_options(${mffv1_gtest_target})
+            endif()
+        endforeach()
     else()
         message(FATAL_ERROR
             "MFFV1_BUILD_TESTS is ON, but GoogleTest was not found. "
@@ -94,4 +99,14 @@ target_include_directories(mffv1_unit_tests
 mffv1_apply_common_options(mffv1_unit_tests)
 
 include(GoogleTest)
-gtest_discover_tests(mffv1_unit_tests)
+set(mffv1_test_properties)
+if(MSVC AND MFFV1_ENABLE_SANITIZERS)
+    get_filename_component(mffv1_msvc_tool_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    list(APPEND mffv1_test_properties
+        ENVIRONMENT "PATH=${mffv1_msvc_tool_dir}"
+    )
+endif()
+
+gtest_discover_tests(mffv1_unit_tests
+    PROPERTIES ${mffv1_test_properties}
+)

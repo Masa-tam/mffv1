@@ -35,6 +35,7 @@ Status LegacyFrameBootstrapParser::parse(
     LegacyFrameBootstrap bootstrap;
     bootstrap.keyframe = keyframe;
     bootstrap.content_byte_offset = reader.byte_position();
+    bootstrap.range_state_after_keyframe = reader.arithmetic_state();
 
     if (!keyframe) {
         out_bootstrap = std::move(bootstrap);
@@ -58,6 +59,7 @@ Status LegacyFrameBootstrapParser::parse(
     stream.height = frame_height;
     bootstrap.has_embedded_parameters = true;
     bootstrap.content_byte_offset = reader.byte_position();
+    bootstrap.range_state_after_parameters = reader.arithmetic_state();
     bootstrap.stream = std::move(stream);
     out_bootstrap = std::move(bootstrap);
     return ok_status();

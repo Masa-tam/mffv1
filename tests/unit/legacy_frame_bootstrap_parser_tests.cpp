@@ -1,5 +1,7 @@
 #include "codec/legacy_frame_bootstrap_parser.hpp"
+#include "entropy/range_coder.hpp"
 #include "entropy/range_encoder.hpp"
+#include "mffv1/configuration_parser.hpp"
 
 #include <array>
 #include <cstddef>
@@ -89,6 +91,43 @@ TEST(LegacyFrameBootstrapParserTest, ParsesVersionZeroGolombRiceKeyframeParamete
     EXPECT_EQ(bootstrap.stream.height, 8u);
 }
 
+TEST(LegacyFrameBootstrapParserTest, ExposesRangeStateBoundaries)
+{
+    const auto payload = make_legacy_frame_parameters(
+        true,
+        mffv1::EntropyMode::Range,
+        0,
+        true,
+        1,
+        1,
+        false);
+    const mffv1::codec::LegacyFrameBootstrapParser parser;
+    mffv1::codec::LegacyFrameBootstrap bootstrap;
+
+    const auto status = parser.parse(payload, 320, 240, bootstrap);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    mffv1::entropy::RangeCoder replay;
+    ASSERT_TRUE(replay.reset(payload).ok());
+    bool keyframe = false;
+    ASSERT_TRUE(replay.read_bool(keyframe).ok());
+    EXPECT_TRUE(keyframe);
+    EXPECT_EQ(bootstrap.range_state_after_keyframe,
+              replay.arithmetic_state());
+
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    ASSERT_TRUE(replay.reconfigure_contexts(parameter_context_counts).ok());
+    mffv1::syntax::StreamParameters replay_stream;
+    const mffv1::syntax::ConfigurationParser replay_parser;
+    ASSERT_TRUE(replay_parser.parse(replay, replay_stream).ok());
+    EXPECT_EQ(bootstrap.range_state_after_parameters,
+              replay.arithmetic_state());
+    EXPECT_EQ(bootstrap.content_byte_offset,
+              bootstrap.range_state_after_parameters.byte_position);
+    EXPECT_NE(bootstrap.range_state_after_parameters,
+              bootstrap.range_state_after_keyframe);
+}
+
 TEST(LegacyFrameBootstrapParserTest, NonKeyframeHasNoEmbeddedParameters)
 {
     const auto payload = make_legacy_frame_parameters(false);
@@ -104,6 +143,8 @@ TEST(LegacyFrameBootstrapParserTest, NonKeyframeHasNoEmbeddedParameters)
     EXPECT_GT(bootstrap.content_byte_offset, 0u);
     EXPECT_EQ(bootstrap.stream.width, 0u);
     EXPECT_EQ(bootstrap.stream.height, 0u);
+    EXPECT_EQ(bootstrap.range_state_after_parameters,
+              mffv1::entropy::RangeCoder::ArithmeticState{});
 }
 
 TEST(LegacyFrameBootstrapParserTest, FailedParsePreservesOutput)

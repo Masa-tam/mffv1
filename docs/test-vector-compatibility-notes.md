@@ -458,20 +458,23 @@ before changing generic range nonbinary decoding again.
 
 ### Legacy Version 0 Golomb-Rice Probe
 
-The AVI-derived legacy v0 Golomb-Rice vectors still remain skipped. A focused
-probe on `gr_gray_v0_legacy_1slice.avi` showed that treating the range-decoded
-bootstrap result as embedded `Parameters()` gives `content=3`, but every
+The following legacy v0 notes are retained as investigation history. They were
+superseded by the later finding that version 0 embedded `Parameters()` include
+a quant table set; see the final paragraphs of this section for the current
+compatibility status.
+
+The AVI-derived legacy v0 Golomb-Rice vectors were initially skipped. A focused
+probe on `gr_gray_v0_legacy_1slice.avi` showed that treating the incompletely
+parsed bootstrap result as embedded `Parameters()` gives `content=3`, but every
 byte/bit candidate around bytes 0 through 3 diverges within the first few
 samples. The best candidate observed was byte 1, bit 0, which matches eight
 initial zero samples before reading a run interruption where the generated
 reference remains zero.
 
-This suggests the current parser may be falsely accepting early Golomb-Rice
-payload bits as version 0 embedded parameters, or that legacy v0 Golomb-Rice
-uses an additional boundary convention not yet modeled. Keep v0 Golomb-Rice
-legacy vectors skipped until this is resolved with a smaller vector that
-separates keyframe-bit-only payloads from genuinely embedded-parameter
-payloads.
+At that point, the parser appeared to falsely accept early Golomb-Rice payload
+bits as version 0 embedded parameters, or legacy v0 Golomb-Rice appeared to use
+an additional boundary convention not yet modeled. Later vectors resolved this
+as a missing quant-table parse rather than a separate payload-boundary rule.
 
 The binary `ConfigurationRecordParser` now initializes the Parameter range
 reader with all 32 scalar contexts so `states_coded == 1` can decode
@@ -492,14 +495,14 @@ failures. Keep the current model where Slice Header and range-coded Slice
 Content share the arithmetic state while scalar contexts are reconfigured by
 Slice Header quantization-table index slot.
 
-The AVI-derived legacy v0 range vectors currently remain intentionally
+The AVI-derived legacy v0 range vectors were also temporarily treated as
 unsupported by the generated-vector public API test. Temporarily allowing
 `range_gray_v0_legacy_1slice.avi` through the same path as the passing v1 range
 vector reaches frame parsing and slice decoding, but the decoded plane first
 diverges at `x=3,y=0`: expected zero, decoded sample `253`. The parsed stream
 is gray 8-bit range-coded v0, single slice, with a computed content byte offset
 of 152. This makes v0 closer than an unsupported syntax failure, but not yet a
-passing compatibility profile.
+passing compatibility profile under the then-current parser.
 
 One v0 hypothesis was tested and rejected: reading keyframe-embedded
 `Parameters()` without reconfiguring the range scalar contexts after
@@ -786,16 +789,16 @@ compatibility diagnosis, `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` still asks the
 harness to run vectors that fail the bootstrap-support precheck so their public
 decode errors can be inspected directly.
 
-The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
-boundary probe still finds only short zero-prefix matches with trailing-data
-or first-sample mismatch diagnostics, so they continue to support the earlier
-conclusion: the missing piece is a legacy v0 Golomb-Rice payload boundary or
-embedded-parameter convention, not ordinary sample reconstruction.
+The refreshed tiny v0 Golomb-Rice vectors were then still intentionally skipped.
+Their boundary probe found only short zero-prefix matches with trailing-data or
+first-sample mismatch diagnostics, which supported the earlier conclusion that
+the missing piece was a legacy v0 Golomb-Rice payload boundary or
+embedded-parameter convention rather than ordinary sample reconstruction.
 Running the same v0 Golomb-Rice set with
-`MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` confirms that the public decode path
-reaches the same class of failure: `1x1`, `2x1`, `4x1`, `8x1`, and `16x1`
-all decode up to a candidate plane end and then report trailing bytes. The
-matching v1 Golomb-Rice legacy set passes in strict mode, so this is still
+`MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` confirmed that the public decode path
+reached the same class of failure: `1x1`, `2x1`, `4x1`, `8x1`, and `16x1`
+all decoded up to a candidate plane end and then reported trailing bytes. The
+matching v1 Golomb-Rice legacy set passed in strict mode, so this was still
 best treated as a v0-specific payload-boundary or embedded-parameter placement
 gap rather than a shared Golomb-Rice sample decoder problem.
 The compact boundary summary now reports the best byte/bit candidate for those

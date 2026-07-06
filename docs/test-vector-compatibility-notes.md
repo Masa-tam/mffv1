@@ -734,6 +734,14 @@ adjustment every candidate still fails at the first sample; with the adjustment
 the best candidate matches only the first three samples before failing at the
 second expected nonzero sample. This rules out a simple fix made only from a
 uniform scalar-body initial state plus nonzero magnitude offset.
+A compact v0/v1 sibling sequence trace makes the split clearer. The v0 path
+keeps all first 16 symbols on context 0 with `s0=255->255`, never advancing
+past content byte 152 while expected nonzero samples at positions 0, 3, and 15
+all decode as zero. The v1 sibling consumes bytes immediately on the first
+nonzero residual, updates `s0`, changes context for the next predicted sample,
+and reconstructs all three nonzero samples. This reinforces that the v0
+problem is the zero/nonzero gate or its pre-content arithmetic state, not the
+later predictor or signed reconstruction step.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

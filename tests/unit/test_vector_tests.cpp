@@ -2236,9 +2236,20 @@ std::string describe_legacy_range_expected_residual_probe(
         append_body_full_sweep("s0_body_full_away", true, true);
     };
     std::size_t decoded_samples = 0;
+    std::ostringstream compact_sequence;
+    compact_sequence << " compact_seq";
+    const auto append_compact_state = [](
+                                          std::ostringstream& trace,
+                                          const mffv1::entropy::RangeCoder::ArithmeticState& arithmetic_state) {
+        trace << " r=" << std::hex << arithmetic_state.range
+              << "/l=" << arithmetic_state.low
+              << std::dec
+              << "/b=" << arithmetic_state.byte_position;
+    };
     for (std::uint32_t y = 0; y < expected.info.height; ++y) {
         for (std::uint32_t x = 0; x < expected.info.width; ++x) {
             if (decoded_samples >= kProbeSampleCount) {
+                out << compact_sequence.str();
                 return out.str();
             }
             const auto neighbors = line.neighbors(x);
@@ -2296,6 +2307,18 @@ std::string describe_legacy_range_expected_residual_probe(
                 static_cast<std::int32_t>(reconstruction_difference),
                 stream.bits_per_raw_sample);
 
+            compact_sequence << " #" << decoded_samples
+                             << ":c" << context.context
+                             << (context.invert_difference ? "i" : "")
+                             << "/p" << prediction
+                             << "/e" << expected_difference
+                             << "/a" << actual_difference
+                             << "/s" << state_at(before_contexts, context.context, 0)
+                             << "->" << state_at(after_contexts, context.context, 0);
+            append_compact_state(compact_sequence, before_state);
+            compact_sequence << "=>" << static_cast<int>(actual_sample)
+                             << "/" << expected_sample;
+
             out << " #" << decoded_samples
                 << "@(" << x << "," << y << ")"
                 << " ctx=" << context.context
@@ -2331,6 +2354,7 @@ std::string describe_legacy_range_expected_residual_probe(
         }
         line.swap_lines();
     }
+    out << compact_sequence.str();
     return out.str();
 }
 

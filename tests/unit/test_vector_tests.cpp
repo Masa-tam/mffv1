@@ -1187,6 +1187,111 @@ std::string describe_legacy_range_initial_state_probe(
                 out << "@" << match.mismatch_x << "," << match.mismatch_y;
             }
         }
+
+        const auto append_mini_state = [](std::ostringstream& trace_out,
+                                          const MiniRangeReader& reader) {
+            trace_out << "range=0x" << std::hex << reader.range
+                      << " low=0x" << reader.low << std::dec
+                      << " byte=" << reader.byte_position
+                      << " end=" << reader.end;
+        };
+        const auto append_variant_trace = [&](const RefillVariant& variant,
+                                              std::uint8_t initial_zero_state,
+                                              std::string_view label) {
+            MiniRangeReader reader;
+            reader.payload = payload;
+            reader.transition = &stream.state_transition;
+            reader.range = bootstrap.range_state_after_parameters.range;
+            reader.low = bootstrap.range_state_after_parameters.low;
+            reader.byte_position = bootstrap.range_state_after_parameters.byte_position;
+            reader.end = bootstrap.range_state_after_parameters.end
+                || reader.byte_position >= payload.size();
+            reader.refill_threshold = variant.threshold;
+            reader.byte_bias = variant.byte_bias;
+            reader.split_bias = variant.split_bias;
+            reader.inclusive_nonzero = variant.inclusive_nonzero;
+            reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+            reader.states[0] = initial_zero_state;
+
+            constexpr std::array<std::size_t, 4> trace_points{407, 408, 422, 423};
+            std::size_t next_point = 0;
+            std::size_t decoded_samples = 0;
+            const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+            mffv1::syntax::LineState line;
+            auto status = line.reset(expected.info.width);
+            if (!status.ok()) {
+                out << " " << label << "_trace=err(" << describe_status(status) << ")";
+                return;
+            }
+
+            out << " " << label << "_trace";
+            for (std::uint32_t y = 0; y < expected.info.height; ++y) {
+                for (std::uint32_t x = 0; x < expected.info.width; ++x) {
+                    const auto neighbors = line.neighbors(x);
+                    const auto prediction = mffv1::syntax::Predictor::median_predict(
+                        neighbors.left,
+                        neighbors.top,
+                        neighbors.top_left);
+                    mffv1::syntax::ContextDecision context;
+                    status = context_model.derive_context(neighbors, context);
+                    if (!status.ok()) {
+                        out << " err(" << describe_status(status) << ")";
+                        return;
+                    }
+
+                    const auto before_range = reader.range;
+                    const auto before_low = reader.low;
+                    const auto before_byte = reader.byte_position;
+                    const auto before_end = reader.end;
+                    const auto before_state0 = reader.states[0];
+                    std::int64_t difference64 = 0;
+                    if (!reader.read_signed(difference64)) {
+                        out << " fail=" << decoded_samples
+                            << "@" << x << "," << y;
+                        return;
+                    }
+                    if (context.invert_difference) {
+                        difference64 = -difference64;
+                    }
+                    const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                        prediction,
+                        static_cast<std::int32_t>(difference64),
+                        stream.bits_per_raw_sample);
+                    const auto expected_sample = sample_at(
+                        expected.samples,
+                        expected.info,
+                        x,
+                        y);
+
+                    while (next_point < trace_points.size()
+                           && trace_points[next_point] == decoded_samples) {
+                        out << " #" << decoded_samples
+                            << " s0=" << static_cast<int>(before_state0)
+                            << " before{range=0x" << std::hex << before_range
+                            << " low=0x" << before_low << std::dec
+                            << " byte=" << before_byte
+                            << " end=" << before_end
+                            << "} diff=" << difference64
+                            << " after{";
+                        append_mini_state(out, reader);
+                        out << "} rec=" << reconstructed
+                            << " exp=" << expected_sample;
+                        ++next_point;
+                    }
+
+                    if (static_cast<std::uint32_t>(reconstructed) != expected_sample) {
+                        out << " mismatch=" << decoded_samples
+                            << "@" << x << "," << y
+                            << " s0=" << static_cast<int>(reader.states[0]);
+                        return;
+                    }
+                    line.mutable_current()[x] = reconstructed;
+                    ++decoded_samples;
+                }
+                line.swap_lines();
+            }
+        };
+        append_variant_trace(ceil_variant, zero_state, "ceil");
     };
 
     std::ostringstream out;

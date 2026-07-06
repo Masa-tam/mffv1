@@ -2,6 +2,7 @@
 
 #include "codec/configuration_record_writer.hpp"
 #include "codec/slice_footer_writer.hpp"
+#include "entropy/range_encoder.hpp"
 
 #include <array>
 #include <cstddef>
@@ -84,6 +85,38 @@ std::array<std::byte, 16> zero_frame_payload()
         std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
         std::byte{0xff}, std::byte{0xff}, std::byte{0xff}, std::byte{0xff},
     };
+}
+
+std::vector<std::byte> make_legacy_bootstrap_frame(
+    mffv1::EntropyMode entropy_mode = mffv1::EntropyMode::Range,
+    bool chroma_planes = false,
+    bool extra_plane = false)
+{
+    mffv1::entropy::RangeEncoder writer;
+    EXPECT_TRUE(writer.reset().ok());
+    EXPECT_TRUE(writer.write_bool(true).ok()); // keyframe
+    EXPECT_TRUE(writer.write_unsigned(0).ok()); // version
+    EXPECT_TRUE(writer.write_unsigned(
+        entropy_mode == mffv1::EntropyMode::GolombRice ? 0 : 1).ok());
+    EXPECT_TRUE(writer.write_unsigned(0).ok()); // colorspace_type
+    EXPECT_TRUE(writer.write_bool(chroma_planes).ok());
+    EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
+    EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
+    EXPECT_TRUE(writer.write_bool(extra_plane).ok());
+
+    std::vector<std::byte> payload;
+    EXPECT_TRUE(writer.finalize(payload).ok());
+    return payload;
+}
+
+std::vector<std::byte> make_legacy_non_keyframe()
+{
+    mffv1::entropy::RangeEncoder writer;
+    EXPECT_TRUE(writer.reset().ok());
+    EXPECT_TRUE(writer.write_bool(false).ok());
+    std::vector<std::byte> payload;
+    EXPECT_TRUE(writer.finalize(payload).ok());
+    return payload;
 }
 
 mffv1::Status configure_minimal_v0_y_only(mffv1::IDecoder& decoder)
@@ -453,6 +486,96 @@ TEST(DecoderTest, FailedReconfigurePreservesPreviousConfiguration)
 
     EXPECT_TRUE(decode_status.ok()) << decode_status.message;
     EXPECT_EQ(storage[0], 0u);
+}
+
+TEST(DecoderTest, BootstrapLegacyFrameConfiguresUnconfiguredDecoder)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 16;
+    options.frame_height = 8;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    const auto payload = make_legacy_bootstrap_frame();
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    EXPECT_EQ(bootstrap.info.state, mffv1::LegacyBootstrapState::Configured);
+    EXPECT_EQ(bootstrap.info.frame_info.version, 0u);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 16u);
+    EXPECT_EQ(bootstrap.info.frame_info.height, 8u);
+    EXPECT_TRUE(bootstrap.info.frame_info.keyframe);
+
+    mffv1::FrameInfo info;
+    const auto inspect_status = result.decoder->inspect_frame(zero_scalar_payload(), info);
+    EXPECT_TRUE(inspect_status.ok()) << inspect_status.message;
+    EXPECT_EQ(info.version, 0u);
+}
+
+TEST(DecoderTest, BootstrapLegacyFrameReportsMatchingCurrentConfiguration)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 16;
+    options.frame_height = 8;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+    const auto payload = make_legacy_bootstrap_frame();
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::MatchesCurrentConfiguration);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 16u);
+    EXPECT_EQ(bootstrap.info.frame_info.height, 8u);
+}
+
+TEST(DecoderTest, BootstrapLegacyFrameReportsDifferentCurrentConfiguration)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 16;
+    options.frame_height = 8;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+    const auto payload = make_legacy_bootstrap_frame(
+        mffv1::EntropyMode::Range,
+        true);
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::DiffersFromCurrentConfiguration);
+
+    mffv1::FrameInfo info;
+    const auto inspect_status = result.decoder->inspect_frame(zero_scalar_payload(), info);
+    EXPECT_TRUE(inspect_status.ok()) << inspect_status.message;
+    EXPECT_FALSE(info.has_chroma_planes);
+}
+
+TEST(DecoderTest, BootstrapLegacyFrameReportsNoEmbeddedParameters)
+{
+    const auto result = mffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    const auto payload = make_legacy_non_keyframe();
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::NoEmbeddedParameters);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 0u);
+
+    mffv1::FrameInfo info;
+    const auto inspect_status = result.decoder->inspect_frame(payload, info);
+    EXPECT_FALSE(inspect_status.ok());
+    EXPECT_EQ(inspect_status.code, mffv1::ErrorCode::InvalidState);
 }
 
 TEST(DecoderTest, DecodeRequiresConfiguration)

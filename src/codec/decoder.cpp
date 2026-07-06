@@ -2,8 +2,10 @@
 
 #include "codec/configuration_record_parser.hpp"
 #include "codec/frame_decode_context.hpp"
+#include "codec/frame_info_builder.hpp"
 #include "codec/frame_parser.hpp"
 #include "codec/frame_validator.hpp"
+#include "codec/legacy_frame_bootstrap_parser.hpp"
 #include "codec/slice_executor.hpp"
 #include "mffv1/stream_parameters.hpp"
 #include "util/status.hpp"
@@ -41,6 +43,45 @@ public:
         slice_executor_ = std::make_unique<codec::SliceExecutor>(
             *stream_, options_.thread_count, options_.cpu);
         return ok_status();
+    }
+
+    LegacyBootstrapResult bootstrap_legacy_frame(ByteSpan frame_payload) override
+    {
+        LegacyBootstrapResult result;
+        if (frame_payload.empty()) {
+            result.status = make_error(ErrorCode::InvalidArgument, "frame payload is empty");
+            return result;
+        }
+
+        const codec::LegacyFrameBootstrapParser parser;
+        codec::LegacyFrameBootstrap bootstrap;
+        result.status = parser.parse(
+            frame_payload, options_.frame_width, options_.frame_height, bootstrap);
+        if (!result.status.ok()) {
+            return result;
+        }
+
+        if (!bootstrap.has_embedded_parameters) {
+            result.info.state = LegacyBootstrapState::NoEmbeddedParameters;
+            return result;
+        }
+
+        auto frame_info = codec::make_frame_info(bootstrap.stream);
+        frame_info.keyframe = bootstrap.keyframe;
+        result.info.frame_info = frame_info;
+
+        if (!stream_.has_value()) {
+            stream_ = std::move(bootstrap.stream);
+            slice_executor_ = std::make_unique<codec::SliceExecutor>(
+                *stream_, options_.thread_count, options_.cpu);
+            result.info.state = LegacyBootstrapState::Configured;
+            return result;
+        }
+
+        result.info.state = syntax::stream_parameters_equivalent(*stream_, bootstrap.stream)
+            ? LegacyBootstrapState::MatchesCurrentConfiguration
+            : LegacyBootstrapState::DiffersFromCurrentConfiguration;
+        return result;
     }
 
     Status inspect_frame(ByteSpan frame_payload, FrameInfo& out_info) const override

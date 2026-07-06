@@ -4,9 +4,10 @@ This document designs future decoder support for FFV1 version 0/1 streams whose
 `Parameters()` syntax is embedded in keyframes instead of provided through an
 external Configuration Record or Codec Private block.
 
-This is a design document, not implemented public behavior. The current
-decoder still requires callers to configure version 0/1 streams before
-`inspect_frame()` or `decode_frame()`.
+This document records the design behind the decoder's legacy bootstrap API.
+Some implementation details may continue to evolve, but the public API
+described here is the intended integration model for version 0/1 streams whose
+parameters are embedded in keyframes.
 
 ## Problem
 
@@ -80,7 +81,7 @@ The enum gives adapters a stable branch point:
 
 ## Proposed Decoder API
 
-Add an explicit method to `IDecoder`:
+`IDecoder` exposes an explicit method:
 
 ```cpp
 virtual LegacyBootstrapResult bootstrap_legacy_frame(ByteSpan frame_payload) = 0;
@@ -169,13 +170,14 @@ For Golomb-Rice legacy streams, a bit-level reader is required. The current
 Golomb-Rice reader is sample-difference oriented and does not yet expose a
 general `ur` `SymbolReader` for headers or parameters.
 
-## Suggested Implementation Stages
+## Implementation Stages
 
-1. Add internal `LegacyFrameBootstrapParser` that can parse version 0/1 range
-   keyframe `Parameters()` into `StreamParameters` without committing decoder
-   state.
-2. Add parameter-equivalence tests for equal and changed normalized streams.
-3. Add public result types and `IDecoder::bootstrap_legacy_frame()`.
+1. Done: add internal `LegacyFrameBootstrapParser` that can parse version 0/1
+   range-coded keyframe `Parameters()` into `StreamParameters` without
+   committing decoder state.
+2. Done: add parameter-equivalence tests for equal and changed normalized
+   streams.
+3. Done: add public result types and `IDecoder::bootstrap_legacy_frame()`.
 4. Decode the same bootstrap frame after configuration for single-slice range
    streams.
 5. Extend the model to legacy range multi-slice content once content boundary

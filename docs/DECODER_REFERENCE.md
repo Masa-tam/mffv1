@@ -39,6 +39,12 @@ The normal lifecycle is:
 5. Prepare output planes.
 6. Call `decode_frame()` once per frame, in presentation order.
 
+For FFV1 version 0/1 streams that carry keyframe-embedded `Parameters()` and
+have no external Codec Private data, call `bootstrap_legacy_frame()` on the
+keyframe before inspection or decoding. This explicit bootstrap step may
+configure an unconfigured decoder or report that embedded parameters differ
+from the current decoder configuration.
+
 One decoder instance represents one configured FFV1 stream. Reconfiguration
 replaces the stream parameters and clears all reference state used by
 non-keyframes.
@@ -136,13 +142,46 @@ four-byte CRC parity. A non-zero CRC remainder is rejected even when
 `DecoderOptions::verify_crc` is false.
 
 For versions 0 and 1, the current API expects the range-coded `Parameters()`
-payload to be supplied to `configure()` by the container integration. The
-decoder does not currently extract keyframe-embedded `Parameters()` from a
-complete legacy frame. This is an important integration limitation for legacy
-containers.
+payload to be supplied to `configure()` by the container integration when that
+payload is already available. If a legacy container stores `Parameters()` only
+inside keyframes, use `bootstrap_legacy_frame()` instead.
 
 A successful call clears prior frame-reference state. A failed call leaves the
 previous configuration unchanged.
+
+## Legacy Keyframe Bootstrap
+
+```cpp
+mffv1::LegacyBootstrapResult bootstrap =
+    decoder->bootstrap_legacy_frame(frame_payload);
+```
+
+Declaration:
+
+```cpp
+virtual LegacyBootstrapResult bootstrap_legacy_frame(ByteSpan frame_payload) = 0;
+```
+
+`bootstrap_legacy_frame()` parses a complete FFV1 version 0/1 frame far enough
+to read keyframe-embedded `Parameters()`. It does not decode samples.
+
+On success, inspect `bootstrap.info.state`:
+
+| State | Meaning |
+| --- | --- |
+| `NoEmbeddedParameters` | The frame did not carry embedded parameters, usually because it is not a keyframe. The decoder state is unchanged. |
+| `Configured` | The decoder was unconfigured and is now configured from the keyframe parameters. |
+| `MatchesCurrentConfiguration` | Embedded parameters were present and match the current decoder configuration. |
+| `DiffersFromCurrentConfiguration` | Embedded parameters were present but differ from the current decoder configuration. The decoder state is unchanged. |
+
+Parameter changes are reported as a successful result with
+`DiffersFromCurrentConfiguration`, not as a failed `Status`. A caller can then
+create or reconfigure a decoder deliberately from that keyframe and discard
+old reference state.
+
+`decode_frame()` does not call `bootstrap_legacy_frame()` implicitly. This keeps
+configuration changes visible to container adapters and prevents hidden
+reference-state resets.
 
 ## Inspecting A Frame
 
@@ -403,8 +442,8 @@ The current decoder implements:
 - Version 3 micro-versions below 4 are rejected as unstable.
 - Sample depths above 16 bits are unsupported.
 - Colorspace types other than YCbCr and RGB are unsupported.
-- Legacy version 0/1 frame-embedded `Parameters()` are not automatically
-  extracted; see Configuring A Stream.
+- Legacy version 0/1 frame-embedded `Parameters()` require an explicit
+  `bootstrap_legacy_frame()` call before inspecting or decoding.
 - Legacy version 0/1 Golomb-Rice multi-slice frame parsing is not implemented.
 - Relaxed parsing mode is not implemented; `DecoderOptions::strict` must stay
   true.

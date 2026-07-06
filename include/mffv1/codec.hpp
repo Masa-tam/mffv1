@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 
 #include "mffv1/config.hpp"
@@ -9,11 +10,29 @@
 
 namespace mffv1 {
 
+enum class LegacyBootstrapState : std::uint8_t {
+    NoEmbeddedParameters,
+    Configured,
+    MatchesCurrentConfiguration,
+    DiffersFromCurrentConfiguration,
+};
+
+struct LegacyBootstrapInfo {
+    LegacyBootstrapState state = LegacyBootstrapState::NoEmbeddedParameters;
+    FrameInfo frame_info;
+};
+
+struct LegacyBootstrapResult {
+    Status status;
+    LegacyBootstrapInfo info;
+};
+
 class IDecoder {
 public:
     virtual ~IDecoder() = default;
 
     virtual Status configure(ByteSpan configuration_record) = 0;
+    virtual LegacyBootstrapResult bootstrap_legacy_frame(ByteSpan frame_payload) = 0;
     virtual Status inspect_frame(ByteSpan frame_payload, FrameInfo& out_info) const = 0;
     virtual Status decode_frame(ByteSpan frame_payload, MutableFrameView output) = 0;
 };
@@ -40,4 +59,3 @@ DecoderFactoryResult create_decoder(const DecoderOptions& options);
 EncoderFactoryResult create_encoder(const EncoderOptions& options);
 
 } // namespace mffv1
-

@@ -59,6 +59,33 @@ std::string describe_range_state(
     return out.str();
 }
 
+std::string describe_stream_summary(const mffv1::syntax::StreamParameters& stream)
+{
+    std::ostringstream out;
+    out << "stream entropy="
+        << (stream.entropy_mode == mffv1::EntropyMode::GolombRice ? "gr" : "range")
+        << " version=" << stream.version
+        << "." << stream.micro_version
+        << " colorspace=" << stream.colorspace_type
+        << " bits=" << static_cast<int>(stream.bits_per_raw_sample)
+        << " chroma=" << stream.chroma_planes
+        << " subsample=" << static_cast<int>(stream.log2_h_chroma_subsample)
+        << "," << static_cast<int>(stream.log2_v_chroma_subsample)
+        << " extra=" << stream.extra_plane
+        << " grid=" << stream.num_h_slices << "x" << stream.num_v_slices
+        << " qsets=" << stream.quant_table_sets.size()
+        << " state8=" << static_cast<int>(stream.state_transition[8])
+        << " state128=" << static_cast<int>(stream.state_transition[128])
+        << " statesets=" << stream.initial_states.size();
+    for (std::size_t i = 0; i < stream.quant_table_sets.size(); ++i) {
+        out << " q" << i << "=" << stream.quant_table_sets[i].context_count;
+        if (i < stream.initial_states.size()) {
+            out << "/states" << stream.initial_states[i].contexts.size();
+        }
+    }
+    return out.str();
+}
+
 std::string describe_legacy_bootstrap_state(
     const mffv1_testvectors::DecodeVector& vector)
 {
@@ -88,7 +115,9 @@ std::string describe_legacy_bootstrap_state(
         << describe_range_state(bootstrap.range_state_after_keyframe)
         << "}";
     if (bootstrap.has_embedded_parameters) {
-        out << " after_parameters{"
+        out << " "
+            << describe_stream_summary(bootstrap.stream)
+            << " after_parameters{"
             << describe_range_state(bootstrap.range_state_after_parameters)
             << "}";
     }
@@ -131,27 +160,7 @@ std::string describe_frame_parse(
     }
 
     std::ostringstream out;
-    out << "stream entropy="
-        << (stream.entropy_mode == mffv1::EntropyMode::GolombRice ? "gr" : "range")
-        << " version=" << stream.version
-        << "." << stream.micro_version
-        << " colorspace=" << stream.colorspace_type
-        << " bits=" << static_cast<int>(stream.bits_per_raw_sample)
-        << " chroma=" << stream.chroma_planes
-        << " subsample=" << static_cast<int>(stream.log2_h_chroma_subsample)
-        << "," << static_cast<int>(stream.log2_v_chroma_subsample)
-        << " extra=" << stream.extra_plane
-        << " grid=" << stream.num_h_slices << "x" << stream.num_v_slices
-        << " qsets=" << stream.quant_table_sets.size()
-        << " state8=" << static_cast<int>(stream.state_transition[8])
-        << " state128=" << static_cast<int>(stream.state_transition[128])
-        << " statesets=" << stream.initial_states.size();
-    for (std::size_t i = 0; i < stream.quant_table_sets.size(); ++i) {
-        out << " q" << i << "=" << stream.quant_table_sets[i].context_count;
-        if (i < stream.initial_states.size()) {
-            out << "/states" << stream.initial_states[i].contexts.size();
-        }
-    }
+    out << describe_stream_summary(stream);
     out
         << " slices=" << frame.slices.size();
     for (const auto& slice : frame.slices) {

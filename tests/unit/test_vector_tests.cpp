@@ -423,6 +423,13 @@ std::string describe_legacy_range_initial_state_probe(
         std::uint32_t mismatch_y = 0;
         bool failed = false;
     };
+    enum class InitialStatePattern {
+        Uniform,
+        ZeroOnly,
+        ExponentOnly,
+        SignOnly,
+        MagnitudeOnly,
+    };
 
     std::size_t measured_sample_count = 0;
     if (!vector.expected_planes.empty()
@@ -445,6 +452,7 @@ std::string describe_legacy_range_initial_state_probe(
     const auto measure_candidate = [&](
                                        std::uint16_t candidate,
                                        const mffv1::syntax::StateTransitionTable& transition,
+                                       InitialStatePattern pattern,
                                        CandidateMatch& out_match) {
         out_match.state = candidate;
         if (vector.expected_planes.empty()
@@ -460,7 +468,30 @@ std::string describe_legacy_range_initial_state_probe(
         }
 
         mffv1::entropy::RangeCoder::ScalarContextStates states{};
-        states.fill(static_cast<std::uint8_t>(candidate));
+        const auto candidate_state = static_cast<std::uint8_t>(candidate);
+        states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+        const auto fill_range = [&](std::size_t begin, std::size_t end) {
+            for (std::size_t i = begin; i < end; ++i) {
+                states[i] = candidate_state;
+            }
+        };
+        switch (pattern) {
+        case InitialStatePattern::Uniform:
+            states.fill(candidate_state);
+            break;
+        case InitialStatePattern::ZeroOnly:
+            states[0] = candidate_state;
+            break;
+        case InitialStatePattern::ExponentOnly:
+            fill_range(1, 11);
+            break;
+        case InitialStatePattern::SignOnly:
+            fill_range(11, 22);
+            break;
+        case InitialStatePattern::MagnitudeOnly:
+            fill_range(22, states.size());
+            break;
+        }
         const std::array state_bank{std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{
             &states,
             1,
@@ -533,12 +564,13 @@ std::string describe_legacy_range_initial_state_probe(
     const auto append_best_matches = [&](
                                          std::ostringstream& out,
                                          std::string_view label,
-                                         const mffv1::syntax::StateTransitionTable& transition) {
+                                         const mffv1::syntax::StateTransitionTable& transition,
+                                         InitialStatePattern pattern) {
         std::vector<CandidateMatch> best_matches;
         best_matches.reserve(8);
         for (std::uint16_t candidate = 0; candidate <= 255; ++candidate) {
             CandidateMatch match;
-            if (!measure_candidate(candidate, transition, match)) {
+            if (!measure_candidate(candidate, transition, pattern, match)) {
                 continue;
             }
             best_matches.push_back(match);
@@ -619,9 +651,13 @@ std::string describe_legacy_range_initial_state_probe(
         ++match_count;
     }
     out << " matches=" << match_count;
-    append_best_matches(out, "custom_best", stream.state_transition);
-    append_best_matches(out, "default_best", mffv1::syntax::kDefaultStateTransition);
-    append_best_matches(out, "swapped_custom_best", swapped_custom_transition);
+    append_best_matches(out, "custom_best", stream.state_transition, InitialStatePattern::Uniform);
+    append_best_matches(out, "default_best", mffv1::syntax::kDefaultStateTransition, InitialStatePattern::Uniform);
+    append_best_matches(out, "swapped_custom_best", swapped_custom_transition, InitialStatePattern::Uniform);
+    append_best_matches(out, "zero_only_best", stream.state_transition, InitialStatePattern::ZeroOnly);
+    append_best_matches(out, "exponent_only_best", stream.state_transition, InitialStatePattern::ExponentOnly);
+    append_best_matches(out, "sign_only_best", stream.state_transition, InitialStatePattern::SignOnly);
+    append_best_matches(out, "magnitude_only_best", stream.state_transition, InitialStatePattern::MagnitudeOnly);
     return out.str();
 }
 

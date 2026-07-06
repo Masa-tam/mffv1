@@ -582,3 +582,11 @@ The probe also checks a swapped zero/one state-update transition derived from
 the parsed custom table. That variant matches only eight luma samples before
 diverging on the same v0 controls. A simple zero/one transition-update swap is
 therefore not the missing historical behavior.
+
+The initial-state ranking now separates the 32 scalar state slots into
+`zero_only`, `exponent_only`, `sign_only`, and `magnitude_only` groups. On the
+gray and nominal yuv420p v0 controls, changing only `states[0]` gives the same
+best result as changing all 32 states (`state255=408/512`), while changing only
+the exponent, sign, or magnitude groups still diverges at the fourth sample.
+This narrows the useful part of the hypothesis to the first zero/non-zero
+decision bit used by range-coded signed symbols.

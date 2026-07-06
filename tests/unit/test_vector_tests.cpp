@@ -385,6 +385,48 @@ std::string describe_compact_trace(
     return out.str();
 }
 
+std::string describe_rgb_internal_candidates(
+    std::span<const mffv1_testvectors::PlaneVector> expected_planes,
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::codec::GolombRiceSampleTrace& trace)
+{
+    if (stream.colorspace_type != 1 || trace.plane > 2 || expected_planes.size() < 3) {
+        return {};
+    }
+
+    const auto p0 = sample_at(
+        expected_planes[0].samples, expected_planes[0].info, trace.x, trace.y);
+    const auto p1 = sample_at(
+        expected_planes[1].samples, expected_planes[1].info, trace.x, trace.y);
+    const auto p2 = sample_at(
+        expected_planes[2].samples, expected_planes[2].info, trace.x, trace.y);
+    const auto as_rgb = mffv1::syntax::forward_jpeg2000_rct(
+        static_cast<std::uint16_t>(p0),
+        static_cast<std::uint16_t>(p1),
+        static_cast<std::uint16_t>(p2),
+        stream.bits_per_raw_sample,
+        stream.extra_plane);
+    const auto as_gbr = mffv1::syntax::forward_jpeg2000_rct(
+        static_cast<std::uint16_t>(p2),
+        static_cast<std::uint16_t>(p0),
+        static_cast<std::uint16_t>(p1),
+        stream.bits_per_raw_sample,
+        stream.extra_plane);
+
+    const std::array<std::int32_t, 3> rgb_values{as_rgb.y, as_rgb.cb, as_rgb.cr};
+    const std::array<std::int32_t, 3> gbr_values{as_gbr.y, as_gbr.cb, as_gbr.cr};
+    std::ostringstream out;
+    out << " rgb_candidates p0/p1/p2="
+        << p0 << "/" << p1 << "/" << p2
+        << " as_rgb="
+        << rgb_values[0] << "/" << rgb_values[1] << "/" << rgb_values[2]
+        << " as_gbr="
+        << gbr_values[0] << "/" << gbr_values[1] << "/" << gbr_values[2]
+        << " active="
+        << rgb_values[trace.plane] << "/" << gbr_values[trace.plane];
+    return out.str();
+}
+
 class FirstGolombRiceMismatchObserver final : public mffv1::codec::SliceDecodeObserver {
 public:
     explicit FirstGolombRiceMismatchObserver(
@@ -448,6 +490,7 @@ public:
             << " expected_sample=" << expected_sample
             << " actual_diff=" << trace.difference
             << " expected_diff=" << expected_difference
+            << describe_rgb_internal_candidates(expected_planes_, stream_, trace)
             << " state_before="
             << describe_adaptive_state(trace.adaptive_state_before)
             << " state_after="

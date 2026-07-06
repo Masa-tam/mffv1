@@ -4,6 +4,7 @@
 #include "codec/frame_parser.hpp"
 #include "codec/legacy_frame_bootstrap_parser.hpp"
 #include "codec/slice_decoder.hpp"
+#include "codec/slice_header_parser.hpp"
 #include "codec/slice_output_window.hpp"
 #include "entropy/range_coder.hpp"
 #include "mffv1/color_transform.hpp"
@@ -39,6 +40,10 @@ std::string describe_legacy_golomb_rice_boundary_probe(
     const mffv1::codec::LegacyFrameBootstrap& bootstrap);
 
 std::string describe_legacy_range_expected_residual_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap);
+
+std::string describe_legacy_range_slice_header_probe(
     const mffv1_testvectors::DecodeVector& vector,
     const mffv1::codec::LegacyFrameBootstrap& bootstrap);
 
@@ -1663,6 +1668,66 @@ std::string describe_legacy_range_expected_residual_probe(
     return out.str();
 }
 
+std::string describe_legacy_range_slice_header_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    auto stream = bootstrap.stream;
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()) {
+        return {};
+    }
+    stream.width = vector.frame_width;
+    stream.height = vector.frame_height;
+
+    const std::array<std::size_t, 1> context_counts{1};
+    mffv1::entropy::RangeCoder reader;
+    auto status = reader.reset_from_arithmetic_state(
+        vector.frame_payloads.front(),
+        context_counts,
+        {},
+        stream.state_transition,
+        bootstrap.range_state_after_parameters);
+    if (!status.ok()) {
+        return std::string{" slice_header_probe="} + describe_status(status);
+    }
+    if (stream.version == 0) {
+        status = reader.set_legacy_v0_arithmetic(true);
+        if (!status.ok()) {
+            return std::string{" slice_header_probe="} + describe_status(status);
+        }
+    }
+
+    mffv1::syntax::SliceDescriptor descriptor;
+    const mffv1::codec::SliceHeaderParser header_parser;
+    status = header_parser.read_descriptor(reader, stream, descriptor);
+    std::ostringstream out;
+    out << " slice_header_probe";
+    if (!status.ok()) {
+        out << "=" << describe_status(status)
+            << " after{"
+            << describe_range_state(reader.arithmetic_state())
+            << "}";
+        return out.str();
+    }
+
+    out << " x=" << descriptor.x
+        << " y=" << descriptor.y
+        << " w=" << descriptor.width
+        << " h=" << descriptor.height
+        << " raster=" << descriptor.raster_x << "," << descriptor.raster_y
+        << "+" << descriptor.raster_width << "x" << descriptor.raster_height
+        << " content=" << descriptor.content_byte_offset
+        << " qidx=";
+    for (const auto index : descriptor.quant_table_set_indexes) {
+        out << index << ",";
+    }
+    out << " after{"
+        << describe_range_state(reader.arithmetic_state())
+        << "}";
+    return out.str();
+}
+
 std::string legacy_v1_sibling_name(std::string_view name)
 {
     constexpr std::string_view marker = "_v0_legacy_";
@@ -1758,6 +1823,7 @@ std::string describe_legacy_bootstrap_state(
             << describe_legacy_range_symbol_probe(
                 vector, bootstrap.stream, false, "range_probe_carry_context")
             << describe_legacy_range_expected_residual_probe(vector, bootstrap)
+            << describe_legacy_range_slice_header_probe(vector, bootstrap)
             << describe_legacy_golomb_rice_boundary_probe(vector, bootstrap)
             << describe_legacy_range_shifted_state_probe(vector, bootstrap)
             << describe_legacy_range_initial_state_probe(vector, bootstrap)

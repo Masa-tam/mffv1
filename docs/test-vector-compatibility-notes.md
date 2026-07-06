@@ -659,6 +659,14 @@ with no inversion, so the mismatch occurs before sign or prediction can matter:
 the first zero/nonzero decision for a required nonzero residual takes the zero
 path under the current v0 range model.
 
+The diagnostic also probes whether the same arithmetic position can be read as
+a legacy slice header. For the nonzero vector it parses as a plausible
+single-slice header (`x=0 y=0 raster=1x1 qidx=0,0`) without advancing the byte
+offset, only the arithmetic state. Replaying that header was tested as an
+implementation experiment, but it still reconstructs the first nonzero sample
+as zero. This rules out a missing same-byte legacy slice header as a complete
+fix for the current v0 range-coded nonzero mismatch.
+
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data
 or first-sample mismatch diagnostics, so they continue to support the earlier

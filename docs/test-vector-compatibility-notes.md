@@ -684,6 +684,15 @@ the later nonzero samples at positions 3 and 15. This confirms that the
 expected-plane data and predictor path are valid; the remaining v0 difference
 is localized to the v0 range scalar/context/arithmetic-state path before the
 first residual decision.
+The expected-residual trace now also records arithmetic state and key scalar
+states around nonzero expected samples. In the v0 failing path, the zero flag
+state remains pinned as `s[0]=255->255` and the exponent, sign, and magnitude
+states do not advance, proving that the residual never leaves the zero-symbol
+branch. The v1 sibling starts the first sample with `s[0]=128->91`, advances
+the exponent and magnitude states, and reconstructs `-128`. This further
+narrows the v0 issue to the historical initial zero-symbol state or its
+interaction with the v0 arithmetic interval after embedded parameters, rather
+than to the signed residual body.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

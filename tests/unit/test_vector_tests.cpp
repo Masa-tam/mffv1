@@ -1627,6 +1627,31 @@ std::string describe_legacy_range_expected_residual_probe(
 
     std::ostringstream out;
     out << " expected_residual_probe";
+    const auto state_at = [](
+                              const mffv1::entropy::RangeCoder::ContextStateBanks& contexts,
+                              std::size_t context,
+                              std::size_t state_index) -> int {
+        if (contexts.empty()
+            || context >= contexts.front().size()
+            || state_index >= contexts.front()[context].size()) {
+            return -1;
+        }
+        return static_cast<int>(contexts.front()[context][state_index]);
+    };
+    const auto append_scalar_state_summary = [&state_at](
+                                                 std::ostringstream& trace,
+                                                 const mffv1::entropy::RangeCoder::ContextStateBanks& before,
+                                                 const mffv1::entropy::RangeCoder::ContextStateBanks& after,
+                                                 std::size_t context) {
+        trace << " s[0]=" << state_at(before, context, 0)
+              << "->" << state_at(after, context, 0)
+              << " s[1]=" << state_at(before, context, 1)
+              << "->" << state_at(after, context, 1)
+              << " s[11]=" << state_at(before, context, 11)
+              << "->" << state_at(after, context, 11)
+              << " s[22]=" << state_at(before, context, 22)
+              << "->" << state_at(after, context, 22);
+    };
     std::size_t decoded_samples = 0;
     for (std::uint32_t y = 0; y < expected.info.height; ++y) {
         for (std::uint32_t x = 0; x < expected.info.width; ++x) {
@@ -1653,11 +1678,29 @@ std::string describe_legacy_range_expected_residual_probe(
                 expected_difference = -expected_difference;
             }
 
+            const auto before_state = reader.arithmetic_state();
+            mffv1::entropy::RangeCoder::ContextStateBanks before_contexts;
+            status = reader.copy_contexts(before_contexts);
+            if (!status.ok()) {
+                out << " #" << decoded_samples
+                    << "@(" << x << "," << y << ")=context_err("
+                    << describe_status(status) << ")";
+                return out.str();
+            }
             std::int64_t actual_difference = 0;
             status = reader.read_signed(0, context.context, actual_difference);
             if (!status.ok()) {
                 out << " #" << decoded_samples
                     << "@(" << x << "," << y << ")=err("
+                    << describe_status(status) << ")";
+                return out.str();
+            }
+            const auto after_state = reader.arithmetic_state();
+            mffv1::entropy::RangeCoder::ContextStateBanks after_contexts;
+            status = reader.copy_contexts(after_contexts);
+            if (!status.ok()) {
+                out << " #" << decoded_samples
+                    << "@(" << x << "," << y << ")=context_err("
                     << describe_status(status) << ")";
                 return out.str();
             }
@@ -1679,6 +1722,18 @@ std::string describe_legacy_range_expected_residual_probe(
                 << " exp_diff=" << expected_difference
                 << " act_diff=" << actual_difference
                 << " act_sample=" << static_cast<int>(actual_sample);
+            if (expected_sample != 0 || actual_sample != 0) {
+                out << " arith{"
+                    << describe_range_state(before_state)
+                    << "->"
+                    << describe_range_state(after_state)
+                    << "}";
+                append_scalar_state_summary(
+                    out,
+                    before_contexts,
+                    after_contexts,
+                    context.context);
+            }
             line.mutable_current()[x] = actual_sample;
             ++decoded_samples;
         }

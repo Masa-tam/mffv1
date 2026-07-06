@@ -31,7 +31,7 @@ The generated-vector tests accept these optional environment variables:
 - `MFFV1_TEST_VECTOR_FILTER`: run only vectors whose names contain the filter
   text.
 - `MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP`: when nonzero, report legacy bootstrap
-  diagnostics for matched vectors that decode successfully.
+  diagnostics for matched legacy vectors, including unsupported-vector reports.
 - `MFFV1_TEST_VECTOR_REQUIRE_ALL_SUPPORTED`: when nonzero, fail if any matched
   generated vector is still classified as an unsupported compatibility gap.
 

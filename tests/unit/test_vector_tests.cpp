@@ -4241,8 +4241,10 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
         const auto unsupported_reason = unsupported_decode_vector_reason(vector);
         if (!unsupported_reason.empty()) {
             std::ostringstream entry;
-            entry << vector.name << ": " << unsupported_reason
-                  << describe_legacy_bootstrap_state(vector);
+            entry << vector.name << ": " << unsupported_reason;
+            if (trace_bootstrap) {
+                entry << describe_legacy_bootstrap_state(vector);
+            }
             unsupported_vectors.push_back(entry.str());
             continue;
         }

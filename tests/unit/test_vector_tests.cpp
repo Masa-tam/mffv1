@@ -923,6 +923,217 @@ std::string describe_legacy_range_initial_state_probe(
         }
     };
 
+    const auto append_refill_variant_probe = [&](
+                                                 std::ostringstream& out,
+                                                 std::uint8_t zero_state) {
+        if (vector.expected_planes.empty()
+            || vector.expected_planes.front().empty()
+            || stream.quant_table_sets.empty()) {
+            return;
+        }
+        const auto& expected = vector.expected_planes.front().front();
+        if (expected.info.width == 0 || expected.info.height == 0
+            || expected.info.sample_format != mffv1::SampleFormat::UInt8) {
+            return;
+        }
+
+        struct RefillVariant {
+            std::string_view label;
+            std::uint32_t threshold = 256;
+            std::int32_t byte_bias = 0;
+            std::uint32_t split_bias = 0;
+            bool inclusive_nonzero = false;
+        };
+        struct MiniRangeReader {
+            std::span<const std::byte> payload;
+            const mffv1::syntax::StateTransitionTable* transition = nullptr;
+            std::uint32_t range = 0;
+            std::uint32_t low = 0;
+            std::uint64_t byte_position = 0;
+            bool end = false;
+            std::uint32_t refill_threshold = 256;
+            std::int32_t byte_bias = 0;
+            std::uint32_t split_bias = 0;
+            bool inclusive_nonzero = false;
+            mffv1::entropy::RangeCoder::ScalarContextStates states{};
+
+            void refill() noexcept
+            {
+                if (range >= refill_threshold) {
+                    return;
+                }
+                range <<= 8;
+                low <<= 8;
+                if (end) {
+                    return;
+                }
+                if (byte_position < payload.size()) {
+                    const auto payload_byte = static_cast<std::uint32_t>(
+                        payload[static_cast<std::size_t>(byte_position)]);
+                    const auto biased_byte = static_cast<std::uint32_t>(
+                        std::clamp<std::int32_t>(
+                            static_cast<std::int32_t>(payload_byte) + byte_bias,
+                            0,
+                            256));
+                    low += biased_byte;
+                    ++byte_position;
+                }
+                if (byte_position >= payload.size()) {
+                    end = true;
+                }
+            }
+
+            bool read_rac(std::uint8_t& state) noexcept
+            {
+                const std::uint32_t rangeoff =
+                    (static_cast<std::uint64_t>(range) * state + split_bias) >> 8;
+                range -= rangeoff;
+                const bool is_nonzero_path = inclusive_nonzero
+                    ? low <= range
+                    : low < range;
+                if (is_nonzero_path) {
+                    state = mffv1::syntax::range_zero_state(*transition, state);
+                    refill();
+                    return false;
+                }
+                low -= range;
+                range = rangeoff;
+                state = mffv1::syntax::range_one_state(*transition, state);
+                refill();
+                return true;
+            }
+
+            bool read_signed(std::int64_t& out_value) noexcept
+            {
+                bool bit = read_rac(states[0]);
+                if (bit) {
+                    out_value = 0;
+                    return true;
+                }
+
+                std::uint32_t exponent = 0;
+                for (;;) {
+                    bit = read_rac(states[1 + std::min<std::uint32_t>(exponent, 9)]);
+                    if (!bit) {
+                        break;
+                    }
+                    ++exponent;
+                    if (exponent > 62) {
+                        return false;
+                    }
+                }
+
+                std::uint64_t magnitude = 1;
+                for (std::int32_t i = static_cast<std::int32_t>(exponent) - 1; i >= 0; --i) {
+                    bit = read_rac(states[22 + std::min<std::int32_t>(i, 9)]);
+                    magnitude = (magnitude << 1) | (bit ? 1u : 0u);
+                }
+                if (magnitude > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                    return false;
+                }
+
+                auto signed_value = static_cast<std::int64_t>(magnitude);
+                bit = read_rac(states[11 + std::min<std::uint32_t>(exponent, 10)]);
+                if (bit) {
+                    signed_value = -signed_value;
+                }
+                out_value = signed_value;
+                return true;
+            }
+        };
+
+        const auto measure_variant = [&](const RefillVariant& variant) {
+            CandidateMatch match;
+            MiniRangeReader reader;
+            reader.payload = payload;
+            reader.transition = &stream.state_transition;
+            reader.range = bootstrap.range_state_after_parameters.range;
+            reader.low = bootstrap.range_state_after_parameters.low;
+            reader.byte_position = bootstrap.range_state_after_parameters.byte_position;
+            reader.end = bootstrap.range_state_after_parameters.end
+                || reader.byte_position >= payload.size();
+            reader.refill_threshold = variant.threshold;
+            reader.byte_bias = variant.byte_bias;
+            reader.split_bias = variant.split_bias;
+            reader.inclusive_nonzero = variant.inclusive_nonzero;
+            reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+            reader.states[0] = zero_state;
+
+            const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+            mffv1::syntax::LineState line;
+            auto status = line.reset(expected.info.width);
+            if (!status.ok()) {
+                match.failed = true;
+                return match;
+            }
+
+            for (std::uint32_t y = 0; y < expected.info.height; ++y) {
+                for (std::uint32_t x = 0; x < expected.info.width; ++x) {
+                    const auto neighbors = line.neighbors(x);
+                    const auto prediction = mffv1::syntax::Predictor::median_predict(
+                        neighbors.left,
+                        neighbors.top,
+                        neighbors.top_left);
+                    mffv1::syntax::ContextDecision context;
+                    status = context_model.derive_context(neighbors, context);
+                    if (!status.ok()) {
+                        match.failed = true;
+                        return match;
+                    }
+                    std::int64_t difference64 = 0;
+                    if (!reader.read_signed(difference64)) {
+                        match.failed = true;
+                        return match;
+                    }
+                    if (context.invert_difference) {
+                        difference64 = -difference64;
+                    }
+                    const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                        prediction,
+                        static_cast<std::int32_t>(difference64),
+                        stream.bits_per_raw_sample);
+                    const auto expected_sample = sample_at(
+                        expected.samples,
+                        expected.info,
+                        x,
+                        y);
+                    if (static_cast<std::uint32_t>(reconstructed) != expected_sample) {
+                        match.mismatch_x = x;
+                        match.mismatch_y = y;
+                        return match;
+                    }
+                    line.mutable_current()[x] = reconstructed;
+                    ++match.matched_samples;
+                }
+                line.swap_lines();
+            }
+            return match;
+        };
+
+        constexpr std::array<RefillVariant, 10> variants{{
+            {"cur", 256, 0},
+            {"plus1", 256, 1},
+            {"minus1", 256, -1},
+            {"th257", 257, 0},
+            {"th512", 512, 0},
+            {"th257p1", 257, 1},
+            {"round", 256, 0, 128},
+            {"ceil", 256, 0, 255},
+            {"incl", 256, 0, 0, true},
+            {"ceilincl", 256, 0, 255, true},
+        }};
+        out << " refill_variant_probe/" << measured_sample_count;
+        for (const auto& variant : variants) {
+            const auto match = measure_variant(variant);
+            out << " " << variant.label << "=" << match.matched_samples;
+            if (match.failed) {
+                out << "/fail";
+            } else {
+                out << "@" << match.mismatch_x << "," << match.mismatch_y;
+            }
+        }
+    };
+
     std::ostringstream out;
     out << " initial_state_probe";
     std::size_t match_count = 0;
@@ -983,6 +1194,7 @@ std::string describe_legacy_range_initial_state_probe(
     append_best_matches(out, "magnitude_only_best", stream.state_transition, InitialStatePattern::MagnitudeOnly);
     append_zero_state_trace(out, 255);
     append_pivot_low_probe(out, 255);
+    append_refill_variant_probe(out, 255);
     return out.str();
 }
 

@@ -2617,25 +2617,33 @@ bool matches_test_vector_filter(std::string_view name, std::string_view filter)
     return filter.empty() || name.find(filter) != std::string_view::npos;
 }
 
-std::string_view unsupported_decode_vector_reason(
+std::string unsupported_decode_vector_reason(
     const mffv1_testvectors::DecodeVector& vector)
 {
     if (!vector.configuration_record.empty()) {
         return {};
     }
-    const auto name = vector.name;
-    if (name.find("_v1_legacy_") == std::string_view::npos) {
-        if (name.find("range_") != std::string_view::npos) {
-            return {};
-        }
-        if (name.find("gr_") != std::string_view::npos) {
-            return "legacy version 0 Golomb-Rice payload boundaries are not implemented";
-        }
-        return "legacy version 0 payload boundaries are not implemented";
+
+    if (vector.frame_payloads.empty()) {
+        return "legacy vector has no frame payloads";
     }
-    if (name.find("range_") == std::string_view::npos
-        && name.find("gr_") == std::string_view::npos) {
-        return "legacy vector entropy mode is not recognized";
+
+    mffv1::codec::LegacyFrameBootstrap bootstrap;
+    const mffv1::codec::LegacyFrameBootstrapParser bootstrap_parser;
+    const auto status = bootstrap_parser.parse(
+        vector.frame_payloads.front(),
+        vector.frame_width,
+        vector.frame_height,
+        bootstrap);
+    if (!status.ok()) {
+        return std::string{"legacy bootstrap parse failed: "} + describe_status(status);
+    }
+    if (!bootstrap.has_embedded_parameters) {
+        return "legacy vector has no embedded parameters";
+    }
+    if (bootstrap.stream.version == 0
+        && bootstrap.stream.entropy_mode == mffv1::EntropyMode::GolombRice) {
+        return "legacy version 0 Golomb-Rice payload boundaries are not implemented";
     }
     return {};
 }

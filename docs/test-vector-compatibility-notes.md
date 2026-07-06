@@ -474,3 +474,26 @@ internal v3 decoder tests and moves external vectors to earlier range scalar
 failures. Keep the current model where Slice Header and range-coded Slice
 Content share the arithmetic state while scalar contexts are reconfigured by
 Slice Header quantization-table index slot.
+
+The AVI-derived legacy v0 range vectors currently remain intentionally
+unsupported by the generated-vector public API test. Temporarily allowing
+`range_gray_v0_legacy_1slice.avi` through the same path as the passing v1 range
+vector reaches frame parsing and slice decoding, but the decoded plane first
+diverges at `x=3,y=0`: expected zero, decoded sample `253`. The parsed stream
+is gray 8-bit range-coded v0, single slice, with a computed content byte offset
+of 152. This makes v0 closer than an unsupported syntax failure, but not yet a
+passing compatibility profile.
+
+One v0 hypothesis was tested and rejected: reading keyframe-embedded
+`Parameters()` without reconfiguring the range scalar contexts after
+`keyframe` causes both real v0 and v1 AVI-derived range vectors to fail during
+bootstrap parsing (`unsupported range coder type` for v0 and an invalid custom
+state-transition delta for v1). The existing Parameters context
+reconfiguration is therefore part of the known-good v1 path and should not be
+removed to chase v0.
+
+The next v0 range investigation should compare the exact range context state
+after embedded `Parameters()` between the v1 passing vector and the v0 failing
+vector, then trace the first four decoded sample differences. The current
+evidence points away from a simple byte-boundary error and toward a v0-specific
+range state, fixed-table, or historical encoder compatibility detail.

@@ -4201,6 +4201,12 @@ bool is_supported_decode_vector(const mffv1_testvectors::DecodeVector& vector)
     return unsupported_decode_vector_reason(vector).empty();
 }
 
+bool is_known_unsupported_decode_vector_reason(std::string_view reason)
+{
+    return reason == "legacy version 0 Golomb-Rice payload boundaries are not implemented"
+        || reason == "legacy version 0 range-coded nonzero sample reconstruction is not implemented";
+}
+
 } // namespace
 #endif
 
@@ -4263,6 +4269,27 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
             message << "\n  " << entry;
         }
         GTEST_SKIP() << message.str();
+    }
+#endif
+}
+
+TEST(TestVectorTest, UnsupportedGeneratedVectorsAreKnownCompatibilityGaps)
+{
+#if defined(NO_DEFINE_TEST_VECTOR_DATA)
+    GTEST_SKIP() << "external FFV1 test vectors have not been generated";
+#else
+    std::size_t unsupported_count = 0;
+    for (const auto& vector : mffv1_testvectors::decode_vectors()) {
+        const auto reason = unsupported_decode_vector_reason(vector);
+        if (reason.empty()) {
+            continue;
+        }
+        ++unsupported_count;
+        EXPECT_TRUE(is_known_unsupported_decode_vector_reason(reason))
+            << vector.name << ": " << reason;
+    }
+    if (unsupported_count == 0) {
+        GTEST_SKIP() << "all generated FFV1 test vectors are currently supported";
     }
 #endif
 }

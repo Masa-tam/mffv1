@@ -778,6 +778,11 @@ default and parsed custom transitions. The nonzero control still decodes the
 first sample as zero in every entry mode. This weakens the hypothesis that the
 current v0 parser merely reads too much embedded Parameters data before Slice
 Content.
+The generated-vector test suite also has a guard for unsupported external
+vectors: only the known v0 Golomb-Rice payload-boundary gap and the known v0
+range-coded nonzero reconstruction gap may be skipped. This keeps future
+external-vector regressions from silently joining the compatibility exception
+set.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

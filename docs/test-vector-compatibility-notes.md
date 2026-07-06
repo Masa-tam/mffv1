@@ -669,6 +669,11 @@ fix for the current v0 range-coded nonzero mismatch.
 The probe now records the first residual after that candidate header too:
 `exp_diff=-128`, `act_diff=0`, and `act_sample=0`. The mismatch therefore
 survives both the no-header and header-replayed arithmetic positions.
+Preserving the default scalar state instead of forcing v0 `state[0]=255` was
+also tested and rejected: the all-zero v0 range vectors begin producing
+nonzero samples at sample 3. The zero-bias override is therefore still needed
+for the verified all-zero legacy v0 cases, even though it is not sufficient for
+the nonzero sample vector.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

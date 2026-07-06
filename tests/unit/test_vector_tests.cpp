@@ -984,11 +984,14 @@ std::string_view unsupported_decode_vector_reason(
         return {};
     }
     const auto name = vector.name;
-    if (name.find("_v1_legacy_") == std::string_view::npos) {
-        return "legacy version 0 payload boundaries are not implemented";
-    }
     if (name.find("gr_") != std::string_view::npos) {
         return "legacy Golomb-Rice bootstrap is not implemented";
+    }
+    if (name.find("_v1_legacy_") == std::string_view::npos) {
+        if (name.find("range_") != std::string_view::npos) {
+            return "legacy version 0 range compatibility is under investigation";
+        }
+        return "legacy version 0 payload boundaries are not implemented";
     }
     if (name.find("range_") == std::string_view::npos) {
         return "legacy vector entropy mode is not recognized";

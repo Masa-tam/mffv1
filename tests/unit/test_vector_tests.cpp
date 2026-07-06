@@ -1725,6 +1725,82 @@ std::string describe_legacy_range_slice_header_probe(
     out << " after{"
         << describe_range_state(reader.arithmetic_state())
         << "}";
+    if (!vector.expected_planes.empty()
+        && !vector.expected_planes.front().empty()
+        && !stream.quant_table_sets.empty()) {
+        const auto& expected = vector.expected_planes.front().front();
+        if (expected.info.width > 0
+            && expected.info.height > 0
+            && expected.info.sample_format == mffv1::SampleFormat::UInt8) {
+            std::vector<std::size_t> sample_context_counts;
+            sample_context_counts.reserve(stream.quant_table_sets.size());
+            for (const auto& qset : stream.quant_table_sets) {
+                sample_context_counts.push_back(qset.context_count);
+            }
+            status = reader.reconfigure_contexts(sample_context_counts);
+            if (status.ok() && stream.version == 0) {
+                status = reader.set_legacy_v0_arithmetic(true);
+            }
+            if (!status.ok()) {
+                out << " first_after_header=err(" << describe_status(status) << ")";
+                return out.str();
+            }
+
+            const auto before_sample = reader.arithmetic_state();
+            const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+            mffv1::syntax::LineState line;
+            status = line.reset(expected.info.width);
+            if (!status.ok()) {
+                out << " first_after_header=err(" << describe_status(status) << ")";
+                return out.str();
+            }
+            const auto neighbors = line.neighbors(0);
+            const auto prediction = mffv1::syntax::Predictor::median_predict(
+                neighbors.left,
+                neighbors.top,
+                neighbors.top_left);
+            mffv1::syntax::ContextDecision context;
+            status = context_model.derive_context(neighbors, context);
+            if (!status.ok()) {
+                out << " first_after_header=err(" << describe_status(status) << ")";
+                return out.str();
+            }
+            const auto expected_sample = sample_at(expected.samples, expected.info, 0, 0);
+            auto expected_difference = mffv1::syntax::Predictor::difference(
+                static_cast<std::int32_t>(expected_sample),
+                prediction,
+                stream.bits_per_raw_sample);
+            if (context.invert_difference) {
+                expected_difference = -expected_difference;
+            }
+            std::int64_t actual_difference = 0;
+            status = reader.read_signed(0, context.context, actual_difference);
+            if (!status.ok()) {
+                out << " first_after_header=err(" << describe_status(status) << ")";
+                return out.str();
+            }
+            auto reconstruction_difference = actual_difference;
+            if (context.invert_difference) {
+                reconstruction_difference = -reconstruction_difference;
+            }
+            const auto actual_sample = mffv1::syntax::Predictor::reconstruct(
+                prediction,
+                static_cast<std::int32_t>(reconstruction_difference),
+                stream.bits_per_raw_sample);
+            out << " first_after_header"
+                << " ctx=" << context.context
+                << " pred=" << prediction
+                << " exp_sample=" << expected_sample
+                << " exp_diff=" << expected_difference
+                << " act_diff=" << actual_difference
+                << " act_sample=" << static_cast<int>(actual_sample)
+                << " before{"
+                << describe_range_state(before_sample)
+                << "} after{"
+                << describe_range_state(reader.arithmetic_state())
+                << "}";
+        }
+    }
     return out.str();
 }
 

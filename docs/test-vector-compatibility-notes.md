@@ -666,6 +666,9 @@ offset, only the arithmetic state. Replaying that header was tested as an
 implementation experiment, but it still reconstructs the first nonzero sample
 as zero. This rules out a missing same-byte legacy slice header as a complete
 fix for the current v0 range-coded nonzero mismatch.
+The probe now records the first residual after that candidate header too:
+`exp_diff=-128`, `act_diff=0`, and `act_sample=0`. The mismatch therefore
+survives both the no-header and header-replayed arithmetic positions.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

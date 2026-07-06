@@ -1,11 +1,13 @@
 #include "test_vector_data.hpp"
 
+#include "bitstream/bit_writer.hpp"
 #include "codec/configuration_record_parser.hpp"
 #include "codec/frame_parser.hpp"
 #include "codec/legacy_frame_bootstrap_parser.hpp"
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_header_parser.hpp"
 #include "codec/slice_output_window.hpp"
+#include "entropy/golomb_rice_run.hpp"
 #include "entropy/range_coder.hpp"
 #include "mffv1/color_transform.hpp"
 #include "mffv1/configuration_parser.hpp"
@@ -3895,6 +3897,51 @@ GolombRiceBoundaryCandidateSummary measure_golomb_rice_boundary_candidate(
     return summary;
 }
 
+std::string describe_current_flat_run_prefix(
+    std::span<const std::byte> payload,
+    const mffv1::syntax::SliceDescriptor& candidate)
+{
+    mffv1::bitstream::BitWriter writer;
+    mffv1::entropy::GolombRiceRunState state;
+    const auto status = mffv1::entropy::write_golomb_rice_run(
+        writer, state, 0, candidate.width, candidate.width);
+    if (!status.ok()) {
+        return std::string{" legacy-gr-current-flat-run="} + describe_status(status);
+    }
+    const auto expected_bit_count = writer.bit_position();
+    if (!writer.byte_align_zero().ok()) {
+        return " legacy-gr-current-flat-run=byte-align-failed";
+    }
+    std::vector<std::byte> expected_bytes;
+    if (!writer.finalize(expected_bytes).ok()) {
+        return " legacy-gr-current-flat-run=finalize-failed";
+    }
+
+    const auto content_byte_offset =
+        static_cast<std::size_t>(candidate.content_byte_offset);
+    if (content_byte_offset >= payload.size()) {
+        return " legacy-gr-current-flat-run=payload-offset-out-of-range";
+    }
+    const auto available_bits =
+        (payload.size() - content_byte_offset) * std::uint64_t{8};
+    if (candidate.content_bit_offset >= available_bits) {
+        return " legacy-gr-current-flat-run=payload-bit-offset-out-of-range";
+    }
+    const auto payload_bit_count = std::min<std::uint64_t>(
+        expected_bit_count + 8,
+        available_bits - candidate.content_bit_offset);
+    std::ostringstream out;
+    out << " legacy-gr-current-flat-run expected_bits="
+        << describe_bit_range(expected_bytes, 0, expected_bit_count)
+        << " payload_bits="
+        << describe_bit_range(
+               payload.subspan(content_byte_offset),
+               candidate.content_bit_offset,
+               candidate.content_bit_offset + payload_bit_count)
+        << " expected_run_index=" << static_cast<int>(state.run_index);
+    return out.str();
+}
+
 std::string describe_legacy_golomb_rice_boundary_probe(
     const mffv1_testvectors::DecodeVector& vector,
     const mffv1::codec::LegacyFrameBootstrap& bootstrap)
@@ -3975,6 +4022,11 @@ std::string describe_legacy_golomb_rice_boundary_probe(
             out << "\nlegacy-gr-best-output "
                 << best_candidate.first_output_mismatch;
         }
+        auto best_descriptor = candidate;
+        best_descriptor.content_byte_offset = best_candidate.byte_offset;
+        best_descriptor.content_bit_offset = best_candidate.bit_offset;
+        out << "\n"
+            << describe_current_flat_run_prefix(payload, best_descriptor);
         std::size_t peer_count = 0;
         std::size_t peer_output_match_count = 0;
         out << "\nlegacy-gr-best-peers";

@@ -815,3 +815,11 @@ samples as four one-sample full runs followed by two two-sample full runs
 interruption at `x=8` with difference `-7`. This suggests the remaining v0
 Golomb-Rice difference is around long-run continuation or termination encoding,
 not around the predictor or the early run-index growth.
+Comparing the current encoder-side flat-run prefix against the same best
+candidate makes the gap concrete: for a 16-sample flat run, the current
+Golomb-Rice run writer emits `111111111`, while the v0 legacy payload starts
+with `11111100000101101...`. The first six one bits explain why the decoder
+matches through the two 2-sample runs; the following zero terminates the run
+too early under the current run table. This narrows the next investigation to
+the legacy v0 long-run code table or continuation threshold rather than slice
+boundary placement.

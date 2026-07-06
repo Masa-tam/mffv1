@@ -390,6 +390,8 @@ The current decoder implements:
 - Y-only, YCbCr with subsampling, extra plane, RGB, and RGBA layouts.
 - Version 3 slice headers, footers, error status, and optional slice CRC.
 - Multiple version 3 slices with deterministic parallel execution.
+- Legacy version 0/1 range-coded multi-slice frame metadata can be parsed when
+  the caller supplies complete stream parameters.
 - Keyframes and non-keyframes with per-slice entropy-state continuation.
 - Reordered non-keyframe slices matched to prior state by raster geometry.
 - Runtime CPU dispatch with scalar, SSE2, and AVX2 RGB inverse color
@@ -403,6 +405,7 @@ The current decoder implements:
 - Colorspace types other than YCbCr and RGB are unsupported.
 - Legacy version 0/1 frame-embedded `Parameters()` are not automatically
   extracted; see Configuring A Stream.
+- Legacy version 0/1 Golomb-Rice multi-slice frame parsing is not implemented.
 - Relaxed parsing mode is not implemented; `DecoderOptions::strict` must stay
   true.
 - SIMD coverage is currently limited to the RGB inverse color transform on

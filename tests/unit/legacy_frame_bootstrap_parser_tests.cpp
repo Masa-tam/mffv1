@@ -19,7 +19,8 @@ std::vector<std::byte> make_legacy_frame_parameters(
     bool chroma_planes = false,
     std::uint8_t log2_h_chroma_subsample = 0,
     std::uint8_t log2_v_chroma_subsample = 0,
-    bool extra_plane = false)
+    bool extra_plane = false,
+    bool split_first_quant_table = false)
 {
     mffv1::entropy::RangeEncoder writer;
     EXPECT_TRUE(writer.reset().ok());
@@ -38,7 +39,12 @@ std::vector<std::byte> make_legacy_frame_parameters(
         EXPECT_TRUE(writer.write_bool(extra_plane).ok());
         for (int table = 0; table < 5; ++table) {
             EXPECT_TRUE(writer.begin_independent_scalar_contexts(1).ok());
-            EXPECT_TRUE(writer.write_unsigned(127).ok());
+            if (split_first_quant_table && table == 0) {
+                EXPECT_TRUE(writer.write_unsigned(0).ok());
+                EXPECT_TRUE(writer.write_unsigned(126).ok());
+            } else {
+                EXPECT_TRUE(writer.write_unsigned(127).ok());
+            }
             EXPECT_TRUE(writer.end_independent_scalar_contexts().ok());
         }
     }
@@ -94,6 +100,33 @@ TEST(LegacyFrameBootstrapParserTest, ParsesVersionZeroGolombRiceKeyframeParamete
     EXPECT_EQ(bootstrap.stream.entropy_mode, mffv1::EntropyMode::GolombRice);
     EXPECT_EQ(bootstrap.stream.width, 16u);
     EXPECT_EQ(bootstrap.stream.height, 8u);
+}
+
+TEST(LegacyFrameBootstrapParserTest, ParsesVersionZeroEmbeddedQuantTableSet)
+{
+    const auto payload = make_legacy_frame_parameters(
+        true,
+        mffv1::EntropyMode::Range,
+        0,
+        false,
+        0,
+        0,
+        false,
+        true);
+    const mffv1::codec::LegacyFrameBootstrapParser parser;
+    mffv1::codec::LegacyFrameBootstrap bootstrap;
+
+    const auto status = parser.parse(payload, 16, 8, bootstrap);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(bootstrap.stream.quant_table_sets.size(), 1u);
+    const auto& quant_table_set = bootstrap.stream.quant_table_sets[0];
+    EXPECT_EQ(quant_table_set.context_count, 2u);
+    EXPECT_EQ(quant_table_set.tables[0][0], 0);
+    EXPECT_EQ(quant_table_set.tables[0][1], 1);
+    EXPECT_EQ(quant_table_set.tables[0][127], 1);
+    EXPECT_EQ(quant_table_set.tables[0][128], -1);
+    EXPECT_EQ(quant_table_set.tables[0][255], -1);
 }
 
 TEST(LegacyFrameBootstrapParserTest, ExposesRangeStateBoundaries)

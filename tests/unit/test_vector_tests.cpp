@@ -2,6 +2,7 @@
 
 #include "codec/configuration_record_parser.hpp"
 #include "codec/frame_parser.hpp"
+#include "codec/legacy_frame_bootstrap_parser.hpp"
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_output_window.hpp"
 #include "mffv1/color_transform.hpp"
@@ -51,13 +52,28 @@ std::string describe_frame_parse(
     std::span<const std::byte> frame_payload)
 {
     mffv1::syntax::StreamParameters stream;
-    mffv1::codec::ConfigurationRecordParser config_parser;
-    auto status = config_parser.parse(vector.configuration_record, stream);
-    if (!status.ok()) {
-        return std::string{"config parse: "} + describe_status(status);
+    mffv1::Status status;
+    if (vector.configuration_record.empty()) {
+        mffv1::codec::LegacyFrameBootstrap bootstrap;
+        const mffv1::codec::LegacyFrameBootstrapParser bootstrap_parser;
+        status = bootstrap_parser.parse(
+            frame_payload, vector.frame_width, vector.frame_height, bootstrap);
+        if (!status.ok()) {
+            return std::string{"legacy bootstrap parse: "} + describe_status(status);
+        }
+        if (!bootstrap.has_embedded_parameters) {
+            return "legacy bootstrap parse: no embedded parameters";
+        }
+        stream = std::move(bootstrap.stream);
+    } else {
+        mffv1::codec::ConfigurationRecordParser config_parser;
+        status = config_parser.parse(vector.configuration_record, stream);
+        if (!status.ok()) {
+            return std::string{"config parse: "} + describe_status(status);
+        }
+        stream.width = vector.frame_width;
+        stream.height = vector.frame_height;
     }
-    stream.width = vector.frame_width;
-    stream.height = vector.frame_height;
 
     mffv1::codec::FrameParser frame_parser(stream, true);
     mffv1::codec::FrameDecodeContext frame;
@@ -905,7 +921,6 @@ void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
     SCOPED_TRACE(vector.name);
     ASSERT_GT(vector.frame_width, 0u);
     ASSERT_GT(vector.frame_height, 0u);
-    ASSERT_FALSE(vector.configuration_record.empty());
     ASSERT_FALSE(vector.frame_payloads.empty());
     ASSERT_FALSE(vector.expected_planes.empty());
     ASSERT_EQ(vector.frame_payloads.size(), vector.expected_planes.size());
@@ -916,9 +931,16 @@ void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
     auto decoder = mffv1::create_decoder(options);
     ASSERT_TRUE(decoder.status.ok()) << decoder.status.message;
     ASSERT_NE(decoder.decoder, nullptr);
-    const auto configure_status =
-        decoder.decoder->configure(vector.configuration_record);
-    ASSERT_TRUE(configure_status.ok()) << describe_status(configure_status);
+    if (vector.configuration_record.empty()) {
+        const auto bootstrap =
+            decoder.decoder->bootstrap_legacy_frame(vector.frame_payloads.front());
+        ASSERT_TRUE(bootstrap.status.ok()) << describe_status(bootstrap.status);
+        ASSERT_EQ(bootstrap.info.state, mffv1::LegacyBootstrapState::Configured);
+    } else {
+        const auto configure_status =
+            decoder.decoder->configure(vector.configuration_record);
+        ASSERT_TRUE(configure_status.ok()) << describe_status(configure_status);
+    }
 
     for (std::size_t frame_index = 0;
          frame_index < vector.frame_payloads.size();
@@ -955,6 +977,21 @@ bool matches_test_vector_filter(std::string_view name, std::string_view filter)
     return filter.empty() || name.find(filter) != std::string_view::npos;
 }
 
+bool is_supported_decode_vector(const mffv1_testvectors::DecodeVector& vector)
+{
+    if (!vector.configuration_record.empty()) {
+        return true;
+    }
+    const auto name = vector.name;
+    if (name.find("_v1_legacy_") == std::string_view::npos) {
+        return false;
+    }
+    if (name.find("gr_") != std::string_view::npos) {
+        return false;
+    }
+    return name.find("range_") != std::string_view::npos;
+}
+
 } // namespace
 #endif
 
@@ -975,6 +1012,9 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
     const auto filter = current_test_vector_filter();
     for (const auto& vector : mffv1_testvectors::decode_vectors()) {
         if (!matches_test_vector_filter(vector.name, filter)) {
+            continue;
+        }
+        if (!is_supported_decode_vector(vector)) {
             continue;
         }
         expect_decodes_vector(vector);

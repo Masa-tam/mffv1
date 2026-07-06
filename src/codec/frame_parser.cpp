@@ -69,9 +69,15 @@ std::uint64_t detect_legacy_embedded_parameters_offset(
     const syntax::StreamParameters& stream,
     std::uint64_t fallback_offset)
 {
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    Status status = frame_reader.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
+        return fallback_offset;
+    }
+
     syntax::StreamParameters embedded_stream;
     const syntax::ConfigurationParser parser;
-    Status status = parser.parse(frame_reader, embedded_stream);
+    status = parser.parse(frame_reader, embedded_stream);
     if (!status.ok()) {
         return fallback_offset;
     }
@@ -87,13 +93,18 @@ bool detect_matching_legacy_embedded_parameters_reader(
     entropy::RangeCoder& out_reader)
 {
     entropy::RangeCoder probe;
-    Status status = probe.reset(payload, stream.state_transition);
+    Status status = probe.reset(payload);
     if (!status.ok()) {
         return false;
     }
     bool keyframe = false;
     status = probe.read_bool(keyframe);
     if (!status.ok() || !keyframe) {
+        return false;
+    }
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    status = probe.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
         return false;
     }
 
@@ -109,6 +120,44 @@ bool detect_matching_legacy_embedded_parameters_reader(
     }
 
     out_reader = std::move(probe);
+    return true;
+}
+
+bool detect_legacy_golomb_rice_embedded_parameters(
+    ByteSpan payload,
+    const syntax::StreamParameters& stream,
+    bool& out_keyframe,
+    std::uint64_t& out_content_byte_offset)
+{
+    entropy::RangeCoder probe;
+    Status status = probe.reset(payload);
+    if (!status.ok()) {
+        return false;
+    }
+    bool keyframe = false;
+    status = probe.read_bool(keyframe);
+    if (!status.ok() || !keyframe) {
+        return false;
+    }
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    status = probe.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
+        return false;
+    }
+
+    syntax::StreamParameters embedded_stream;
+    const syntax::ConfigurationParser parser;
+    status = parser.parse(probe, embedded_stream);
+    if (!status.ok()) {
+        return false;
+    }
+    normalize_legacy_embedded_parameters(embedded_stream, stream);
+    if (!syntax::stream_parameters_equivalent(stream, embedded_stream)) {
+        return false;
+    }
+
+    out_keyframe = keyframe;
+    out_content_byte_offset = probe.byte_position();
     return true;
 }
 
@@ -141,7 +190,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         && stream_.entropy_mode == EntropyMode::Range;
     if ((stream_.num_h_slices != 1 || stream_.num_v_slices != 1)
         && parse_legacy_range_header) {
-        status = frame_reader.reset(payload, stream_.state_transition);
+        status = frame_reader.reset(payload);
         if (!status.ok()) {
             return status;
         }
@@ -169,7 +218,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
     }
     if (parse_legacy_range_header) {
-        status = frame_reader.reset(payload, stream_.state_transition);
+        status = frame_reader.reset(payload);
         if (!status.ok()) {
             return status;
         }
@@ -184,19 +233,34 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         }
         next_frame.keyframe = keyframe;
         next_frame.frame_info.keyframe = keyframe;
+    }
+    bool has_legacy_golomb_rice_embedded_parameters = false;
+    std::uint64_t legacy_golomb_rice_content_byte_offset = 0;
+    if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice
+        && detect_legacy_golomb_rice_embedded_parameters(
+            payload,
+            stream_,
+            next_frame.keyframe,
+            legacy_golomb_rice_content_byte_offset)) {
+        status = validate_keyframe(stream_, next_frame.keyframe, 0);
+        if (!status.ok()) {
+            return status;
+        }
+        next_frame.frame_info.keyframe = next_frame.keyframe;
+        has_legacy_golomb_rice_embedded_parameters = true;
     } else if (stream_.version <= 1 && stream_.entropy_mode == EntropyMode::GolombRice) {
         bitstream::BitReader frame_bits(payload);
-        std::uint8_t keyframe = 0;
-        status = frame_bits.read_bit(keyframe);
+        std::uint8_t keyframe_bit = 0;
+        status = frame_bits.read_bit(keyframe_bit);
         if (!status.ok()) {
             return status;
         }
-        status = validate_keyframe(stream_, keyframe != 0, 0);
+        status = validate_keyframe(stream_, keyframe_bit != 0, 0);
         if (!status.ok()) {
             return status;
         }
-        next_frame.keyframe = keyframe != 0;
-        next_frame.frame_info.keyframe = keyframe != 0;
+        next_frame.keyframe = keyframe_bit != 0;
+        next_frame.frame_info.keyframe = keyframe_bit != 0;
     }
 
     syntax::SliceDescriptor slice;
@@ -221,10 +285,15 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
             frame_reader, stream_, content_byte_offset);
     }
     slice.content_byte_offset = content_byte_offset;
-    slice.content_bit_offset = stream_.version <= 1
-            && stream_.entropy_mode == EntropyMode::GolombRice
-        ? 1
-        : 0;
+    if (has_legacy_golomb_rice_embedded_parameters) {
+        slice.content_byte_offset = legacy_golomb_rice_content_byte_offset;
+        slice.content_bit_offset = 0;
+    } else {
+        slice.content_bit_offset = stream_.version <= 1
+                && stream_.entropy_mode == EntropyMode::GolombRice
+            ? 1
+            : 0;
+    }
     slice.payload_byte_offset = 0;
     slice.continues_frame_range_state = parse_legacy_range_header;
     next_frame.slices.push_back(slice);

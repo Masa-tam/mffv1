@@ -1,6 +1,7 @@
 #include "codec/legacy_frame_bootstrap_parser.hpp"
 #include "entropy/range_encoder.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -22,6 +23,8 @@ std::vector<std::byte> make_legacy_frame_parameters(
     EXPECT_TRUE(writer.reset().ok());
     EXPECT_TRUE(writer.write_bool(keyframe).ok());
     if (keyframe) {
+        const std::array<std::size_t, 1> parameter_context_counts{1};
+        EXPECT_TRUE(writer.reconfigure_contexts(parameter_context_counts).ok());
         EXPECT_TRUE(writer.write_unsigned(0).ok()); // version
         EXPECT_TRUE(writer.write_unsigned(
             entropy_mode == mffv1::EntropyMode::GolombRice ? 0 : 1).ok());

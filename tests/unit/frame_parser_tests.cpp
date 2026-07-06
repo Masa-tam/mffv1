@@ -171,6 +171,8 @@ std::vector<std::byte> make_legacy_range_multi_slice_header_payload(
     EXPECT_TRUE(writer.reset(stream.state_transition).ok());
     EXPECT_TRUE(writer.write_bool(keyframe).ok());
     if (write_embedded_parameters) {
+        const std::array<std::size_t, 1> parameter_context_counts{1};
+        EXPECT_TRUE(writer.reconfigure_contexts(parameter_context_counts).ok());
         EXPECT_TRUE(writer.write_unsigned(0).ok()); // version
         EXPECT_TRUE(writer.write_unsigned(1).ok()); // range coder
         EXPECT_TRUE(writer.write_unsigned(static_cast<std::uint64_t>(stream.colorspace_type)).ok());

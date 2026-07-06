@@ -4,6 +4,8 @@
 #include "mffv1/configuration_parser.hpp"
 #include "util/status.hpp"
 
+#include <array>
+#include <cstddef>
 #include <utility>
 
 namespace mffv1::codec {
@@ -37,6 +39,12 @@ Status LegacyFrameBootstrapParser::parse(
     if (!keyframe) {
         out_bootstrap = std::move(bootstrap);
         return ok_status();
+    }
+
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    status = reader.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
+        return status;
     }
 
     syntax::StreamParameters stream;

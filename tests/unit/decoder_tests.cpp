@@ -95,6 +95,8 @@ std::vector<std::byte> make_legacy_bootstrap_frame(
     mffv1::entropy::RangeEncoder writer;
     EXPECT_TRUE(writer.reset().ok());
     EXPECT_TRUE(writer.write_bool(true).ok()); // keyframe
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    EXPECT_TRUE(writer.reconfigure_contexts(parameter_context_counts).ok());
     EXPECT_TRUE(writer.write_unsigned(0).ok()); // version
     EXPECT_TRUE(writer.write_unsigned(
         entropy_mode == mffv1::EntropyMode::GolombRice ? 0 : 1).ok());
@@ -103,8 +105,7 @@ std::vector<std::byte> make_legacy_bootstrap_frame(
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_bool(extra_plane).ok());
-    const std::array<std::size_t, 1> content_context_counts{1};
-    EXPECT_TRUE(writer.reconfigure_contexts(content_context_counts).ok());
+    EXPECT_TRUE(writer.reconfigure_contexts(parameter_context_counts).ok());
     EXPECT_TRUE(writer.write_signed(0).ok());
 
     std::vector<std::byte> payload;

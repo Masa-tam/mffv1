@@ -131,9 +131,15 @@ Status skip_matching_legacy_parameters_if_needed(
         return ok_status();
     }
 
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    Status status = reader.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
+        return status;
+    }
+
     syntax::StreamParameters embedded_stream;
     const syntax::ConfigurationParser parser;
-    Status status = parser.parse(reader, embedded_stream);
+    status = parser.parse(reader, embedded_stream);
     if (!status.ok()) {
         return make_byte_error(ErrorCode::SyntaxError,
                                "slice descriptor does not match the legacy frame header",
@@ -1299,7 +1305,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
         reader_base_offset = slice.payload_byte_offset;
     } else if (continue_from_legacy_frame_header) {
-        status = reader.reset(slice.payload, stream_.state_transition);
+        status = reader.reset(slice.payload);
         if (!status.ok()) {
             add_byte_offset(status, slice.payload_byte_offset);
             return status;
@@ -1319,6 +1325,11 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         status = skip_matching_legacy_parameters_if_needed(
             reader, stream_, local_content_offset, slice.header_byte_offset);
         if (!status.ok()) {
+            return status;
+        }
+        status = reader.set_state_transition(stream_.state_transition);
+        if (!status.ok()) {
+            add_byte_offset(status, slice.payload_byte_offset);
             return status;
         }
         status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);

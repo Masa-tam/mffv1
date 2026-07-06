@@ -322,6 +322,11 @@ std::string describe_legacy_range_v1_sibling_probe(std::string_view name)
         }
         return std::string{" v1_sibling{"}
             + sibling_name
+            + " content=" + std::to_string(bootstrap.content_byte_offset)
+            + " " + describe_stream_summary(bootstrap.stream)
+            + " after_parameters{"
+            + describe_range_state(bootstrap.range_state_after_parameters)
+            + "}"
             + describe_legacy_range_symbol_probe(
                 sibling, bootstrap.stream, true, "range_probe")
             + "}";

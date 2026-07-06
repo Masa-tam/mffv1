@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -158,6 +159,42 @@ std::vector<std::byte> make_range_header_payload(
     const mffv1::codec::SliceFooterWriter footer_writer;
     EXPECT_TRUE(footer_writer.append(stream, 0, payload).ok());
     return payload;
+}
+
+std::vector<std::byte> make_legacy_range_multi_slice_header_payload(
+    const mffv1::syntax::StreamParameters& stream,
+    std::span<const mffv1::codec::SliceHeaderValues> values,
+    bool keyframe)
+{
+    mffv1::entropy::RangeEncoder writer;
+    EXPECT_TRUE(writer.reset(stream.state_transition).ok());
+    EXPECT_TRUE(writer.write_bool(keyframe).ok());
+    const mffv1::codec::SliceHeaderWriter header_writer;
+    for (const auto& slice_header : values) {
+        const auto status = header_writer.write(writer, stream, slice_header);
+        EXPECT_TRUE(status.ok()) << status.message;
+    }
+    std::vector<std::byte> payload;
+    EXPECT_TRUE(writer.finalize(payload).ok());
+    return payload;
+}
+
+mffv1::codec::SliceHeaderValues make_slice_header_values(
+    std::uint32_t x,
+    std::uint32_t y,
+    std::uint32_t width,
+    std::uint32_t height)
+{
+    mffv1::codec::SliceHeaderValues values;
+    values.x = x;
+    values.y = y;
+    values.width = width;
+    values.height = height;
+    values.quant_table_set_indexes = {0, 0};
+    values.picture_structure = 3;
+    values.sar_num = 4;
+    values.sar_den = 3;
+    return values;
 }
 
 TEST(FrameParserTest, RejectsEmptyPayload)
@@ -970,10 +1007,49 @@ TEST(FrameParserTest, RejectsMultiSliceCrcMismatchWithoutChangingFrame)
     expect_existing_frame_preserved(frame);
 }
 
-TEST(FrameParserTest, ReportsLegacyMultiSliceAsNotImplemented)
+TEST(FrameParserTest, ParsesLegacyRangeMultiSliceThroughDefaultParse)
 {
     auto stream = make_stream();
     stream.version = 0;
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    const std::array values{
+        make_slice_header_values(0, 0, 1, 1),
+        make_slice_header_values(1, 0, 1, 1),
+    };
+    const auto payload =
+        make_legacy_range_multi_slice_header_payload(stream, values, true);
+
+    const auto status = parser.parse(payload, frame);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(frame.keyframe);
+    EXPECT_EQ(frame.frame_info.slice_count, 2u);
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_EQ(frame.slices[0].index, 0u);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
+    EXPECT_EQ(frame.slices[0].x, 0u);
+    EXPECT_EQ(frame.slices[0].width, 8u);
+    EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
+    EXPECT_EQ(frame.slices[1].index, 1u);
+    EXPECT_EQ(frame.slices[1].raster_x, 1u);
+    EXPECT_EQ(frame.slices[1].raster_y, 0u);
+    EXPECT_EQ(frame.slices[1].raster_width, 1u);
+    EXPECT_EQ(frame.slices[1].raster_height, 1u);
+    EXPECT_EQ(frame.slices[1].x, 8u);
+    EXPECT_EQ(frame.slices[1].width, 8u);
+    EXPECT_EQ(frame.slices[1].payload.size(), payload.size());
+}
+
+TEST(FrameParserTest, ReportsLegacyGolombRiceMultiSliceAsNotImplemented)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
     stream.num_h_slices = 2;
     mffv1::codec::FrameParser parser(stream);
     auto frame = make_existing_frame();

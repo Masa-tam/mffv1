@@ -76,12 +76,20 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     if (stream_.version >= 3) {
         return parse_with_range_header(payload, out_frame);
     }
-    if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
-        return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
-    }
     entropy::RangeCoder frame_reader;
     const bool parse_legacy_range_header = stream_.version <= 1
         && stream_.entropy_mode == EntropyMode::Range;
+    if ((stream_.num_h_slices != 1 || stream_.num_v_slices != 1)
+        && parse_legacy_range_header) {
+        status = frame_reader.reset(payload, stream_.state_transition);
+        if (!status.ok()) {
+            return status;
+        }
+        return parse_with_header_reader(payload, frame_reader, out_frame);
+    }
+    if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
+        return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
+    }
     if (parse_legacy_range_header) {
         status = frame_reader.reset(payload, stream_.state_transition);
         if (!status.ok()) {

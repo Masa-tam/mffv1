@@ -170,6 +170,12 @@ For Golomb-Rice legacy streams, a bit-level reader is required. The current
 Golomb-Rice reader is sample-difference oriented and does not yet expose a
 general `ur` `SymbolReader` for headers or parameters.
 
+Legacy multi-slice streams are not a primary compatibility target. Historical
+multi-slice support started in the experimental version 2 line, and the stable
+widely supported multi-slice model is version 3. Any version 0/1 multi-slice
+handling in this codebase should therefore be treated as defensive parser
+coverage rather than a release-critical legacy profile.
+
 ## Implementation Stages
 
 1. Done: add internal `LegacyFrameBootstrapParser` that can parse version 0/1
@@ -180,10 +186,10 @@ general `ur` `SymbolReader` for headers or parameters.
 3. Done: add public result types and `IDecoder::bootstrap_legacy_frame()`.
 4. Done: decode the same bootstrap frame after configuration for single-slice
    range streams.
-5. Done: parse legacy range multi-slice keyframe metadata after matching
-   embedded `Parameters()`.
-6. Extend the model to legacy range multi-slice content decode once per-slice
-   content boundary replay is fully represented.
+5. Done: validate real AVI-derived version 1 range-coded single-slice legacy
+   vectors with empty Codec Private data.
+6. Investigate version 0 legacy payload boundaries separately from the version
+   1 range path.
 7. Add Golomb-Rice bootstrap only after a general Golomb-Rice `ur` symbol reader
    exists.
 

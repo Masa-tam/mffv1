@@ -626,8 +626,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
     const auto plane_count =
         static_cast<std::size_t>(syntax::coded_plane_count(stream_));
     const syntax::ContextModel context_model(stream_.quant_table_sets[0]);
-    const bool use_slot_local_golomb_rice_contexts =
-        stream_.version >= 3 && stream_.colorspace_type == 0;
+    const bool use_slot_local_golomb_rice_contexts = stream_.version >= 3;
     const auto golomb_rice_context_bank_count =
         use_slot_local_golomb_rice_contexts
             ? syntax::quant_table_set_index_count(stream_)

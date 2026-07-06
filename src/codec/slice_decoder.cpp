@@ -1099,8 +1099,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     context_counts.reserve(output.plane_count());
     golomb_rice_context_bank_indexes.reserve(output.plane_count());
     initial_state_banks.reserve(output.plane_count());
-    const bool use_slot_local_golomb_rice_contexts =
-        stream_.version >= 3 && stream_.colorspace_type == 0;
+    const bool use_slot_local_golomb_rice_contexts = stream_.version >= 3;
     const auto golomb_rice_bank_count = use_slot_local_golomb_rice_contexts
         ? syntax::quant_table_set_index_count(stream_)
         : stream_.quant_table_sets.size();

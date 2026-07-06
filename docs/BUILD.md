@@ -78,6 +78,7 @@ standard input.
 ```powershell
 cmake --preset vs2026-x64-fuzz
 cmake --build --preset vs2026-x64-fuzz-debug
+ctest --preset vs2026-x64-fuzz-debug
 .\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_configuration_record.exe sample.bin
 .\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_frame_decode.exe sample.bin
 .\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_encoder.exe sample.bin
@@ -87,6 +88,8 @@ The current harnesses exercise Configuration Record parsing, frame inspection
 and decoding, and encoder input handling through the public API. They are
 intended as corpus and sanitizer entry points; they do not define compatibility
 behavior by themselves.
+
+The fuzz CTest preset runs empty-input smoke checks for each harness.
 
 ## Install
 

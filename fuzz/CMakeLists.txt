@@ -8,6 +8,10 @@ function(mffv1_add_fuzzer target_name source_file)
             mffv1::mffv1
     )
     mffv1_apply_common_options(${target_name})
+    if(BUILD_TESTING)
+        add_test(NAME ${target_name}_empty_input COMMAND ${target_name})
+        set_tests_properties(${target_name}_empty_input PROPERTIES LABELS fuzz)
+    endif()
 endfunction()
 
 mffv1_add_fuzzer(mffv1_fuzz_configuration_record configuration_record_fuzzer.cpp)

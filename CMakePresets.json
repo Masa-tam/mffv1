@@ -77,6 +77,14 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "vs2026-x64-fuzz-debug",
+      "configurePreset": "vs2026-x64-fuzz",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

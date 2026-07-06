@@ -42,6 +42,7 @@ Build the standalone fuzz harnesses before a release candidate:
 ```powershell
 cmake --preset vs2026-x64-fuzz
 cmake --build --preset vs2026-x64-fuzz-debug
+ctest --preset vs2026-x64-fuzz-debug --output-on-failure
 ```
 
 Also verify a package consumer build:

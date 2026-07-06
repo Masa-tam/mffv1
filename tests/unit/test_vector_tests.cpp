@@ -3911,8 +3911,8 @@ std::string describe_legacy_golomb_rice_boundary_probe(
     candidate.index = 0;
     candidate.x = 0;
     candidate.y = 0;
-    candidate.width = 1;
-    candidate.height = 1;
+    candidate.width = stream.width;
+    candidate.height = stream.height;
     candidate.raster_x = 0;
     candidate.raster_y = 0;
     candidate.raster_width = 1;

@@ -800,21 +800,12 @@ matching v1 Golomb-Rice legacy set passes in strict mode, so this is still
 best treated as a v0-specific payload-boundary or embedded-parameter placement
 gap rather than a shared Golomb-Rice sample decoder problem.
 The compact boundary summary now reports the best byte/bit candidate for those
-v0 Golomb-Rice vectors. Extending the diagnostic scan back to the frame payload
-start moves the best candidate to `byte=0 bit=0`, but the `1x1` through `16x1`
-controls still match only the first zero sample and then report trailing bytes.
-This makes a simple nearby content-boundary shift unlikely; the remaining gap
-is more likely in the v0 Golomb-Rice payload or embedded-parameter convention.
-The peer summary reinforces that interpretation: each tiny v0 Golomb-Rice
-control has 25 byte/bit candidates tied at the same single-sample match count.
-The first zero sample is therefore not a strong alignment signal by itself.
-The diagnostic now distinguishes traced sample matches from full output-plane
-matches. Only the `1x1` control reaches an output match before trailing-byte
-failure; the `2x1` and wider controls do not. Relaxing trailing-byte handling
-alone would therefore not close the v0 Golomb-Rice gap.
-The best-candidate output summary now reports the first output-plane mismatch
-without hiding untouched sentinel bytes. For `2x1` and wider flat controls, the
-first mismatch is consistently `x=1 y=0` with actual sample `0xa5`, meaning the
-second sample remains unwritten. The current interpretation decodes the first
-zero run sample and then treats the plane as ended, rather than reconstructing
-the remaining flat run.
+v0 Golomb-Rice vectors, distinguishes traced sample matches from full
+output-plane matches, and reports the first output mismatch. A diagnostic slice
+width bug previously made the `2x1` and wider flat controls appear to stop
+after one sample. After changing the candidate slice to cover the full frame,
+`1x1`, `2x1`, `4x1`, and `8x1` can all reach output matches before trailing-byte
+failure. The `16x1` control still diverges at `x=8` after matching the first
+eight flat samples, with `byte=1 bit=0` as the unique best candidate.
+This refocuses the remaining v0 Golomb-Rice work on run growth or termination
+around longer flat runs, not on a one-sample output-window failure.

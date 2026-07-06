@@ -29,6 +29,14 @@ cmake --build --preset vs2026-x64-debug
 ctest --preset vs2026-x64-debug --output-on-failure
 ```
 
+Build both Release diagnostic-message profiles:
+
+```powershell
+cmake --build --preset vs2026-x64-release
+cmake --preset vs2026-x64-no-status
+cmake --build --preset vs2026-x64-no-status-release
+```
+
 Run the sanitizer workflow when the toolchain supports it:
 
 ```powershell

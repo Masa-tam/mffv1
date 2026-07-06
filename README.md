@@ -46,6 +46,9 @@ ctest --preset vs2026-x64-debug --output-on-failure
 GoogleTest is used for unit and compatibility tests. The project can also be
 configured with `MFFV1_BUILD_TESTS=OFF` for library-only builds.
 
+The default package target is a static library. Shared-library ABI support is
+not part of the current release surface.
+
 ## Documentation
 
 - [Build Guide](docs/BUILD.md)

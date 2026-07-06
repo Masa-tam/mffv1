@@ -37,6 +37,16 @@
         "MFFV1_BUILD_FUZZERS": "ON",
         "MFFV1_BUILD_TESTS": "OFF"
       }
+    },
+    {
+      "name": "vs2026-x64-no-status",
+      "displayName": "Visual Studio 2026 x64 without Status messages",
+      "inherits": "vs2026-x64",
+      "binaryDir": "${sourceDir}/build/vs2026-x64-no-status",
+      "cacheVariables": {
+        "MFFV1_BUILD_TESTS": "OFF",
+        "MFFV1_ENABLE_STATUS_MESSAGES": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -59,6 +69,11 @@
       "name": "vs2026-x64-fuzz-debug",
       "configurePreset": "vs2026-x64-fuzz",
       "configuration": "Debug"
+    },
+    {
+      "name": "vs2026-x64-no-status-release",
+      "configurePreset": "vs2026-x64-no-status",
+      "configuration": "Release"
     }
   ],
   "testPresets": [

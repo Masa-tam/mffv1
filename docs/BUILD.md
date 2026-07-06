@@ -30,6 +30,21 @@ The preset uses the Visual Studio 2026 generator with the x64 architecture.
 cmake --build --preset vs2026-x64-debug
 ```
 
+Release builds can keep diagnostic status messages or omit them:
+
+```powershell
+cmake --build --preset vs2026-x64-release
+cmake --preset vs2026-x64-no-status
+cmake --build --preset vs2026-x64-no-status-release
+```
+
+`vs2026-x64-release` uses the default `MFFV1_ENABLE_STATUS_MESSAGES=ON`.
+`vs2026-x64-no-status-release` keeps the `Status::message` field in the public
+API but leaves library-generated messages empty to reduce diagnostic string
+storage and copying in production-oriented builds. The no-status preset also
+sets `MFFV1_BUILD_TESTS=OFF` because many unit tests intentionally assert exact
+diagnostic text.
+
 ## Tests
 
 GoogleTest is the project test framework. CMake first searches for it with
@@ -97,6 +112,11 @@ conformance vectors; they only keep the standalone file-input path exercised.
 
 The library installs public headers, the static library, and a CMake package
 under `lib/cmake/mffv1`.
+
+The supported package artifact is currently a static library. Shared-library
+exports are intentionally not part of the release surface yet because the
+public C++ API uses STL types and `std::unique_ptr` ownership across the
+factory boundary, and the project has not declared a stable cross-DLL ABI.
 
 ```powershell
 cmake --install build\vs2026-x64 --config Debug --prefix build\package-smoke\install

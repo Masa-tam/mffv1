@@ -604,6 +604,54 @@ TEST(DecoderTest, BootstrapLegacyFrameReportsNoEmbeddedParameters)
     EXPECT_EQ(inspect_status.code, mffv1::ErrorCode::InvalidState);
 }
 
+TEST(DecoderTest, FailedBootstrapLegacyFrameDoesNotConfigureDecoder)
+{
+    const auto result = mffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    const std::array<std::byte, 1> truncated_keyframe{std::byte{0xff}};
+
+    const auto bootstrap =
+        result.decoder->bootstrap_legacy_frame(truncated_keyframe);
+
+    EXPECT_FALSE(bootstrap.status.ok());
+    EXPECT_EQ(bootstrap.status.code, mffv1::ErrorCode::SyntaxError);
+
+    mffv1::FrameInfo info;
+    const auto inspect_status =
+        result.decoder->inspect_frame(zero_scalar_payload(), info);
+    EXPECT_FALSE(inspect_status.ok());
+    EXPECT_EQ(inspect_status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(inspect_status.message, "decoder is not configured");
+}
+
+TEST(DecoderTest, FailedBootstrapLegacyFramePreservesPreviousConfiguration)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+    const std::array<std::byte, 1> truncated_keyframe{std::byte{0xff}};
+
+    const auto bootstrap =
+        result.decoder->bootstrap_legacy_frame(truncated_keyframe);
+
+    EXPECT_FALSE(bootstrap.status.ok());
+    EXPECT_EQ(bootstrap.status.code, mffv1::ErrorCode::SyntaxError);
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), 1, 1, 1);
+    mffv1::MutableFrameView output{&plane, 1};
+    const auto decode_status =
+        result.decoder->decode_frame(zero_scalar_payload(), output);
+
+    EXPECT_TRUE(decode_status.ok()) << decode_status.message;
+    EXPECT_EQ(storage[0], 0u);
+}
+
 TEST(DecoderTest, DecodeRequiresConfiguration)
 {
     const auto result = mffv1::create_decoder({});

@@ -303,6 +303,8 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                     trace.prediction = run_prediction;
                     trace.difference = 0;
                     trace.reconstructed_sample = run_prediction;
+                    trace.run_segment_count = segment.count;
+                    trace.run_segment_interrupted = segment.interrupted;
                     observer->on_golomb_rice_sample(trace);
                 }
                 ++x;
@@ -373,6 +375,8 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                         trace.prediction = run_prediction;
                         trace.difference = 0;
                         trace.reconstructed_sample = run_prediction;
+                        trace.run_segment_count = segment.count;
+                        trace.run_segment_interrupted = segment.interrupted;
                         observer->on_golomb_rice_sample(trace);
                     }
                     ++x;

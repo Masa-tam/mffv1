@@ -809,3 +809,9 @@ failure. The `16x1` control still diverges at `x=8` after matching the first
 eight flat samples, with `byte=1 bit=0` as the unique best candidate.
 This refocuses the remaining v0 Golomb-Rice work on run growth or termination
 around longer flat runs, not on a one-sample output-window failure.
+The run-segment trace shows the `16x1` best candidate matching eight flat
+samples as four one-sample full runs followed by two two-sample full runs
+(`seg1, seg1, seg1, seg1, seg2, seg2`). The next symbol is decoded as a run
+interruption at `x=8` with difference `-7`. This suggests the remaining v0
+Golomb-Rice difference is around long-run continuation or termination encoding,
+not around the predictor or the early run-index growth.

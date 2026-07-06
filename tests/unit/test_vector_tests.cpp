@@ -3481,6 +3481,8 @@ std::string describe_compact_trace(
         << " k" << static_cast<int>(rice_k)
         << " d" << trace.difference
         << " s" << trace.reconstructed_sample
+        << " seg" << trace.run_segment_count
+        << (trace.run_segment_interrupted ? "!" : "")
         << " r"
         << static_cast<int>(trace.run_state_before.run_index)
         << "/" << trace.run_state_before.pending_count
@@ -3605,6 +3607,8 @@ public:
             << " expected_sample=" << expected_sample
             << " actual_diff=" << trace.difference
             << " expected_diff=" << expected_difference
+            << " run_segment_count=" << trace.run_segment_count
+            << (trace.run_segment_interrupted ? " run_segment_interrupted=1" : " run_segment_interrupted=0")
             << describe_rgb_internal_candidates(expected_planes_, stream_, trace)
             << " state_before="
             << describe_adaptive_state(trace.adaptive_state_before)

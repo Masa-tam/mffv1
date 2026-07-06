@@ -31,7 +31,9 @@ struct GolombRiceSampleTrace {
     std::int32_t prediction = 0;
     std::int32_t difference = 0;
     std::int32_t reconstructed_sample = 0;
+    std::uint32_t run_segment_count = 0;
     bool run_interruption = false;
+    bool run_segment_interrupted = false;
 };
 
 class SliceDecodeObserver {

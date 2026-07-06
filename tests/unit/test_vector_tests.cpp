@@ -162,6 +162,64 @@ std::string describe_legacy_range_symbol_probe(
     return out.str();
 }
 
+std::string describe_legacy_range_reset_boundary_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    const auto& stream = bootstrap.stream;
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()
+        || stream.quant_table_sets.empty()
+        || bootstrap.content_byte_offset == 0) {
+        return {};
+    }
+
+    const auto payload = vector.frame_payloads.front();
+    std::vector<std::size_t> context_counts;
+    context_counts.reserve(stream.quant_table_sets.size());
+    for (const auto& set : stream.quant_table_sets) {
+        context_counts.push_back(set.context_count);
+    }
+
+    const auto center = bootstrap.content_byte_offset;
+    const auto begin = center > 4 ? center - 4 : std::uint64_t{0};
+    const auto end = std::min<std::uint64_t>(
+        center + 4,
+        payload.size() > 2 ? static_cast<std::uint64_t>(payload.size() - 2) : 0);
+
+    std::ostringstream out;
+    out << " reset_boundary_probe";
+    for (auto offset = begin; offset <= end; ++offset) {
+        const auto local_payload = payload.subspan(static_cast<std::size_t>(offset));
+        mffv1::entropy::RangeCoder reader;
+        auto status = reader.reset(local_payload,
+                                   context_counts,
+                                   {},
+                                   stream.state_transition);
+        out << " @" << offset << "=";
+        if (!status.ok()) {
+            out << "err(" << describe_status(status) << ")";
+            continue;
+        }
+
+        out << "[";
+        for (std::size_t i = 0; i < 4; ++i) {
+            std::int64_t difference = 0;
+            status = reader.read_signed(0, 0, difference);
+            if (!status.ok()) {
+                out << "err(" << describe_status(status) << ")";
+                break;
+            }
+            if (i != 0) {
+                out << ",";
+            }
+            out << difference;
+        }
+        out << "]";
+    }
+    return out.str();
+}
+
 std::string legacy_v1_sibling_name(std::string_view name)
 {
     constexpr std::string_view marker = "_v0_legacy_";
@@ -247,6 +305,7 @@ std::string describe_legacy_bootstrap_state(
                 vector, bootstrap.stream, true, "range_probe")
             << describe_legacy_range_symbol_probe(
                 vector, bootstrap.stream, false, "range_probe_carry_context")
+            << describe_legacy_range_reset_boundary_probe(vector, bootstrap)
             << describe_legacy_range_v1_sibling_probe(vector.name);
     }
     return out.str();

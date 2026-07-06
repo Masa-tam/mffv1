@@ -520,3 +520,12 @@ is worse for the v0 vectors (`0,9,1,1,-4,17,-4,-1` for the gray control), so
 the current content-context reconfiguration is still the better model. The
 remaining v0 mismatch is therefore not explained by accidentally resetting the
 content scalar context after `Parameters()`.
+
+A separate byte-boundary reset probe tries independent range-coder resets near
+the computed content byte offset. For the v0 gray and nominal yuv420p controls,
+offsets 149, 152, and 156 all decode the first four differences as zero when
+the arithmetic state is discarded and the coder is reset from that byte. This
+is useful as a boundary-smoke diagnostic, but it should not be treated as a
+candidate fix by itself: the legacy range path is expected to continue the
+arithmetic state from the keyframe and Parameters header, and the passing v1
+sibling follows that carry-state path.

@@ -742,6 +742,13 @@ nonzero residual, updates `s0`, changes context for the next predicted sample,
 and reconstructs all three nonzero samples. This reinforces that the v0
 problem is the zero/nonzero gate or its pre-content arithmetic state, not the
 later predictor or signed reconstruction step.
+Tracing the passing v0 all-zero controls (`4x1` and `32x16`) shows the same
+`s0=255->255` and content-byte-152 zero-branch behavior. Those vectors pass
+because their expected residuals are all zero, not because the current v0
+range model has proven it can leave the zero branch. The v1 all-zero siblings
+advance and adapt state normally, so v0 all-zero success should be treated as
+a narrow zero-run compatibility result rather than broad validation of v0
+range-coded scalar decoding.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

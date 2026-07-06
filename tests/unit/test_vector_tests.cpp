@@ -3559,6 +3559,24 @@ std::string current_test_vector_filter()
 #endif
 }
 
+bool trace_successful_legacy_bootstrap()
+{
+#if defined(_MSC_VER)
+    char* value = nullptr;
+    std::size_t size = 0;
+    if (_dupenv_s(&value, &size, "MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP") != 0
+        || value == nullptr) {
+        return false;
+    }
+    const std::string setting{value};
+    std::free(value);
+#else
+    const auto* value = std::getenv("MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP");
+    const std::string setting = value == nullptr ? std::string{} : std::string{value};
+#endif
+    return !setting.empty() && setting != "0";
+}
+
 bool matches_test_vector_filter(std::string_view name, std::string_view filter)
 {
     return filter.empty() || name.find(filter) != std::string_view::npos;
@@ -3641,6 +3659,8 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
     std::size_t matched_count = 0;
     std::size_t decoded_count = 0;
     std::vector<std::string> unsupported_vectors;
+    std::vector<std::string> traced_vectors;
+    const bool trace_bootstrap = trace_successful_legacy_bootstrap();
     for (const auto& vector : mffv1_testvectors::decode_vectors()) {
         if (!matches_test_vector_filter(vector.name, filter)) {
             continue;
@@ -3656,9 +3676,22 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
         }
         ++decoded_count;
         expect_decodes_vector(vector);
+        if (trace_bootstrap && vector.configuration_record.empty()) {
+            std::ostringstream entry;
+            entry << vector.name << describe_legacy_bootstrap_state(vector);
+            traced_vectors.push_back(entry.str());
+        }
     }
     if (matched_count == 0) {
         GTEST_SKIP() << "no generated FFV1 test vectors matched the active filter";
+    }
+    if (!traced_vectors.empty()) {
+        std::ostringstream message;
+        message << "matched generated FFV1 legacy test vectors decoded; bootstrap trace follows";
+        for (const auto& entry : traced_vectors) {
+            message << "\n  " << entry;
+        }
+        GTEST_SKIP() << message.str();
     }
     if (decoded_count == 0) {
         std::ostringstream message;

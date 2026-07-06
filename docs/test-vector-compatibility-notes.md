@@ -539,3 +539,14 @@ the same v0 controls, every tested byte position from 150 through 154 still
 decodes `0,0,0,-3`. That makes a simple off-by-one refill position unlikely:
 with the current arithmetic `range/low`, the fourth scalar diverges regardless
 of the nearby byte position.
+
+The legacy range diagnostic also includes a `param_trace` field-by-field
+checkpoint for keyframe-embedded `Parameters()`. The current controls use range
+coder type 2, so both v0 and v1 read the 255 custom state-transition deltas
+before the remaining stream fields. For the gray v0/v1 pair, the trace reaches
+the same `range=0x1005` after the state-transition table but with different
+`low` values (`0xdd0` for v0 and `0xd6d` for v1). The v0 stream then ends
+`Parameters()` immediately after `extra_plane`, while the v1 sibling reads
+`bits_per_raw_sample` and its quantization table before slice content. The
+remaining investigation should therefore keep separating syntax-length effects
+from the v0-specific one-context content model.

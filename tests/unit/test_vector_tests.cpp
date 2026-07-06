@@ -88,6 +88,119 @@ std::string describe_stream_summary(const mffv1::syntax::StreamParameters& strea
     return out.str();
 }
 
+std::string describe_legacy_range_parameter_trace(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::syntax::StreamParameters& stream,
+    std::string_view label)
+{
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()) {
+        return {};
+    }
+
+    mffv1::entropy::RangeCoder reader;
+    auto status = reader.reset(vector.frame_payloads.front());
+    if (!status.ok()) {
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
+    }
+    bool keyframe = false;
+    status = reader.read_bool(keyframe);
+    if (!status.ok()) {
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
+    }
+    if (!keyframe) {
+        return std::string{" "} + std::string{label} + "=non-keyframe";
+    }
+
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    status = reader.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
+    }
+
+    std::ostringstream out;
+    out << " " << label;
+    const auto append_named_state = [&out, &reader](std::string_view name) {
+        out << " " << name << "{"
+            << describe_range_state(reader.arithmetic_state())
+            << "}";
+    };
+    const auto append_inline_state = [&out, &reader]() {
+        out << "{"
+            << describe_range_state(reader.arithmetic_state())
+            << "}";
+    };
+    const auto read_u = [&reader, &status, &out, &append_inline_state](
+                            std::string_view name,
+                            std::uint64_t& value) {
+        status = reader.read_unsigned(value);
+        if (!status.ok()) {
+            out << " " << name << "=err(" << describe_status(status) << ")";
+            return false;
+        }
+        out << " " << name << "=" << value;
+        append_inline_state();
+        return true;
+    };
+    const auto read_b = [&reader, &status, &out, &append_inline_state](
+                            std::string_view name,
+                            bool& value) {
+        status = reader.read_bool(value);
+        if (!status.ok()) {
+            out << " " << name << "=err(" << describe_status(status) << ")";
+            return false;
+        }
+        out << " " << name << "=" << value;
+        append_inline_state();
+        return true;
+    };
+
+    std::uint64_t value = 0;
+    if (!read_u("version", value)) {
+        return out.str();
+    }
+    const auto version = value;
+    if (version >= 3 && !read_u("micro", value)) {
+        return out.str();
+    }
+    if (!read_u("coder", value)) {
+        return out.str();
+    }
+    if (value == 2) {
+        for (std::size_t state = 1; state < 256; ++state) {
+            std::int64_t delta = 0;
+            status = reader.read_signed(delta);
+            if (!status.ok()) {
+                out << " state_delta[" << state << "]=err("
+                    << describe_status(status) << ")";
+                return out.str();
+            }
+        }
+        append_named_state("state_transition");
+    }
+    if (!read_u("colorspace", value)) {
+        return out.str();
+    }
+    if (version >= 1 && !read_u("bits", value)) {
+        return out.str();
+    }
+    bool flag = false;
+    if (!read_b("chroma", flag)
+        || !read_u("hsub", value)
+        || !read_u("vsub", value)
+        || !read_b("extra", flag)) {
+        return out.str();
+    }
+    if (version >= 3
+        && (!read_u("h_slices_minus1", value)
+            || !read_u("v_slices_minus1", value)
+            || !read_u("qset_count", value))) {
+        return out.str();
+    }
+    append_named_state("before_quant");
+    return out.str();
+}
+
 std::string describe_legacy_range_symbol_probe(
     const mffv1_testvectors::DecodeVector& vector,
     const mffv1::syntax::StreamParameters& stream,
@@ -327,6 +440,8 @@ std::string describe_legacy_range_v1_sibling_probe(std::string_view name)
             + " after_parameters{"
             + describe_range_state(bootstrap.range_state_after_parameters)
             + "}"
+            + describe_legacy_range_parameter_trace(
+                sibling, bootstrap.stream, "param_trace")
             + describe_legacy_range_symbol_probe(
                 sibling, bootstrap.stream, true, "range_probe")
             + "}";
@@ -368,6 +483,8 @@ std::string describe_legacy_bootstrap_state(
             << " after_parameters{"
             << describe_range_state(bootstrap.range_state_after_parameters)
             << "}"
+            << describe_legacy_range_parameter_trace(
+                vector, bootstrap.stream, "param_trace")
             << describe_legacy_range_symbol_probe(
                 vector, bootstrap.stream, true, "range_probe")
             << describe_legacy_range_symbol_probe(

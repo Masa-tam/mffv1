@@ -89,7 +89,9 @@ and decoding, and encoder input handling through the public API. They are
 intended as corpus and sanitizer entry points; they do not define compatibility
 behavior by themselves.
 
-The fuzz CTest preset runs empty-input smoke checks for each harness.
+The fuzz CTest preset runs empty-input and project-owned seed-input smoke
+checks for each harness. The seed files under `fuzz/corpus/` are not
+conformance vectors; they only keep the standalone file-input path exercised.
 
 ## Install
 

@@ -45,6 +45,10 @@ cmake --build --preset vs2026-x64-fuzz-debug
 ctest --preset vs2026-x64-fuzz-debug --output-on-failure
 ```
 
+The fuzz CTest preset should include both empty-input and project-owned
+seed-input smoke checks. Any retained regression corpus added for a release
+should be project-owned or have recorded provenance.
+
 Also verify a package consumer build:
 
 ```powershell

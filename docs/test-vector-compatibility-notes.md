@@ -497,3 +497,12 @@ after embedded `Parameters()` between the v1 passing vector and the v0 failing
 vector, then trace the first four decoded sample differences. The current
 evidence points away from a simple byte-boundary error and toward a v0-specific
 range state, fixed-table, or historical encoder compatibility detail.
+
+The generated-vector skip diagnostics now include a legacy range symbol probe.
+For `range_gray_v0_legacy_1slice.avi`, replaying the bootstrap header and then
+reading the first eight range-coded signed differences from context 0 yields
+`0,0,0,-3,-1,-1,-12,-1`. This matches the first visible decoded mismatch at
+`x=3,y=0` (`-3` reconstructs as 253 in 8-bit wraparound). The next useful
+experiment is therefore to determine why FFmpeg's legacy v0 all-zero frame
+does not code a zero residual at the fourth scalar under the RFC-style v0
+fixed one-context table model currently used by mffv1.

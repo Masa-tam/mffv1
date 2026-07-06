@@ -5,7 +5,9 @@
 #include "codec/legacy_frame_bootstrap_parser.hpp"
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_output_window.hpp"
+#include "entropy/range_coder.hpp"
 #include "mffv1/color_transform.hpp"
+#include "mffv1/configuration_parser.hpp"
 #include "mffv1/codec.hpp"
 #include "mffv1/predictor.hpp"
 
@@ -86,6 +88,76 @@ std::string describe_stream_summary(const mffv1::syntax::StreamParameters& strea
     return out.str();
 }
 
+std::string describe_legacy_range_symbol_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::syntax::StreamParameters& stream)
+{
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()
+        || stream.quant_table_sets.empty()) {
+        return {};
+    }
+
+    mffv1::entropy::RangeCoder reader;
+    auto status = reader.reset(vector.frame_payloads.front());
+    if (!status.ok()) {
+        return std::string{" range_probe="} + describe_status(status);
+    }
+    bool keyframe = false;
+    status = reader.read_bool(keyframe);
+    if (!status.ok()) {
+        return std::string{" range_probe="} + describe_status(status);
+    }
+    if (!keyframe) {
+        return " range_probe=non-keyframe";
+    }
+
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    status = reader.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
+        return std::string{" range_probe="} + describe_status(status);
+    }
+    mffv1::syntax::StreamParameters parsed_stream;
+    const mffv1::syntax::ConfigurationParser parser;
+    status = parser.parse(reader, parsed_stream);
+    if (!status.ok()) {
+        return std::string{" range_probe="} + describe_status(status);
+    }
+    status = reader.set_state_transition(stream.state_transition);
+    if (!status.ok()) {
+        return std::string{" range_probe="} + describe_status(status);
+    }
+
+    std::vector<std::size_t> context_counts;
+    context_counts.reserve(stream.quant_table_sets.size());
+    for (const auto& set : stream.quant_table_sets) {
+        context_counts.push_back(set.context_count);
+    }
+    status = reader.reconfigure_contexts(context_counts);
+    if (!status.ok()) {
+        return std::string{" range_probe="} + describe_status(status);
+    }
+
+    std::ostringstream out;
+    out << " range_probe diffs=";
+    for (std::size_t i = 0; i < 8; ++i) {
+        std::int64_t difference = 0;
+        status = reader.read_signed(0, 0, difference);
+        if (!status.ok()) {
+            out << "err(" << describe_status(status) << ")";
+            break;
+        }
+        if (i != 0) {
+            out << ",";
+        }
+        out << difference;
+    }
+    out << " after_probe{"
+        << describe_range_state(reader.arithmetic_state())
+        << "}";
+    return out.str();
+}
+
 std::string describe_legacy_bootstrap_state(
     const mffv1_testvectors::DecodeVector& vector)
 {
@@ -119,7 +191,8 @@ std::string describe_legacy_bootstrap_state(
             << describe_stream_summary(bootstrap.stream)
             << " after_parameters{"
             << describe_range_state(bootstrap.range_state_after_parameters)
-            << "}";
+            << "}"
+            << describe_legacy_range_symbol_probe(vector, bootstrap.stream);
     }
     return out.str();
 }

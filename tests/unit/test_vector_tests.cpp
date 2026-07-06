@@ -781,6 +781,148 @@ std::string describe_legacy_range_initial_state_probe(
         }
     };
 
+    const auto append_pivot_low_probe = [&](
+                                            std::ostringstream& out,
+                                            std::uint8_t zero_state) {
+        if (vector.expected_planes.empty()
+            || vector.expected_planes.front().empty()
+            || stream.quant_table_sets.empty()) {
+            return;
+        }
+        const auto& expected = vector.expected_planes.front().front();
+        if (expected.info.width == 0 || expected.info.height == 0
+            || expected.info.sample_format != mffv1::SampleFormat::UInt8) {
+            return;
+        }
+
+        mffv1::entropy::RangeCoder::ScalarContextStates states{};
+        states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+        states[0] = zero_state;
+        const std::array state_bank{std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{
+            &states,
+            1,
+        }};
+        mffv1::entropy::RangeCoder reader;
+        auto status = reader.reset_from_arithmetic_state(
+            payload,
+            context_counts,
+            state_bank,
+            stream.state_transition,
+            bootstrap.range_state_after_parameters);
+        if (!status.ok()) {
+            out << " pivot_low_probe=err(" << describe_status(status) << ")";
+            return;
+        }
+
+        constexpr std::size_t kPivotSample = 408;
+        std::size_t decoded_samples = 0;
+        const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+        mffv1::syntax::LineState line;
+        status = line.reset(expected.info.width);
+        if (!status.ok()) {
+            out << " pivot_low_probe=err(" << describe_status(status) << ")";
+            return;
+        }
+
+        for (std::uint32_t y = 0; y < expected.info.height; ++y) {
+            for (std::uint32_t x = 0; x < expected.info.width; ++x) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = mffv1::syntax::Predictor::median_predict(
+                    neighbors.left,
+                    neighbors.top,
+                    neighbors.top_left);
+                mffv1::syntax::ContextDecision context;
+                status = context_model.derive_context(neighbors, context);
+                if (!status.ok()) {
+                    out << " pivot_low_probe=err(" << describe_status(status) << ")";
+                    return;
+                }
+                if (decoded_samples == kPivotSample) {
+                    mffv1::entropy::RangeCoder::ContextStateBanks copied_contexts;
+                    status = reader.copy_contexts(copied_contexts);
+                    if (!status.ok() || copied_contexts.empty()
+                        || copied_contexts.front().empty()) {
+                        out << " pivot_low_probe=context_err";
+                        return;
+                    }
+                    const std::array copied_state_banks{
+                        std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{
+                            copied_contexts.front().data(),
+                            copied_contexts.front().size(),
+                        },
+                    };
+                    const auto base_state = reader.arithmetic_state();
+                    out << " pivot_low_probe base{"
+                        << describe_range_state(base_state) << "}";
+                    constexpr std::array<std::uint32_t, 12> low_values{
+                        0, 1, 2, 8, 12, 13, 14, 15, 16, 31, 64, 128};
+                    for (const auto low : low_values) {
+                        if (low >= base_state.range) {
+                            continue;
+                        }
+                        auto mutated_state = base_state;
+                        mutated_state.low = low;
+                        mffv1::entropy::RangeCoder probe_reader;
+                        status = probe_reader.reset_from_arithmetic_state(
+                            payload,
+                            context_counts,
+                            copied_state_banks,
+                            stream.state_transition,
+                            mutated_state);
+                        if (!status.ok()) {
+                            out << " low" << low
+                                << "=err(" << describe_status(status) << ")";
+                            continue;
+                        }
+                        std::int64_t difference64 = 0;
+                        status = probe_reader.read_signed(0, context.context, difference64);
+                        if (!status.ok()) {
+                            out << " low" << low
+                                << "=err(" << describe_status(status) << ")";
+                            continue;
+                        }
+                        if (context.invert_difference) {
+                            difference64 = -difference64;
+                        }
+                        const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                            prediction,
+                            static_cast<std::int32_t>(difference64),
+                            stream.bits_per_raw_sample);
+                        const auto expected_sample = sample_at(
+                            expected.samples,
+                            expected.info,
+                            x,
+                            y);
+                        out << " low" << low
+                            << "=" << difference64
+                            << "/" << reconstructed
+                            << (static_cast<std::uint32_t>(reconstructed) == expected_sample
+                                    ? ":ok"
+                                    : ":bad");
+                    }
+                    return;
+                }
+
+                std::int64_t difference64 = 0;
+                status = reader.read_signed(0, context.context, difference64);
+                if (!status.ok()) {
+                    out << " pivot_low_probe=err(" << describe_status(status) << ")";
+                    return;
+                }
+                if (context.invert_difference) {
+                    difference64 = -difference64;
+                }
+                const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                    prediction,
+                    static_cast<std::int32_t>(difference64),
+                    stream.bits_per_raw_sample);
+                line.mutable_current()[x] = reconstructed;
+                ++decoded_samples;
+            }
+            line.swap_lines();
+        }
+    };
+
     std::ostringstream out;
     out << " initial_state_probe";
     std::size_t match_count = 0;
@@ -840,6 +982,7 @@ std::string describe_legacy_range_initial_state_probe(
     append_best_matches(out, "sign_only_best", stream.state_transition, InitialStatePattern::SignOnly);
     append_best_matches(out, "magnitude_only_best", stream.state_transition, InitialStatePattern::MagnitudeOnly);
     append_zero_state_trace(out, 255);
+    append_pivot_low_probe(out, 255);
     return out.str();
 }
 

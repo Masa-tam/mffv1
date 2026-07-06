@@ -14,6 +14,11 @@
   clean-room rules, FFmpeg independence, and third-party boundaries.
 - [Test Vector Registry](test-vectors.md): provenance checklist and committed
   external vector inventory.
+- [Release Process](RELEASE_PROCESS.md): release readiness, verification, and
+  artifact checklist.
+- [Support Policy](SUPPORT_POLICY.md): pre-release compatibility and reporting
+  expectations.
+- [Changelog](../CHANGELOG.md): user-visible project changes.
 
 These references describe implemented public behavior and are the appropriate
 starting point for library integration.

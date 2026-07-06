@@ -422,4 +422,4 @@ Before declaring a stable decoder release, the project should complete:
 3. Parser and slice-decoder fuzz targets with retained regression corpus.
 4. AddressSanitizer, UndefinedBehaviorSanitizer, and equivalent MSVC checks
    where available.
-5. Changelog, release metadata, and support-policy documents.
+5. Final versioned release notes, release tag, and support window declaration.

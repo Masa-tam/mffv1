@@ -513,3 +513,10 @@ probe reads eight zero differences and reaches the end of the payload, while
 the v0 probe diverges at the fourth difference. This confirms that the probe
 itself follows the passing v1 decode path and that the v0 issue is not merely a
 test-vector output comparison artifact.
+
+The range probe also compares the normal content-context reset against carrying
+the Parameters scalar context directly into Slice Content. Carrying the context
+is worse for the v0 vectors (`0,9,1,1,-4,17,-4,-1` for the gray control), so
+the current content-context reconfiguration is still the better model. The
+remaining v0 mismatch is therefore not explained by accidentally resetting the
+content scalar context after `Parameters()`.

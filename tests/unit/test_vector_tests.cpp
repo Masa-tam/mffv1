@@ -90,7 +90,9 @@ std::string describe_stream_summary(const mffv1::syntax::StreamParameters& strea
 
 std::string describe_legacy_range_symbol_probe(
     const mffv1_testvectors::DecodeVector& vector,
-    const mffv1::syntax::StreamParameters& stream)
+    const mffv1::syntax::StreamParameters& stream,
+    bool reconfigure_content_contexts,
+    std::string_view label)
 {
     if (stream.entropy_mode != mffv1::EntropyMode::Range
         || vector.frame_payloads.empty()
@@ -101,45 +103,47 @@ std::string describe_legacy_range_symbol_probe(
     mffv1::entropy::RangeCoder reader;
     auto status = reader.reset(vector.frame_payloads.front());
     if (!status.ok()) {
-        return std::string{" range_probe="} + describe_status(status);
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
     }
     bool keyframe = false;
     status = reader.read_bool(keyframe);
     if (!status.ok()) {
-        return std::string{" range_probe="} + describe_status(status);
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
     }
     if (!keyframe) {
-        return " range_probe=non-keyframe";
+        return std::string{" "} + std::string{label} + "=non-keyframe";
     }
 
     const std::array<std::size_t, 1> parameter_context_counts{1};
     status = reader.reconfigure_contexts(parameter_context_counts);
     if (!status.ok()) {
-        return std::string{" range_probe="} + describe_status(status);
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
     }
     mffv1::syntax::StreamParameters parsed_stream;
     const mffv1::syntax::ConfigurationParser parser;
     status = parser.parse(reader, parsed_stream);
     if (!status.ok()) {
-        return std::string{" range_probe="} + describe_status(status);
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
     }
     status = reader.set_state_transition(stream.state_transition);
     if (!status.ok()) {
-        return std::string{" range_probe="} + describe_status(status);
+        return std::string{" "} + std::string{label} + "=" + describe_status(status);
     }
 
-    std::vector<std::size_t> context_counts;
-    context_counts.reserve(stream.quant_table_sets.size());
-    for (const auto& set : stream.quant_table_sets) {
-        context_counts.push_back(set.context_count);
-    }
-    status = reader.reconfigure_contexts(context_counts);
-    if (!status.ok()) {
-        return std::string{" range_probe="} + describe_status(status);
+    if (reconfigure_content_contexts) {
+        std::vector<std::size_t> context_counts;
+        context_counts.reserve(stream.quant_table_sets.size());
+        for (const auto& set : stream.quant_table_sets) {
+            context_counts.push_back(set.context_count);
+        }
+        status = reader.reconfigure_contexts(context_counts);
+        if (!status.ok()) {
+            return std::string{" "} + std::string{label} + "=" + describe_status(status);
+        }
     }
 
     std::ostringstream out;
-    out << " range_probe diffs=";
+    out << " " << label << " diffs=";
     for (std::size_t i = 0; i < 8; ++i) {
         std::int64_t difference = 0;
         status = reader.read_signed(0, 0, difference);
@@ -198,7 +202,8 @@ std::string describe_legacy_range_v1_sibling_probe(std::string_view name)
         }
         return std::string{" v1_sibling{"}
             + sibling_name
-            + describe_legacy_range_symbol_probe(sibling, bootstrap.stream)
+            + describe_legacy_range_symbol_probe(
+                sibling, bootstrap.stream, true, "range_probe")
             + "}";
     }
     return " v1_sibling_probe=missing";
@@ -238,7 +243,10 @@ std::string describe_legacy_bootstrap_state(
             << " after_parameters{"
             << describe_range_state(bootstrap.range_state_after_parameters)
             << "}"
-            << describe_legacy_range_symbol_probe(vector, bootstrap.stream)
+            << describe_legacy_range_symbol_probe(
+                vector, bootstrap.stream, true, "range_probe")
+            << describe_legacy_range_symbol_probe(
+                vector, bootstrap.stream, false, "range_probe_carry_context")
             << describe_legacy_range_v1_sibling_probe(vector.name);
     }
     return out.str();

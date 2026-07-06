@@ -3,16 +3,13 @@
 This project uses CMake and C++20. The primary target environment is Visual
 Studio 2026 x64.
 
-The expected CMake executable is:
-
-```text
-D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe
-```
+CMake 3.25 or newer is required. The examples below assume `cmake` and
+`ctest` are available through the developer's shell or build environment.
 
 ## Configure
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --preset vs2026-x64
+cmake --preset vs2026-x64
 ```
 
 The preset uses the Visual Studio 2026 generator with the x64 architecture.
@@ -29,7 +26,7 @@ The preset uses the Visual Studio 2026 generator with the x64 architecture.
 ## Build
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-debug
+cmake --build --preset vs2026-x64-debug
 ```
 
 ## Tests
@@ -42,14 +39,14 @@ If GoogleTest is not available and the submodule is not initialized, configure
 with tests disabled:
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' -S . -B build\smoke -DMFFV1_BUILD_TESTS=OFF
+cmake -S . -B build\smoke -DMFFV1_BUILD_TESTS=OFF
 ```
 
 When GoogleTest is available, tests should run through CTest:
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-debug
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-debug
+cmake --build --preset vs2026-x64-debug
+ctest --preset vs2026-x64-debug
 ```
 
 ## Sanitizer Build
@@ -58,9 +55,9 @@ Use the sanitizer preset when checking memory safety issues before release or
 after parser, entropy, threading, or buffer-boundary changes:
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --preset vs2026-x64-asan
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-asan-debug
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-asan-debug
+cmake --preset vs2026-x64-asan
+cmake --build --preset vs2026-x64-asan-debug
+ctest --preset vs2026-x64-asan-debug
 ```
 
 The Visual Studio preset enables MSVC AddressSanitizer. On Clang and GCC,
@@ -77,7 +74,7 @@ The library installs public headers, the static library, and a CMake package
 under `lib/cmake/mffv1`.
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --install build\vs2026-x64 --config Debug --prefix build\package-smoke\install
+cmake --install build\vs2026-x64 --config Debug --prefix build\package-smoke\install
 ```
 
 Consumers should use the exported target:
@@ -93,7 +90,7 @@ target_link_libraries(app PRIVATE mffv1::mffv1)
 headers and links the installed `mffv1::mffv1` package target.
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' -S tests\package_smoke -B build\package-smoke\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke\install"
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build build\package-smoke\build --config Debug
+cmake -S tests\package_smoke -B build\package-smoke\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke\install"
+cmake --build build\package-smoke\build --config Debug
 & '.\build\package-smoke\build\Debug\mffv1_package_smoke.exe'
 ```

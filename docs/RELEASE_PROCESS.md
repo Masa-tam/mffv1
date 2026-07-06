@@ -24,25 +24,25 @@ A stable release candidate should satisfy all of the following:
 Run the normal Visual Studio 2026 x64 workflow:
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --preset vs2026-x64
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-debug
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-debug --output-on-failure
+cmake --preset vs2026-x64
+cmake --build --preset vs2026-x64-debug
+ctest --preset vs2026-x64-debug --output-on-failure
 ```
 
 Run the sanitizer workflow when the toolchain supports it:
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --preset vs2026-x64-asan
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-asan-debug
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-asan-debug --output-on-failure
+cmake --preset vs2026-x64-asan
+cmake --build --preset vs2026-x64-asan-debug
+ctest --preset vs2026-x64-asan-debug --output-on-failure
 ```
 
 Also verify a package consumer build:
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --install build\vs2026-x64 --config Debug --prefix build\package-smoke\install
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' -S tests\package_smoke -B build\package-smoke\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke\install"
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build build\package-smoke\build --config Debug
+cmake --install build\vs2026-x64 --config Debug --prefix build\package-smoke\install
+cmake -S tests\package_smoke -B build\package-smoke\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke\install"
+cmake --build build\package-smoke\build --config Debug
 & '.\build\package-smoke\build\Debug\mffv1_package_smoke.exe'
 ```
 

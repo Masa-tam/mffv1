@@ -38,9 +38,9 @@ See the references for exact behavior and limitations.
 The primary development target is Visual Studio 2026 x64 with CMake.
 
 ```powershell
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --preset vs2026-x64
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe' --build --preset vs2026-x64-debug
-& 'D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\ctest.exe' --preset vs2026-x64-debug --output-on-failure
+cmake --preset vs2026-x64
+cmake --build --preset vs2026-x64-debug
+ctest --preset vs2026-x64-debug --output-on-failure
 ```
 
 GoogleTest is used for unit and compatibility tests. The project can also be

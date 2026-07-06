@@ -1191,7 +1191,7 @@ std::string describe_legacy_range_initial_state_probe(
             return match;
         };
 
-        constexpr std::array<RefillVariant, 12> variants{{
+        constexpr std::array<RefillVariant, 13> variants{{
             {"cur", 256, 0},
             {"plus1", 256, 1},
             {"minus1", 256, -1},
@@ -1204,6 +1204,7 @@ std::string describe_legacy_range_initial_state_probe(
             {"ceilincl", 256, 0, 255, true},
             {"ceilb1", 256, 0, 255, false, 1},
             {"ceilb2", 256, 0, 255, false, 2},
+            {"ceilbothrem", 256, 0, 255, false, 0, 0, 0, 0, 0, 0, 10},
         }};
         out << " refill_variant_probe/" << measured_sample_count;
         for (const auto& variant : variants) {
@@ -1364,6 +1365,8 @@ std::string describe_legacy_range_initial_state_probe(
                 out << "@" << match.mismatch_x << "," << match.mismatch_y;
             }
         }
+        RefillVariant bothrem_variant{"", 256, 0, 255};
+        bothrem_variant.low_bias_after_one_mode = 10;
 
         const auto append_mini_state = [](std::ostringstream& trace_out,
                                           const MiniRangeReader& reader) {
@@ -1387,6 +1390,13 @@ std::string describe_legacy_range_initial_state_probe(
             reader.byte_bias = variant.byte_bias;
             reader.split_bias = variant.split_bias;
             reader.inclusive_nonzero = variant.inclusive_nonzero;
+            reader.low_bias_after_symbol = variant.low_bias_after_symbol;
+            reader.low_bias_after_rac = variant.low_bias_after_rac;
+            reader.low_bias_after_zero_rac = variant.low_bias_after_zero_rac;
+            reader.low_bias_after_one_rac = variant.low_bias_after_one_rac;
+            reader.low_bias_after_one_subtract = variant.low_bias_after_one_subtract;
+            reader.low_bias_after_one_range_assign = variant.low_bias_after_one_range_assign;
+            reader.low_bias_after_one_mode = variant.low_bias_after_one_mode;
             reader.states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
             reader.states[0] = initial_zero_state;
 
@@ -1469,6 +1479,7 @@ std::string describe_legacy_range_initial_state_probe(
             }
         };
         append_variant_trace(ceil_variant, zero_state, "ceil");
+        append_variant_trace(bothrem_variant, zero_state, "bothrem");
     };
 
     std::ostringstream out;

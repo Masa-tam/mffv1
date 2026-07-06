@@ -577,3 +577,8 @@ matches only 51 of 512 luma samples, while the custom-transition candidate
 matches 408. This keeps the custom transition table in the surviving model and
 rules out "decode v0 Slice Content with the default transition table" as a
 useful compatibility direction.
+
+The probe also checks a swapped zero/one state-update transition derived from
+the parsed custom table. That variant matches only eight luma samples before
+diverging on the same v0 controls. A simple zero/one transition-update swap is
+therefore not the missing historical behavior.

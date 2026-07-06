@@ -431,6 +431,16 @@ std::string describe_legacy_range_initial_state_probe(
         measured_sample_count = static_cast<std::size_t>(measured.info.width)
             * static_cast<std::size_t>(measured.info.height);
     }
+    const auto make_swapped_transition = [](
+                                             const mffv1::syntax::StateTransitionTable& transition) {
+        mffv1::syntax::StateTransitionTable swapped{};
+        for (std::size_t state = 0; state < swapped.size(); ++state) {
+            swapped[state] = static_cast<std::uint8_t>(
+                256u - transition[(256u - state) & 0xffu]);
+        }
+        return swapped;
+    };
+    const auto swapped_custom_transition = make_swapped_transition(stream.state_transition);
 
     const auto measure_candidate = [&](
                                        std::uint16_t candidate,
@@ -611,6 +621,7 @@ std::string describe_legacy_range_initial_state_probe(
     out << " matches=" << match_count;
     append_best_matches(out, "custom_best", stream.state_transition);
     append_best_matches(out, "default_best", mffv1::syntax::kDefaultStateTransition);
+    append_best_matches(out, "swapped_custom_best", swapped_custom_transition);
     return out.str();
 }
 

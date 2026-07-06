@@ -6,6 +6,7 @@
 #include "codec/slice_raster_validator.hpp"
 #include "bitstream/bit_reader.hpp"
 #include "entropy/range_coder.hpp"
+#include "mffv1/configuration_parser.hpp"
 #include "util/status.hpp"
 
 #include <array>
@@ -50,6 +51,24 @@ void finalize_frame_metadata(FrameDecodeContext& frame, bool keyframe) noexcept
     frame.frame_info.keyframe = keyframe;
     frame.frame_info.slice_count =
         static_cast<std::uint32_t>(frame.slices.size());
+}
+
+std::uint64_t detect_legacy_embedded_parameters_offset(
+    entropy::RangeCoder& frame_reader,
+    const syntax::StreamParameters& stream,
+    std::uint64_t fallback_offset)
+{
+    syntax::StreamParameters embedded_stream;
+    const syntax::ConfigurationParser parser;
+    Status status = parser.parse(frame_reader, embedded_stream);
+    if (!status.ok()) {
+        return fallback_offset;
+    }
+    embedded_stream.width = stream.width;
+    embedded_stream.height = stream.height;
+    return syntax::stream_parameters_equivalent(stream, embedded_stream)
+        ? frame_reader.byte_position()
+        : fallback_offset;
 }
 
 } // namespace
@@ -137,7 +156,12 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     }
     slice.payload = payload;
     slice.header_byte_offset = 0;
-    slice.content_byte_offset = parse_legacy_range_header ? frame_reader.byte_position() : 0;
+    auto content_byte_offset = parse_legacy_range_header ? frame_reader.byte_position() : 0;
+    if (parse_legacy_range_header && next_frame.keyframe) {
+        content_byte_offset = detect_legacy_embedded_parameters_offset(
+            frame_reader, stream_, content_byte_offset);
+    }
+    slice.content_byte_offset = content_byte_offset;
     slice.content_bit_offset = stream_.version <= 1
             && stream_.entropy_mode == EntropyMode::GolombRice
         ? 1

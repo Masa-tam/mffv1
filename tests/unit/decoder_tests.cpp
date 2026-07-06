@@ -103,6 +103,9 @@ std::vector<std::byte> make_legacy_bootstrap_frame(
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_bool(extra_plane).ok());
+    const std::array<std::size_t, 1> content_context_counts{1};
+    EXPECT_TRUE(writer.reconfigure_contexts(content_context_counts).ok());
+    EXPECT_TRUE(writer.write_signed(0).ok());
 
     std::vector<std::byte> payload;
     EXPECT_TRUE(writer.finalize(payload).ok());
@@ -511,6 +514,28 @@ TEST(DecoderTest, BootstrapLegacyFrameConfiguresUnconfiguredDecoder)
     const auto inspect_status = result.decoder->inspect_frame(zero_scalar_payload(), info);
     EXPECT_TRUE(inspect_status.ok()) << inspect_status.message;
     EXPECT_EQ(info.version, 0u);
+}
+
+TEST(DecoderTest, DecodeFrameAcceptsBootstrappedLegacyKeyframe)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    const auto payload = make_legacy_bootstrap_frame();
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    ASSERT_EQ(bootstrap.info.state, mffv1::LegacyBootstrapState::Configured);
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), 1, 1, 1);
+    mffv1::MutableFrameView output{&plane, 1};
+
+    const auto status = result.decoder->decode_frame(payload, output);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0u);
 }
 
 TEST(DecoderTest, BootstrapLegacyFrameReportsMatchingCurrentConfiguration)

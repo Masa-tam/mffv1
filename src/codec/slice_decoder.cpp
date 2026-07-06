@@ -10,6 +10,7 @@
 #include "entropy/range_coder.hpp"
 #include "entropy/range_encoder.hpp"
 #include "mffv1/color_transform.hpp"
+#include "mffv1/configuration_parser.hpp"
 #include "mffv1/context_model.hpp"
 #include "mffv1/predictor.hpp"
 #include "util/status.hpp"
@@ -118,6 +119,36 @@ void set_reader_byte_offset(Status& status,
     } else {
         set_byte_location_if_missing(status, content_offset + reader_offset);
     }
+}
+
+Status skip_matching_legacy_parameters_if_needed(
+    entropy::RangeCoder& reader,
+    const syntax::StreamParameters& stream,
+    std::uint64_t local_content_offset,
+    std::uint64_t header_byte_offset)
+{
+    if (reader.byte_position() == local_content_offset) {
+        return ok_status();
+    }
+
+    syntax::StreamParameters embedded_stream;
+    const syntax::ConfigurationParser parser;
+    Status status = parser.parse(reader, embedded_stream);
+    if (!status.ok()) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice descriptor does not match the legacy frame header",
+                               header_byte_offset);
+    }
+
+    embedded_stream.width = stream.width;
+    embedded_stream.height = stream.height;
+    if (!syntax::stream_parameters_equivalent(stream, embedded_stream)
+        || reader.byte_position() != local_content_offset) {
+        return make_byte_error(ErrorCode::SyntaxError,
+                               "slice descriptor does not match the legacy frame header",
+                               header_byte_offset);
+    }
+    return ok_status();
 }
 
 Status decode_range_line(entropy::RangeCoder& reader,
@@ -1285,10 +1316,10 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                    slice.payload_byte_offset);
         }
         const auto local_content_offset = slice.content_byte_offset - slice.payload_byte_offset;
-        if (reader.byte_position() != local_content_offset) {
-            return make_byte_error(ErrorCode::SyntaxError,
-                                   "slice descriptor does not match the legacy frame header",
-                                   slice.header_byte_offset);
+        status = skip_matching_legacy_parameters_if_needed(
+            reader, stream_, local_content_offset, slice.header_byte_offset);
+        if (!status.ok()) {
+            return status;
         }
         status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
         reader_base_offset = slice.payload_byte_offset;

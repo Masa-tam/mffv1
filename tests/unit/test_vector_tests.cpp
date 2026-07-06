@@ -412,6 +412,7 @@ public:
         }
         const auto expected_sample = expected_internal_sample(trace);
         if (static_cast<std::uint32_t>(trace.reconstructed_sample) == expected_sample) {
+            ++matched_sample_count_;
             remember_trace(trace);
             return;
         }
@@ -479,6 +480,11 @@ public:
         return description_;
     }
 
+    std::size_t matched_sample_count() const noexcept
+    {
+        return matched_sample_count_;
+    }
+
 private:
     std::uint32_t expected_internal_sample(
         const mffv1::codec::GolombRiceSampleTrace& trace) const
@@ -526,6 +532,7 @@ private:
     const mffv1::syntax::StreamParameters& stream_;
     std::vector<std::string> recent_traces_;
     std::string description_;
+    std::size_t matched_sample_count_ = 0;
 };
 
 std::string describe_golomb_rice_candidate_decode(
@@ -588,6 +595,7 @@ std::string describe_golomb_rice_candidate_decode(
     std::ostringstream out;
     out << label << " candidate byte=" << candidate.content_byte_offset
         << " bit=" << static_cast<int>(candidate.content_bit_offset)
+        << " matched_samples=" << observer.matched_sample_count()
         << " status: " << describe_status(status);
     if (!observer.description().empty()) {
         out << "\n" << observer.description();

@@ -388,7 +388,9 @@ text.
 | `InternalError` | An internal invariant failed. |
 
 `Status::message` is diagnostic and is not a stable machine-readable contract.
-Use `status.location.has_slice_index` before reading `slice_index`.
+Builds configured with `MFFV1_ENABLE_STATUS_MESSAGES=OFF` keep the field but
+leave library-generated messages empty. Use `status.location.has_slice_index`
+before reading `slice_index`.
 
 ## Implemented Encoder Coverage
 

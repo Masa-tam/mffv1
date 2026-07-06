@@ -206,8 +206,7 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
             out_frame = std::move(next_frame);
             return ok_status();
         }
-        if (status.code != ErrorCode::SyntaxError
-            || status.message != "slice raster coverage has missing cells") {
+        if (!is_incomplete_slice_raster_coverage_status(status)) {
             set_slice_location_if_missing(status, slice.index);
             return status;
         }

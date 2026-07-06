@@ -17,6 +17,14 @@ D:\Data\DevTemp\SDK_for_DevBase\Tools\cmake\bin\cmake.exe
 
 The preset uses the Visual Studio 2026 generator with the x64 architecture.
 
+## Options
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `MFFV1_BUILD_TESTS` | `ON` | Build the GoogleTest-based unit and conformance tests. |
+| `MFFV1_ENABLE_STATUS_MESSAGES` | `ON` | Store diagnostic text in `Status::message`. When `OFF`, `Status::message` remains part of the public API but library-generated messages are empty. |
+| `MFFV1_ENABLE_WARNINGS_AS_ERRORS` | `OFF` | Treat compiler warnings as errors. |
+
 ## Build
 
 ```powershell

@@ -120,4 +120,12 @@ Status validate_slice_raster_coverage(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
+bool is_incomplete_slice_raster_coverage_status(const Status& status) noexcept
+{
+    return status.code == ErrorCode::SyntaxError
+        && !status.location.has_byte_offset
+        && !status.location.has_frame_index
+        && !status.location.has_slice_index;
+}
+
 } // namespace mffv1::codec

@@ -55,6 +55,10 @@ add_library(mffv1
 add_library(mffv1::mffv1 ALIAS mffv1)
 
 target_compile_features(mffv1 PUBLIC cxx_std_20)
+target_compile_definitions(mffv1
+    PUBLIC
+        MFFV1_ENABLE_STATUS_MESSAGES=$<BOOL:${MFFV1_ENABLE_STATUS_MESSAGES}>
+)
 
 target_include_directories(mffv1
     PUBLIC

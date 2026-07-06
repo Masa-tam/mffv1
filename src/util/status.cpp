@@ -18,9 +18,12 @@ Status make_error(ErrorCode code, std::string message)
 {
     Status status;
     status.code = code;
+#if MFFV1_ENABLE_STATUS_MESSAGES
     status.message = std::move(message);
+#else
+    (void)message;
+#endif
     return status;
 }
 
 } // namespace mffv1
-

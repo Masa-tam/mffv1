@@ -318,7 +318,9 @@ struct Status {
 ```
 
 `Status::message` is intended for diagnostics, not stable programmatic
-matching. Branch on `ErrorCode` and location flags.
+matching. Branch on `ErrorCode` and location flags. Builds configured with
+`MFFV1_ENABLE_STATUS_MESSAGES=OFF` keep the field but leave library-generated
+messages empty.
 
 ### Error Codes
 

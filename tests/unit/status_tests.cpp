@@ -25,7 +25,11 @@ TEST(StatusTest, MakeErrorSetsCodeAndMessageOnly)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+#if MFFV1_ENABLE_STATUS_MESSAGES
     EXPECT_EQ(status.message, "bad syntax");
+#else
+    EXPECT_TRUE(status.message.empty());
+#endif
     EXPECT_FALSE(status.location.has_byte_offset);
     EXPECT_FALSE(status.location.has_frame_index);
     EXPECT_FALSE(status.location.has_slice_index);
@@ -38,7 +42,11 @@ TEST(StatusTest, MakeByteErrorSetsInitialByteLocation)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::CrcMismatch);
+#if MFFV1_ENABLE_STATUS_MESSAGES
     EXPECT_EQ(status.message, "crc");
+#else
+    EXPECT_TRUE(status.message.empty());
+#endif
     EXPECT_TRUE(status.location.has_byte_offset);
     EXPECT_EQ(status.location.byte_offset, 42u);
     EXPECT_FALSE(status.location.has_slice_index);

@@ -1,5 +1,6 @@
 option(MFFV1_BUILD_TESTS "Build FFV1 unit and conformance tests" ON)
 option(MFFV1_ENABLE_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(MFFV1_ENABLE_STATUS_MESSAGES "Store diagnostic text in Status::message" ON)
 
 function(mffv1_apply_common_options target_name)
     if(MSVC)
@@ -18,4 +19,3 @@ function(mffv1_apply_common_options target_name)
         endif()
     endif()
 endfunction()
-

@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <string>
 
+#ifndef MFFV1_ENABLE_STATUS_MESSAGES
+#define MFFV1_ENABLE_STATUS_MESSAGES 1
+#endif
+
 namespace mffv1 {
 
 enum class ErrorCode : std::uint32_t {
@@ -39,4 +43,3 @@ Status ok_status();
 Status make_error(ErrorCode code, std::string message);
 
 } // namespace mffv1
-

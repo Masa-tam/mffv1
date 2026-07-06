@@ -180,9 +180,11 @@ general `ur` `SymbolReader` for headers or parameters.
 3. Done: add public result types and `IDecoder::bootstrap_legacy_frame()`.
 4. Done: decode the same bootstrap frame after configuration for single-slice
    range streams.
-5. Extend the model to legacy range multi-slice content once content boundary
-   replay is fully represented.
-6. Add Golomb-Rice bootstrap only after a general Golomb-Rice `ur` symbol reader
+5. Done: parse legacy range multi-slice keyframe metadata after matching
+   embedded `Parameters()`.
+6. Extend the model to legacy range multi-slice content decode once per-slice
+   content boundary replay is fully represented.
+7. Add Golomb-Rice bootstrap only after a general Golomb-Rice `ur` symbol reader
    exists.
 
 ## Error Policy

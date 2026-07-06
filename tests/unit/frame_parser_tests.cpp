@@ -164,11 +164,21 @@ std::vector<std::byte> make_range_header_payload(
 std::vector<std::byte> make_legacy_range_multi_slice_header_payload(
     const mffv1::syntax::StreamParameters& stream,
     std::span<const mffv1::codec::SliceHeaderValues> values,
-    bool keyframe)
+    bool keyframe,
+    bool write_embedded_parameters = false)
 {
     mffv1::entropy::RangeEncoder writer;
     EXPECT_TRUE(writer.reset(stream.state_transition).ok());
     EXPECT_TRUE(writer.write_bool(keyframe).ok());
+    if (write_embedded_parameters) {
+        EXPECT_TRUE(writer.write_unsigned(0).ok()); // version
+        EXPECT_TRUE(writer.write_unsigned(1).ok()); // range coder
+        EXPECT_TRUE(writer.write_unsigned(static_cast<std::uint64_t>(stream.colorspace_type)).ok());
+        EXPECT_TRUE(writer.write_bool(stream.chroma_planes).ok());
+        EXPECT_TRUE(writer.write_unsigned(stream.log2_h_chroma_subsample).ok());
+        EXPECT_TRUE(writer.write_unsigned(stream.log2_v_chroma_subsample).ok());
+        EXPECT_TRUE(writer.write_bool(stream.extra_plane).ok());
+    }
     const mffv1::codec::SliceHeaderWriter header_writer;
     for (const auto& slice_header : values) {
         const auto status = header_writer.write(writer, stream, slice_header);
@@ -1043,6 +1053,40 @@ TEST(FrameParserTest, ParsesLegacyRangeMultiSliceThroughDefaultParse)
     EXPECT_EQ(frame.slices[1].x, 8u);
     EXPECT_EQ(frame.slices[1].width, 8u);
     EXPECT_EQ(frame.slices[1].payload.size(), payload.size());
+}
+
+TEST(FrameParserTest, ParsesLegacyRangeMultiSliceAfterEmbeddedParameters)
+{
+    auto stream = make_stream();
+    stream.version = 0;
+    stream.num_h_slices = 2;
+    mffv1::codec::FrameParser parser(stream);
+    mffv1::codec::FrameDecodeContext frame;
+    const std::array values{
+        make_slice_header_values(0, 0, 1, 1),
+        make_slice_header_values(1, 0, 1, 1),
+    };
+    const auto payload =
+        make_legacy_range_multi_slice_header_payload(stream, values, true, true);
+
+    const auto status = parser.parse(payload, frame);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_TRUE(frame.keyframe);
+    EXPECT_EQ(frame.frame_info.slice_count, 2u);
+    ASSERT_EQ(frame.slices.size(), 2u);
+    EXPECT_EQ(frame.slices[0].raster_x, 0u);
+    EXPECT_EQ(frame.slices[0].raster_y, 0u);
+    EXPECT_EQ(frame.slices[0].raster_width, 1u);
+    EXPECT_EQ(frame.slices[0].raster_height, 1u);
+    EXPECT_EQ(frame.slices[0].x, 0u);
+    EXPECT_EQ(frame.slices[0].width, 8u);
+    EXPECT_EQ(frame.slices[1].raster_x, 1u);
+    EXPECT_EQ(frame.slices[1].raster_y, 0u);
+    EXPECT_EQ(frame.slices[1].raster_width, 1u);
+    EXPECT_EQ(frame.slices[1].raster_height, 1u);
+    EXPECT_EQ(frame.slices[1].x, 8u);
+    EXPECT_EQ(frame.slices[1].width, 8u);
 }
 
 TEST(FrameParserTest, ReportsLegacyGolombRiceMultiSliceAsNotImplemented)

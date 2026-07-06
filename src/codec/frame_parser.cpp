@@ -53,6 +53,17 @@ void finalize_frame_metadata(FrameDecodeContext& frame, bool keyframe) noexcept
         static_cast<std::uint32_t>(frame.slices.size());
 }
 
+void normalize_legacy_embedded_parameters(
+    syntax::StreamParameters& embedded_stream,
+    const syntax::StreamParameters& stream) noexcept
+{
+    embedded_stream.width = stream.width;
+    embedded_stream.height = stream.height;
+    embedded_stream.num_h_slices = stream.num_h_slices;
+    embedded_stream.num_v_slices = stream.num_v_slices;
+    embedded_stream.intra_only = stream.intra_only;
+}
+
 std::uint64_t detect_legacy_embedded_parameters_offset(
     entropy::RangeCoder& frame_reader,
     const syntax::StreamParameters& stream,
@@ -64,11 +75,41 @@ std::uint64_t detect_legacy_embedded_parameters_offset(
     if (!status.ok()) {
         return fallback_offset;
     }
-    embedded_stream.width = stream.width;
-    embedded_stream.height = stream.height;
+    normalize_legacy_embedded_parameters(embedded_stream, stream);
     return syntax::stream_parameters_equivalent(stream, embedded_stream)
         ? frame_reader.byte_position()
         : fallback_offset;
+}
+
+bool detect_matching_legacy_embedded_parameters_reader(
+    ByteSpan payload,
+    const syntax::StreamParameters& stream,
+    entropy::RangeCoder& out_reader)
+{
+    entropy::RangeCoder probe;
+    Status status = probe.reset(payload, stream.state_transition);
+    if (!status.ok()) {
+        return false;
+    }
+    bool keyframe = false;
+    status = probe.read_bool(keyframe);
+    if (!status.ok() || !keyframe) {
+        return false;
+    }
+
+    syntax::StreamParameters embedded_stream;
+    const syntax::ConfigurationParser parser;
+    status = parser.parse(probe, embedded_stream);
+    if (!status.ok()) {
+        return false;
+    }
+    normalize_legacy_embedded_parameters(embedded_stream, stream);
+    if (!syntax::stream_parameters_equivalent(stream, embedded_stream)) {
+        return false;
+    }
+
+    out_reader = std::move(probe);
+    return true;
 }
 
 } // namespace
@@ -104,7 +145,25 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
         if (!status.ok()) {
             return status;
         }
-        return parse_with_header_reader(payload, frame_reader, out_frame);
+        bool keyframe = false;
+        status = frame_reader.read_bool(keyframe);
+        if (!status.ok()) {
+            add_byte_offset(status, 0);
+            return status;
+        }
+        status = validate_keyframe(stream_, keyframe, 0);
+        if (!status.ok()) {
+            return status;
+        }
+        entropy::RangeCoder embedded_parameter_reader;
+        if (keyframe
+            && detect_matching_legacy_embedded_parameters_reader(
+                payload, stream_, embedded_parameter_reader)) {
+            return parse_legacy_range_slices_after_keyframe(
+                payload, embedded_parameter_reader, keyframe, out_frame);
+        }
+        return parse_legacy_range_slices_after_keyframe(
+            payload, frame_reader, keyframe, out_frame);
     }
     if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
@@ -195,19 +254,28 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
                                              entropy::SymbolReader& header_reader,
                                              FrameDecodeContext& out_frame) const
 {
-    FrameDecodeContext next_frame;
-    Status status = initialize_frame(payload, next_frame);
-    if (!status.ok()) {
-        return status;
-    }
-
     bool keyframe = false;
-    status = header_reader.read_bool(keyframe);
+    Status status = header_reader.read_bool(keyframe);
     if (!status.ok()) {
         add_byte_offset(status, 0);
         return status;
     }
     status = validate_keyframe(stream_, keyframe, 0);
+    if (!status.ok()) {
+        return status;
+    }
+    return parse_legacy_range_slices_after_keyframe(
+        payload, header_reader, keyframe, out_frame);
+}
+
+Status FrameParser::parse_legacy_range_slices_after_keyframe(
+    ByteSpan payload,
+    entropy::SymbolReader& header_reader,
+    bool keyframe,
+    FrameDecodeContext& out_frame) const
+{
+    FrameDecodeContext next_frame;
+    Status status = initialize_frame(payload, next_frame);
     if (!status.ok()) {
         return status;
     }

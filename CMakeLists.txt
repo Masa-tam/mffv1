@@ -21,6 +21,7 @@ add_library(mffv1
     src/codec/frame_validator.cpp
     src/codec/configuration_record_parser.cpp
     src/codec/configuration_record_writer.cpp
+    src/codec/legacy_frame_bootstrap_parser.cpp
     src/codec/slice_decoder.cpp
     src/codec/slice_encode_executor.cpp
     src/codec/slice_encoder.cpp

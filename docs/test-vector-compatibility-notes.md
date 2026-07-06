@@ -569,3 +569,11 @@ explanation for the v0 range mismatch. Any eventual compatibility fix likely
 needs either the historical v0 context evolution behavior or another
 v0-specific content model detail, not just a replacement for the default 128
 state.
+
+The ranked initial-state probe now compares Slice Content decoding under the
+parsed custom state-transition table and the default transition table. For the
+gray and nominal yuv420p v0 controls, the best default-transition candidate
+matches only 51 of 512 luma samples, while the custom-transition candidate
+matches 408. This keeps the custom transition table in the surviving model and
+rules out "decode v0 Slice Content with the default transition table" as a
+useful compatibility direction.

@@ -424,8 +424,17 @@ std::string describe_legacy_range_initial_state_probe(
         bool failed = false;
     };
 
+    std::size_t measured_sample_count = 0;
+    if (!vector.expected_planes.empty()
+        && !vector.expected_planes.front().empty()) {
+        const auto& measured = vector.expected_planes.front().front();
+        measured_sample_count = static_cast<std::size_t>(measured.info.width)
+            * static_cast<std::size_t>(measured.info.height);
+    }
+
     const auto measure_candidate = [&](
                                        std::uint16_t candidate,
+                                       const mffv1::syntax::StateTransitionTable& transition,
                                        CandidateMatch& out_match) {
         out_match.state = candidate;
         if (vector.expected_planes.empty()
@@ -452,7 +461,7 @@ std::string describe_legacy_range_initial_state_probe(
             payload,
             context_counts,
             state_bank,
-            stream.state_transition,
+            transition,
             bootstrap.range_state_after_parameters);
         if (!status.ok()) {
             out_match.failed = true;
@@ -511,15 +520,45 @@ std::string describe_legacy_range_initial_state_probe(
         return true;
     };
 
-    std::vector<CandidateMatch> best_matches;
-    best_matches.reserve(8);
-    std::size_t measured_sample_count = 0;
-    if (!vector.expected_planes.empty()
-        && !vector.expected_planes.front().empty()) {
-        const auto& measured = vector.expected_planes.front().front();
-        measured_sample_count = static_cast<std::size_t>(measured.info.width)
-            * static_cast<std::size_t>(measured.info.height);
-    }
+    const auto append_best_matches = [&](
+                                         std::ostringstream& out,
+                                         std::string_view label,
+                                         const mffv1::syntax::StateTransitionTable& transition) {
+        std::vector<CandidateMatch> best_matches;
+        best_matches.reserve(8);
+        for (std::uint16_t candidate = 0; candidate <= 255; ++candidate) {
+            CandidateMatch match;
+            if (!measure_candidate(candidate, transition, match)) {
+                continue;
+            }
+            best_matches.push_back(match);
+            std::sort(best_matches.begin(),
+                      best_matches.end(),
+                      [](const CandidateMatch& lhs, const CandidateMatch& rhs) {
+                          if (lhs.matched_samples != rhs.matched_samples) {
+                              return lhs.matched_samples > rhs.matched_samples;
+                          }
+                          return lhs.state < rhs.state;
+                      });
+            if (best_matches.size() > 8) {
+                best_matches.pop_back();
+            }
+        }
+        if (best_matches.empty()) {
+            return;
+        }
+        out << " " << label << "/" << measured_sample_count;
+        for (const auto& match : best_matches) {
+            out << " state" << match.state
+                << "=" << match.matched_samples;
+            if (match.failed) {
+                out << "/fail";
+            } else {
+                out << "@" << match.mismatch_x << "," << match.mismatch_y;
+            }
+        }
+    };
+
     std::ostringstream out;
     out << " initial_state_probe";
     std::size_t match_count = 0;
@@ -568,36 +607,10 @@ std::string describe_legacy_range_initial_state_probe(
             out << "]";
         }
         ++match_count;
-
-        CandidateMatch match;
-        if (measure_candidate(candidate, match)) {
-            best_matches.push_back(match);
-            std::sort(best_matches.begin(),
-                      best_matches.end(),
-                      [](const CandidateMatch& lhs, const CandidateMatch& rhs) {
-                          if (lhs.matched_samples != rhs.matched_samples) {
-                              return lhs.matched_samples > rhs.matched_samples;
-                          }
-                          return lhs.state < rhs.state;
-                      });
-            if (best_matches.size() > 8) {
-                best_matches.pop_back();
-            }
-        }
     }
     out << " matches=" << match_count;
-    if (!best_matches.empty()) {
-        out << " best/" << measured_sample_count;
-        for (const auto& match : best_matches) {
-            out << " state" << match.state
-                << "=" << match.matched_samples;
-            if (match.failed) {
-                out << "/fail";
-            } else {
-                out << "@" << match.mismatch_x << "," << match.mismatch_y;
-            }
-        }
-    }
+    append_best_matches(out, "custom_best", stream.state_transition);
+    append_best_matches(out, "default_best", mffv1::syntax::kDefaultStateTransition);
     return out.str();
 }
 

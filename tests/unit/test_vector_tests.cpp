@@ -1899,6 +1899,112 @@ std::string describe_legacy_range_expected_residual_probe(
                   << "/" << byte_low_best[i].sample
                   << "/err" << byte_low_best[i].error;
         }
+
+        struct BodyStateResult {
+            std::uint16_t zero_state = 0;
+            std::uint16_t body_state = 0;
+            std::int64_t difference = 0;
+            std::uint32_t sample = 0;
+            std::uint32_t error = 0;
+        };
+        const auto evaluate_body_state_pair = [&](std::uint8_t zero_state,
+                                                  std::uint8_t body_state,
+                                                  BodyStateResult& result) {
+            result.zero_state = zero_state;
+            result.body_state = body_state;
+            mffv1::entropy::RangeCoder::ScalarContextStates states{};
+            states.fill(body_state);
+            states[0] = zero_state;
+            const std::array state_bank{
+                std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{&states, 1},
+            };
+            mffv1::entropy::RangeCoder probe_reader;
+            auto probe_status = probe_reader.reset_from_arithmetic_state(
+                vector.frame_payloads.front(),
+                context_counts,
+                {},
+                stream.state_transition,
+                state);
+            if (probe_status.ok()) {
+                probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+            }
+            if (probe_status.ok()) {
+                probe_status = probe_reader.reset_from_arithmetic_state(
+                    vector.frame_payloads.front(),
+                    context_counts,
+                    state_bank,
+                    stream.state_transition,
+                    state);
+            }
+            if (!probe_status.ok()) {
+                return probe_status;
+            }
+            std::int64_t difference = 0;
+            probe_status = probe_reader.read_signed(0, context_id, difference);
+            if (!probe_status.ok()) {
+                return probe_status;
+            }
+            auto reconstruction_difference = difference;
+            if (invert_difference) {
+                reconstruction_difference = -reconstruction_difference;
+            }
+            const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                prediction,
+                static_cast<std::int32_t>(reconstruction_difference),
+                stream.bits_per_raw_sample);
+            result.difference = difference;
+            result.sample = static_cast<std::uint32_t>(reconstructed);
+            result.error = result.sample > expected_sample
+                ? result.sample - expected_sample
+                : expected_sample - result.sample;
+            return probe_status;
+        };
+        std::array<BodyStateResult, 8> body_best{};
+        std::size_t body_best_count = 0;
+        std::size_t body_exact_count = 0;
+        for (std::uint16_t zero_state = 0; zero_state <= 255; ++zero_state) {
+            for (std::uint16_t body_state = 0; body_state <= 255; ++body_state) {
+                BodyStateResult result;
+                const auto probe_status = evaluate_body_state_pair(
+                    static_cast<std::uint8_t>(zero_state),
+                    static_cast<std::uint8_t>(body_state),
+                    result);
+                if (!probe_status.ok()) {
+                    continue;
+                }
+                if (result.sample == expected_sample) {
+                    ++body_exact_count;
+                }
+                if (body_best_count < body_best.size()) {
+                    body_best[body_best_count] = result;
+                    ++body_best_count;
+                } else if (result.error < body_best[body_best_count - 1].error) {
+                    body_best[body_best_count - 1] = result;
+                } else {
+                    continue;
+                }
+                std::sort(
+                    body_best.begin(),
+                    body_best.begin() + static_cast<std::ptrdiff_t>(body_best_count),
+                    [](const BodyStateResult& lhs, const BodyStateResult& rhs) {
+                        if (lhs.error != rhs.error) {
+                            return lhs.error < rhs.error;
+                        }
+                        if (lhs.zero_state != rhs.zero_state) {
+                            return lhs.zero_state < rhs.zero_state;
+                        }
+                        return lhs.body_state < rhs.body_state;
+                    });
+            }
+        }
+        trace << " s0_body_sweep exact=" << body_exact_count << " best";
+        for (std::size_t i = 0; i < body_best_count; ++i) {
+            trace << " s0=" << body_best[i].zero_state
+                  << "/body=" << body_best[i].body_state
+                  << ":" << body_best[i].difference
+                  << "/" << body_best[i].sample
+                  << "/err" << body_best[i].error;
+        }
     };
     std::size_t decoded_samples = 0;
     for (std::uint32_t y = 0; y < expected.info.height; ++y) {

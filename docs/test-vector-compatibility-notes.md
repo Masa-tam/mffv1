@@ -709,6 +709,11 @@ Sweeping the nearby restored byte positions together with every `low` value
 also produced no exact match with `s0=255`; the closest candidate was byte
 position 150 with `low=66`, reconstructing 151. This weakens the hypothesis
 that the v0 nonzero failure is only a small byte-position restore error.
+Sweeping a uniform scalar-body initial state together with `s0` also produced
+no exact first-sample match under the current scalar body syntax, although the
+best candidates reached 127 or 129. This suggests that the remaining v0 range
+nonzero issue is not merely an initial-state selection problem; an interval
+rounding boundary or legacy scalar-body coding detail is likely still missing.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

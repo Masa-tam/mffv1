@@ -4199,11 +4199,6 @@ std::string unsupported_decode_vector_reason(
     return {};
 }
 
-bool is_supported_decode_vector(const mffv1_testvectors::DecodeVector& vector)
-{
-    return unsupported_decode_vector_reason(vector).empty();
-}
-
 bool is_known_unsupported_decode_vector_reason(std::string_view reason)
 {
     return reason == "legacy version 0 Golomb-Rice payload boundaries are not implemented"

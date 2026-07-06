@@ -782,7 +782,10 @@ The generated-vector test suite also has a guard for unsupported external
 vectors: only the known v0 Golomb-Rice payload-boundary gap and the known v0
 range-coded nonzero reconstruction gap may be skipped. This keeps future
 external-vector regressions from silently joining the compatibility exception
-set.
+set. For active compatibility work,
+`MFFV1_TEST_VECTOR_REQUIRE_ALL_SUPPORTED=1` turns those unsupported matched
+vectors into test failures, which makes it easier to confirm when the remaining
+legacy gaps have actually closed.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

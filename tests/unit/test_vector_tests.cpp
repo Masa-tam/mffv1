@@ -4104,40 +4104,43 @@ void expect_decodes_vector(const mffv1_testvectors::DecodeVector& vector)
     }
 }
 
-std::string current_test_vector_filter()
+std::string environment_setting(const char* name)
 {
 #if defined(_MSC_VER)
     char* value = nullptr;
     std::size_t size = 0;
-    if (_dupenv_s(&value, &size, "MFFV1_TEST_VECTOR_FILTER") != 0
+    if (_dupenv_s(&value, &size, name) != 0
         || value == nullptr) {
         return {};
     }
-    std::string filter{value};
+    std::string setting{value};
     std::free(value);
-    return filter;
+    return setting;
 #else
-    const auto* filter = std::getenv("MFFV1_TEST_VECTOR_FILTER");
-    return filter == nullptr ? std::string{} : std::string{filter};
+    const auto* value = std::getenv(name);
+    return value == nullptr ? std::string{} : std::string{value};
 #endif
+}
+
+bool environment_flag_enabled(const char* name)
+{
+    const auto setting = environment_setting(name);
+    return !setting.empty() && setting != "0";
+}
+
+std::string current_test_vector_filter()
+{
+    return environment_setting("MFFV1_TEST_VECTOR_FILTER");
 }
 
 bool trace_successful_legacy_bootstrap()
 {
-#if defined(_MSC_VER)
-    char* value = nullptr;
-    std::size_t size = 0;
-    if (_dupenv_s(&value, &size, "MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP") != 0
-        || value == nullptr) {
-        return false;
-    }
-    const std::string setting{value};
-    std::free(value);
-#else
-    const auto* value = std::getenv("MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP");
-    const std::string setting = value == nullptr ? std::string{} : std::string{value};
-#endif
-    return !setting.empty() && setting != "0";
+    return environment_flag_enabled("MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP");
+}
+
+bool require_all_generated_test_vectors_supported()
+{
+    return environment_flag_enabled("MFFV1_TEST_VECTOR_REQUIRE_ALL_SUPPORTED");
 }
 
 bool matches_test_vector_filter(std::string_view name, std::string_view filter)
@@ -4261,6 +4264,15 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
             message << "\n  " << entry;
         }
         GTEST_SKIP() << message.str();
+    }
+    if (require_all_generated_test_vectors_supported()
+        && !unsupported_vectors.empty()) {
+        std::ostringstream message;
+        message << "matched generated FFV1 test vectors include unsupported entries";
+        for (const auto& entry : unsupported_vectors) {
+            message << "\n  " << entry;
+        }
+        FAIL() << message.str();
     }
     if (decoded_count == 0) {
         std::ostringstream message;

@@ -4,6 +4,7 @@
 #include "codec/frame_parser.hpp"
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_output_window.hpp"
+#include "mffv1/color_transform.hpp"
 #include "mffv1/codec.hpp"
 #include "mffv1/predictor.hpp"
 
@@ -16,6 +17,7 @@
 #include <sstream>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -389,12 +391,12 @@ public:
         std::span<const std::byte> content_payload,
         std::span<const mffv1::syntax::QuantTableSet> quant_table_sets,
         std::span<const std::uint32_t> plane_quant_table_set_indexes,
-        std::uint8_t bits_per_raw_sample)
+        const mffv1::syntax::StreamParameters& stream)
         : expected_planes_(expected_planes),
           content_payload_(content_payload),
           quant_table_sets_(quant_table_sets),
           plane_quant_table_set_indexes_(plane_quant_table_set_indexes),
-          bits_per_raw_sample_(bits_per_raw_sample)
+          stream_(stream)
     {
     }
 
@@ -408,8 +410,7 @@ public:
         if (trace.x >= expected.info.width || trace.y >= expected.info.height) {
             return;
         }
-        const auto expected_sample =
-            sample_at(expected.samples, expected.info, trace.x, trace.y);
+        const auto expected_sample = expected_internal_sample(trace);
         if (static_cast<std::uint32_t>(trace.reconstructed_sample) == expected_sample) {
             remember_trace(trace);
             return;
@@ -417,7 +418,7 @@ public:
         const auto expected_difference = mffv1::syntax::Predictor::difference(
             static_cast<std::int32_t>(expected_sample),
             trace.prediction,
-            bits_per_raw_sample_);
+            stream_.bits_per_raw_sample);
         const auto rice_k =
             derive_golomb_rice_k_for_diagnostic(trace.adaptive_state_before);
         const auto has_context_terms =
@@ -479,6 +480,36 @@ public:
     }
 
 private:
+    std::uint32_t expected_internal_sample(
+        const mffv1::codec::GolombRiceSampleTrace& trace) const
+    {
+        if (stream_.colorspace_type != 1 || trace.plane > 2
+            || expected_planes_.size() < 3) {
+            const auto& expected = expected_planes_[trace.plane];
+            return sample_at(expected.samples, expected.info, trace.x, trace.y);
+        }
+
+        const auto r = sample_at(
+            expected_planes_[0].samples, expected_planes_[0].info, trace.x, trace.y);
+        const auto g = sample_at(
+            expected_planes_[1].samples, expected_planes_[1].info, trace.x, trace.y);
+        const auto b = sample_at(
+            expected_planes_[2].samples, expected_planes_[2].info, trace.x, trace.y);
+        const auto code = mffv1::syntax::forward_jpeg2000_rct(
+            static_cast<std::uint16_t>(r),
+            static_cast<std::uint16_t>(g),
+            static_cast<std::uint16_t>(b),
+            stream_.bits_per_raw_sample,
+            stream_.extra_plane);
+        if (trace.plane == 0) {
+            return static_cast<std::uint32_t>(code.y);
+        }
+        if (trace.plane == 1) {
+            return static_cast<std::uint32_t>(code.cb);
+        }
+        return static_cast<std::uint32_t>(code.cr);
+    }
+
     void remember_trace(const mffv1::codec::GolombRiceSampleTrace& trace)
     {
         if (recent_traces_.size() == kRecentTraceLimit) {
@@ -492,36 +523,17 @@ private:
     std::span<const std::byte> content_payload_;
     std::span<const mffv1::syntax::QuantTableSet> quant_table_sets_;
     std::span<const std::uint32_t> plane_quant_table_set_indexes_;
-    std::uint8_t bits_per_raw_sample_ = 0;
+    const mffv1::syntax::StreamParameters& stream_;
     std::vector<std::string> recent_traces_;
     std::string description_;
 };
 
-std::string describe_golomb_rice_partial_decode(
-    const mffv1_testvectors::DecodeVector& vector,
-    std::span<const std::byte> frame_payload,
-    std::span<const mffv1_testvectors::PlaneVector> expected_planes)
+std::string describe_golomb_rice_candidate_decode(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::syntax::SliceDescriptor& candidate,
+    std::span<const mffv1_testvectors::PlaneVector> expected_planes,
+    std::string_view label)
 {
-    mffv1::syntax::StreamParameters stream;
-    mffv1::codec::ConfigurationRecordParser config_parser;
-    auto status = config_parser.parse(vector.configuration_record, stream);
-    if (!status.ok()) {
-        return {};
-    }
-    if (stream.entropy_mode != mffv1::EntropyMode::GolombRice
-        || stream.version < 3) {
-        return {};
-    }
-    stream.width = vector.frame_width;
-    stream.height = vector.frame_height;
-
-    mffv1::codec::FrameParser frame_parser(stream, true);
-    mffv1::codec::FrameDecodeContext frame;
-    status = frame_parser.parse(frame_payload, frame);
-    if (!status.ok() || frame.slices.empty()) {
-        return {};
-    }
-
     std::vector<std::vector<std::byte>> plane_storage;
     std::vector<mffv1::MutablePlaneView> output_planes;
     plane_storage.reserve(expected_planes.size());
@@ -536,22 +548,21 @@ std::string describe_golomb_rice_partial_decode(
             mffv1::MutablePlaneView{plane_storage.back().data(), expected.info});
     }
 
-    auto candidate = frame.slices.front();
-    if (candidate.content_byte_offset > candidate.payload_byte_offset) {
-        --candidate.content_byte_offset;
-    }
     mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
     mffv1::codec::SliceOutputWindow window;
-    status = window.validate(stream, output, candidate);
+    auto status = window.validate(stream, output, candidate);
     if (!status.ok()) {
-        return {};
+        std::ostringstream out;
+        out << label << " candidate status: " << describe_status(status);
+        return out.str();
     }
     mffv1::codec::SliceState state;
     status = state.reset(stream, window);
     if (!status.ok()) {
-        return {};
+        std::ostringstream out;
+        out << label << " candidate status: " << describe_status(status);
+        return out.str();
     }
-    const mffv1::codec::SliceDecoder slice_decoder(stream);
     const auto content_offset = candidate.content_byte_offset - candidate.payload_byte_offset;
     const auto content_payload = candidate.payload.subspan(content_offset);
     std::vector<std::uint32_t> plane_quant_table_set_indexes;
@@ -570,11 +581,14 @@ std::string describe_golomb_rice_partial_decode(
         content_payload,
         stream.quant_table_sets,
         plane_quant_table_set_indexes,
-        stream.bits_per_raw_sample);
+        stream);
+    const mffv1::codec::SliceDecoder slice_decoder(stream);
     status = slice_decoder.decode(candidate, window, state, &observer);
 
     std::ostringstream out;
-    out << "partial alternate decode status: " << describe_status(status);
+    out << label << " candidate byte=" << candidate.content_byte_offset
+        << " bit=" << static_cast<int>(candidate.content_bit_offset)
+        << " status: " << describe_status(status);
     if (!observer.description().empty()) {
         out << "\n" << observer.description();
     }
@@ -603,6 +617,44 @@ std::string describe_golomb_rice_partial_decode(
             out << "\n" << mismatch;
             break;
         }
+    }
+    return out.str();
+}
+
+std::string describe_golomb_rice_partial_decode(
+    const mffv1_testvectors::DecodeVector& vector,
+    std::span<const std::byte> frame_payload,
+    std::span<const mffv1_testvectors::PlaneVector> expected_planes)
+{
+    mffv1::syntax::StreamParameters stream;
+    mffv1::codec::ConfigurationRecordParser config_parser;
+    auto status = config_parser.parse(vector.configuration_record, stream);
+    if (!status.ok()) {
+        return {};
+    }
+    if (stream.entropy_mode != mffv1::EntropyMode::GolombRice
+        || stream.version < 3) {
+        return {};
+    }
+    stream.width = vector.frame_width;
+    stream.height = vector.frame_height;
+
+    mffv1::codec::FrameParser frame_parser(stream, true);
+    mffv1::codec::FrameDecodeContext frame;
+    status = frame_parser.parse(frame_payload, frame);
+    if (!status.ok() || frame.slices.empty()) {
+        return {};
+    }
+
+    std::ostringstream out;
+    const auto& primary = frame.slices.front();
+    out << describe_golomb_rice_candidate_decode(
+        stream, primary, expected_planes, "partial primary");
+    if (primary.content_byte_offset > primary.payload_byte_offset) {
+        auto read_ahead = primary;
+        --read_ahead.content_byte_offset;
+        out << "\n" << describe_golomb_rice_candidate_decode(
+            stream, read_ahead, expected_planes, "partial read-ahead");
     }
     return out.str();
 }

@@ -78,6 +78,7 @@ public:
     Status begin_independent_scalar_contexts(std::size_t scalar_context_count) override;
     Status end_independent_scalar_contexts() override;
     Status set_state_transition(const syntax::StateTransitionTable& state_transition) override;
+    Status set_legacy_v0_arithmetic(bool enabled);
 
 private:
     struct ScalarContextSnapshot {
@@ -108,6 +109,7 @@ private:
     std::uint64_t byte_position_ = 0;
     bool end_ = false;
     bool initialized_ = false;
+    bool legacy_v0_arithmetic_ = false;
     syntax::StateTransitionTable state_transition_ = syntax::kDefaultStateTransition;
     std::vector<std::size_t> scalar_context_bank_offsets_;
     std::vector<std::size_t> scalar_context_bank_sizes_;

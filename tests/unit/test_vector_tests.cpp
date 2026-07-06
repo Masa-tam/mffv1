@@ -2570,7 +2570,7 @@ std::string_view unsupported_decode_vector_reason(
     }
     if (name.find("_v1_legacy_") == std::string_view::npos) {
         if (name.find("range_") != std::string_view::npos) {
-            return "legacy version 0 range compatibility is under investigation";
+            return {};
         }
         return "legacy version 0 payload boundaries are not implemented";
     }

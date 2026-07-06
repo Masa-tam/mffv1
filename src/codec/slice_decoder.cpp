@@ -1334,6 +1334,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         }
         status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
         reader_base_offset = slice.payload_byte_offset;
+        if (status.ok() && slice.uses_legacy_v0_arithmetic) {
+            status = reader.set_legacy_v0_arithmetic(true);
+        }
     } else {
         status = reader.reset(content_payload,
                               range_context_counts,

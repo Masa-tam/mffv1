@@ -24,6 +24,7 @@ private:
     Status parse_legacy_range_slices_after_keyframe(ByteSpan payload,
                                                     entropy::SymbolReader& header_reader,
                                                     bool keyframe,
+                                                    bool uses_legacy_v0_arithmetic,
                                                     FrameDecodeContext& out_frame) const;
     Status parse_located_range_slices(ByteSpan payload, FrameDecodeContext& out_frame) const;
 

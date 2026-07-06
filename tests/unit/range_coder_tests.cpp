@@ -590,6 +590,65 @@ TEST(RangeCoderTest, RejectsInvalidArithmeticStateRestore)
     EXPECT_EQ(status.location.byte_offset, 3u);
 }
 
+TEST(RangeCoderTest, RejectsLegacyV0ArithmeticModeBeforeReset)
+{
+    mffv1::entropy::RangeCoder coder;
+
+    const auto status = coder.set_legacy_v0_arithmetic(true);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range coder is not initialized");
+}
+
+TEST(RangeCoderTest, LegacyV0ArithmeticModeUsesCeilSplitAndOnePathCarry)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xd3},
+        std::byte{0x20},
+    };
+    const std::array<std::size_t, 1> context_counts{1};
+    mffv1::entropy::RangeCoder::ScalarContextStates states{};
+    states.fill(mffv1::entropy::RangeCoder::kDefaultInitialState);
+    states[0] = 255;
+    const std::array initial_state_banks{
+        std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>{&states, 1},
+    };
+    mffv1::entropy::RangeCoder::ArithmeticState state;
+    state.range = 0xd3fu;
+    state.low = 0x20u;
+    state.byte_position = 2;
+    state.initialized = true;
+
+    mffv1::entropy::RangeCoder normal;
+    ASSERT_TRUE(normal.reset_from_arithmetic_state(
+        payload,
+        context_counts,
+        initial_state_banks,
+        mffv1::syntax::kDefaultStateTransition,
+        state).ok());
+    bool normal_bit = false;
+    ASSERT_TRUE(normal.read_bool(normal_bit).ok());
+
+    mffv1::entropy::RangeCoder legacy;
+    ASSERT_TRUE(legacy.reset_from_arithmetic_state(
+        payload,
+        context_counts,
+        initial_state_banks,
+        mffv1::syntax::kDefaultStateTransition,
+        state).ok());
+    ASSERT_TRUE(legacy.set_legacy_v0_arithmetic(true).ok());
+    bool legacy_bit = false;
+    ASSERT_TRUE(legacy.read_bool(legacy_bit).ok());
+
+    EXPECT_TRUE(normal_bit);
+    EXPECT_TRUE(legacy_bit);
+    EXPECT_EQ(normal.arithmetic_state().range, 0xd31u);
+    EXPECT_EQ(normal.arithmetic_state().low, 0x12u);
+    EXPECT_EQ(legacy.arithmetic_state().range, 0xd32u);
+    EXPECT_EQ(legacy.arithmetic_state().low, 0x15u);
+}
+
 TEST(RangeCoderTest, RejectsEmptyRestoredContextBank)
 {
     const std::array<std::byte, 2> payload{

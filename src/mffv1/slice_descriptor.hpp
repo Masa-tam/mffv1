@@ -32,6 +32,7 @@ struct SliceDescriptor {
     std::uint32_t expected_crc = 0;
     bool has_crc = false;
     bool continues_frame_range_state = false;
+    bool uses_legacy_v0_arithmetic = false;
 };
 
 } // namespace mffv1::syntax

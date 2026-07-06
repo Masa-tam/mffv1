@@ -340,6 +340,20 @@ Status RangeCoder::set_state_transition(
     return ok_status();
 }
 
+Status RangeCoder::set_legacy_v0_arithmetic(bool enabled)
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range coder is not initialized");
+    }
+    legacy_v0_arithmetic_ = enabled;
+    if (enabled) {
+        for (auto& context : scalar_contexts_) {
+            context[0] = 255;
+        }
+    }
+    return ok_status();
+}
+
 Status RangeCoder::begin_independent_scalar_contexts(std::size_t scalar_context_count)
 {
     if (!initialized_) {
@@ -387,7 +401,16 @@ Status RangeCoder::read_rac(std::uint8_t& state, bool& out_bit)
         return make_error(ErrorCode::InvalidState, "range coder is not initialized");
     }
 
-    const std::uint32_t rangeoff = (range_ * state) >> 8;
+    const auto product = static_cast<std::uint64_t>(range_) * state;
+    const std::uint32_t rangeoff = static_cast<std::uint32_t>(
+        (product + (legacy_v0_arithmetic_ ? 255u : 0u)) >> 8);
+    const auto nonzero_product = static_cast<std::uint64_t>(range_)
+        * (256u - state)
+        + (legacy_v0_arithmetic_ ? 0u : 255u);
+    const auto one_path_carry = legacy_v0_arithmetic_
+        ? (((product + 255u) & 0xffu) != 0 ? 1u : 0u)
+            + ((nonzero_product & 0xffu) != 0 ? 1u : 0u)
+        : 0u;
     range_ -= rangeoff;
     if (low_ < range_) {
         state = syntax::range_zero_state(state_transition_, state);
@@ -401,6 +424,7 @@ Status RangeCoder::read_rac(std::uint8_t& state, bool& out_bit)
     state = syntax::range_one_state(state_transition_, state);
     out_bit = true;
     refill();
+    low_ += one_path_carry;
     return ok_status();
 }
 

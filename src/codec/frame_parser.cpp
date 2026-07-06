@@ -205,14 +205,15 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
             return status;
         }
         entropy::RangeCoder embedded_parameter_reader;
-        if (keyframe
+        const bool has_embedded_parameters = keyframe
             && detect_matching_legacy_embedded_parameters_reader(
-                payload, stream_, embedded_parameter_reader)) {
+                payload, stream_, embedded_parameter_reader);
+        if (has_embedded_parameters) {
             return parse_legacy_range_slices_after_keyframe(
-                payload, embedded_parameter_reader, keyframe, out_frame);
+                payload, embedded_parameter_reader, keyframe, stream_.version == 0, out_frame);
         }
         return parse_legacy_range_slices_after_keyframe(
-            payload, frame_reader, keyframe, out_frame);
+            payload, frame_reader, keyframe, false, out_frame);
     }
     if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
         return make_error(ErrorCode::NotImplemented, "multi-slice frame parsing is not implemented yet");
@@ -280,9 +281,13 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     slice.payload = payload;
     slice.header_byte_offset = 0;
     auto content_byte_offset = parse_legacy_range_header ? frame_reader.byte_position() : 0;
+    auto uses_legacy_v0_arithmetic = false;
     if (parse_legacy_range_header && next_frame.keyframe) {
-        content_byte_offset = detect_legacy_embedded_parameters_offset(
+        const auto embedded_content_byte_offset = detect_legacy_embedded_parameters_offset(
             frame_reader, stream_, content_byte_offset);
+        uses_legacy_v0_arithmetic = stream_.version == 0
+            && embedded_content_byte_offset != content_byte_offset;
+        content_byte_offset = embedded_content_byte_offset;
     }
     slice.content_byte_offset = content_byte_offset;
     if (has_legacy_golomb_rice_embedded_parameters) {
@@ -296,6 +301,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     }
     slice.payload_byte_offset = 0;
     slice.continues_frame_range_state = parse_legacy_range_header;
+    slice.uses_legacy_v0_arithmetic = uses_legacy_v0_arithmetic;
     next_frame.slices.push_back(slice);
 
     status = validate_slice_raster_coverage(stream_, next_frame.slices);
@@ -334,13 +340,14 @@ Status FrameParser::parse_with_header_reader(ByteSpan payload,
         return status;
     }
     return parse_legacy_range_slices_after_keyframe(
-        payload, header_reader, keyframe, out_frame);
+        payload, header_reader, keyframe, false, out_frame);
 }
 
 Status FrameParser::parse_legacy_range_slices_after_keyframe(
     ByteSpan payload,
     entropy::SymbolReader& header_reader,
     bool keyframe,
+    bool uses_legacy_v0_arithmetic,
     FrameDecodeContext& out_frame) const
 {
     FrameDecodeContext next_frame;
@@ -367,6 +374,7 @@ Status FrameParser::parse_legacy_range_slices_after_keyframe(
             return status;
         }
         slice.payload = payload;
+        slice.uses_legacy_v0_arithmetic = uses_legacy_v0_arithmetic;
         next_frame.slices.push_back(slice);
 
         status = validate_slice_raster_coverage(stream_, next_frame.slices);

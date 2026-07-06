@@ -279,6 +279,7 @@ TEST(FrameParserTest, ParsesLegacyRangeKeyframeAndContentOffset)
     EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
     EXPECT_EQ(frame.slices[0].payload_byte_offset, 0u);
     EXPECT_TRUE(frame.slices[0].continues_frame_range_state);
+    EXPECT_FALSE(frame.slices[0].uses_legacy_v0_arithmetic);
 }
 
 TEST(FrameParserTest, RejectsLegacyRangeNonKeyframeForIntraOnlyStream)
@@ -316,6 +317,7 @@ TEST(FrameParserTest, ParsesLegacyRangeNonKeyframe)
     ASSERT_EQ(frame.slices.size(), 1u);
     EXPECT_EQ(frame.slices[0].content_byte_offset, 2u);
     EXPECT_TRUE(frame.slices[0].continues_frame_range_state);
+    EXPECT_FALSE(frame.slices[0].uses_legacy_v0_arithmetic);
 }
 
 TEST(FrameParserTest, ParsesLegacyGolombRiceKeyframeBit)
@@ -1047,6 +1049,7 @@ TEST(FrameParserTest, ParsesLegacyRangeMultiSliceThroughDefaultParse)
     EXPECT_EQ(frame.slices[0].x, 0u);
     EXPECT_EQ(frame.slices[0].width, 8u);
     EXPECT_EQ(frame.slices[0].payload.size(), payload.size());
+    EXPECT_FALSE(frame.slices[0].uses_legacy_v0_arithmetic);
     EXPECT_EQ(frame.slices[1].index, 1u);
     EXPECT_EQ(frame.slices[1].raster_x, 1u);
     EXPECT_EQ(frame.slices[1].raster_y, 0u);
@@ -1055,6 +1058,7 @@ TEST(FrameParserTest, ParsesLegacyRangeMultiSliceThroughDefaultParse)
     EXPECT_EQ(frame.slices[1].x, 8u);
     EXPECT_EQ(frame.slices[1].width, 8u);
     EXPECT_EQ(frame.slices[1].payload.size(), payload.size());
+    EXPECT_FALSE(frame.slices[1].uses_legacy_v0_arithmetic);
 }
 
 TEST(FrameParserTest, ParsesLegacyRangeMultiSliceAfterEmbeddedParameters)
@@ -1083,12 +1087,14 @@ TEST(FrameParserTest, ParsesLegacyRangeMultiSliceAfterEmbeddedParameters)
     EXPECT_EQ(frame.slices[0].raster_height, 1u);
     EXPECT_EQ(frame.slices[0].x, 0u);
     EXPECT_EQ(frame.slices[0].width, 8u);
+    EXPECT_TRUE(frame.slices[0].uses_legacy_v0_arithmetic);
     EXPECT_EQ(frame.slices[1].raster_x, 1u);
     EXPECT_EQ(frame.slices[1].raster_y, 0u);
     EXPECT_EQ(frame.slices[1].raster_width, 1u);
     EXPECT_EQ(frame.slices[1].raster_height, 1u);
     EXPECT_EQ(frame.slices[1].x, 8u);
     EXPECT_EQ(frame.slices[1].width, 8u);
+    EXPECT_TRUE(frame.slices[1].uses_legacy_v0_arithmetic);
 }
 
 TEST(FrameParserTest, ReportsLegacyGolombRiceMultiSliceAsNotImplemented)

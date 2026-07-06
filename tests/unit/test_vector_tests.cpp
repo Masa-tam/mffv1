@@ -4508,11 +4508,6 @@ bool trace_successful_legacy_bootstrap()
     return environment_flag_enabled("MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP");
 }
 
-bool require_all_generated_test_vectors_supported()
-{
-    return environment_flag_enabled("MFFV1_TEST_VECTOR_REQUIRE_ALL_SUPPORTED");
-}
-
 bool try_unsupported_generated_test_vectors()
 {
     return environment_flag_enabled("MFFV1_TEST_VECTOR_TRY_UNSUPPORTED");
@@ -4548,11 +4543,6 @@ std::string unsupported_decode_vector_reason(
         return "legacy vector has no embedded parameters";
     }
     return {};
-}
-
-bool is_known_unsupported_decode_vector_reason(std::string_view)
-{
-    return false;
 }
 
 } // namespace
@@ -4613,8 +4603,7 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
         }
         GTEST_SKIP() << message.str();
     }
-    if (require_all_generated_test_vectors_supported()
-        && !unsupported_vectors.empty()) {
+    if (!unsupported_vectors.empty()) {
         std::ostringstream message;
         message << "matched generated FFV1 test vectors include unsupported entries";
         for (const auto& entry : unsupported_vectors) {
@@ -4643,26 +4632,5 @@ TEST(TestVectorTest, EnvironmentFlagSettingsTreatOnlyEmptyAndZeroAsDisabled)
     EXPECT_TRUE(test_vector_flag_setting_enabled("1"));
     EXPECT_TRUE(test_vector_flag_setting_enabled("false"));
     EXPECT_TRUE(test_vector_flag_setting_enabled("off"));
-#endif
-}
-
-TEST(TestVectorTest, UnsupportedGeneratedVectorsAreKnownCompatibilityGaps)
-{
-#if defined(NO_DEFINE_TEST_VECTOR_DATA)
-    GTEST_SKIP() << "external FFV1 test vectors have not been generated";
-#else
-    std::size_t unsupported_count = 0;
-    for (const auto& vector : mffv1_testvectors::decode_vectors()) {
-        const auto reason = unsupported_decode_vector_reason(vector);
-        if (reason.empty()) {
-            continue;
-        }
-        ++unsupported_count;
-        EXPECT_TRUE(is_known_unsupported_decode_vector_reason(reason))
-            << vector.name << ": " << reason;
-    }
-    if (unsupported_count == 0) {
-        GTEST_SKIP() << "all generated FFV1 test vectors are currently supported";
-    }
 #endif
 }

@@ -778,14 +778,13 @@ default and parsed custom transitions. The nonzero control still decodes the
 first sample as zero in every entry mode. This weakens the hypothesis that the
 current v0 parser merely reads too much embedded Parameters data before Slice
 Content.
-The generated-vector test suite also has a guard for unsupported external
-vectors: only the known v0 Golomb-Rice payload-boundary gap and the known v0
-range-coded nonzero reconstruction gap may be skipped. This keeps future
-external-vector regressions from silently joining the compatibility exception
-set. For active compatibility work,
-`MFFV1_TEST_VECTOR_REQUIRE_ALL_SUPPORTED=1` turns those unsupported matched
-vectors into test failures, which makes it easier to confirm when the remaining
-legacy gaps have actually closed.
+The generated-vector test suite now treats unsupported matched external
+vectors as failures by default. This keeps future external-vector regressions
+from silently joining a compatibility exception set now that the local
+single-slice legacy v0/v1 set has no known unsupported entries. For active
+compatibility diagnosis, `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` still asks the
+harness to run vectors that fail the bootstrap-support precheck so their public
+decode errors can be inspected directly.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

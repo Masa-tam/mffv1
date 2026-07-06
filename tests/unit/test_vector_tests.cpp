@@ -1906,6 +1906,8 @@ std::string describe_legacy_range_expected_residual_probe(
             std::int64_t difference = 0;
             std::uint32_t sample = 0;
             std::uint32_t error = 0;
+            std::uint32_t away_sample = 0;
+            std::uint32_t away_error = 0;
         };
         const auto evaluate_body_state_pair = [&](std::uint8_t zero_state,
                                                   std::uint8_t body_state,
@@ -1958,6 +1960,23 @@ std::string describe_legacy_range_expected_residual_probe(
             result.error = result.sample > expected_sample
                 ? result.sample - expected_sample
                 : expected_sample - result.sample;
+            auto adjusted_difference = difference;
+            if (adjusted_difference > 0) {
+                ++adjusted_difference;
+            } else if (adjusted_difference < 0) {
+                --adjusted_difference;
+            }
+            if (invert_difference) {
+                adjusted_difference = -adjusted_difference;
+            }
+            const auto away_reconstructed = mffv1::syntax::Predictor::reconstruct(
+                prediction,
+                static_cast<std::int32_t>(adjusted_difference),
+                stream.bits_per_raw_sample);
+            result.away_sample = static_cast<std::uint32_t>(away_reconstructed);
+            result.away_error = result.away_sample > expected_sample
+                ? result.away_sample - expected_sample
+                : expected_sample - result.away_sample;
             return probe_status;
         };
         const auto append_body_state_sweep = [&](std::string_view label,
@@ -1965,6 +1984,49 @@ std::string describe_legacy_range_expected_residual_probe(
             std::array<BodyStateResult, 8> body_best{};
             std::size_t body_best_count = 0;
             std::size_t body_exact_count = 0;
+            std::size_t away_exact_count = 0;
+            std::array<BodyStateResult, 8> away_best{};
+            std::size_t away_best_count = 0;
+            const auto sort_body_results = [](auto begin, auto end, bool use_away_error) {
+                std::sort(
+                    begin,
+                    end,
+                    [use_away_error](const BodyStateResult& lhs, const BodyStateResult& rhs) {
+                        const auto lhs_error = use_away_error ? lhs.away_error : lhs.error;
+                        const auto rhs_error = use_away_error ? rhs.away_error : rhs.error;
+                        if (lhs_error != rhs_error) {
+                            return lhs_error < rhs_error;
+                        }
+                        if (lhs.zero_state != rhs.zero_state) {
+                            return lhs.zero_state < rhs.zero_state;
+                        }
+                        return lhs.body_state < rhs.body_state;
+                    });
+            };
+            const auto update_best = [&sort_body_results](
+                                         std::array<BodyStateResult, 8>& best,
+                                         std::size_t& best_count,
+                                         const BodyStateResult& result,
+                                         bool use_away_error) {
+                if (best_count < best.size()) {
+                    best[best_count] = result;
+                    ++best_count;
+                } else {
+                    const auto candidate_error = use_away_error ? result.away_error : result.error;
+                    const auto worst_error = use_away_error
+                        ? best[best_count - 1].away_error
+                        : best[best_count - 1].error;
+                    if (candidate_error < worst_error) {
+                        best[best_count - 1] = result;
+                    } else {
+                        return;
+                    }
+                }
+                sort_body_results(
+                    best.begin(),
+                    best.begin() + static_cast<std::ptrdiff_t>(best_count),
+                    use_away_error);
+            };
             for (std::uint16_t zero_state = 0; zero_state <= 255; ++zero_state) {
                 for (std::uint16_t body_state = 0; body_state <= 255; ++body_state) {
                     BodyStateResult result;
@@ -1979,26 +2041,11 @@ std::string describe_legacy_range_expected_residual_probe(
                     if (result.sample == expected_sample) {
                         ++body_exact_count;
                     }
-                    if (body_best_count < body_best.size()) {
-                        body_best[body_best_count] = result;
-                        ++body_best_count;
-                    } else if (result.error < body_best[body_best_count - 1].error) {
-                        body_best[body_best_count - 1] = result;
-                    } else {
-                        continue;
+                    if (result.away_sample == expected_sample) {
+                        ++away_exact_count;
                     }
-                    std::sort(
-                        body_best.begin(),
-                        body_best.begin() + static_cast<std::ptrdiff_t>(body_best_count),
-                        [](const BodyStateResult& lhs, const BodyStateResult& rhs) {
-                            if (lhs.error != rhs.error) {
-                                return lhs.error < rhs.error;
-                            }
-                            if (lhs.zero_state != rhs.zero_state) {
-                                return lhs.zero_state < rhs.zero_state;
-                            }
-                            return lhs.body_state < rhs.body_state;
-                        });
+                    update_best(body_best, body_best_count, result, false);
+                    update_best(away_best, away_best_count, result, true);
                 }
             }
             trace << " " << label << " exact=" << body_exact_count << " best";
@@ -2008,6 +2055,14 @@ std::string describe_legacy_range_expected_residual_probe(
                       << ":" << body_best[i].difference
                       << "/" << body_best[i].sample
                       << "/err" << body_best[i].error;
+            }
+            trace << " away_exact=" << away_exact_count << " away_best";
+            for (std::size_t i = 0; i < away_best_count; ++i) {
+                trace << " s0=" << away_best[i].zero_state
+                      << "/body=" << away_best[i].body_state
+                      << ":" << away_best[i].difference
+                      << "/" << away_best[i].away_sample
+                      << "/err" << away_best[i].away_error;
             }
         };
         append_body_state_sweep("s0_body_sweep", true);

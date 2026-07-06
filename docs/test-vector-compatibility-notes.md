@@ -720,6 +720,15 @@ This weakens the hypothesis that the residual is one arithmetic split variant
 away from compatibility; the missing rule is more likely in the scalar value
 mapping or in a v0-specific signed residual boundary convention.
 
+Applying an away-from-zero adjustment to the decoded nonzero scalar before
+sample reconstruction produces exact first-sample matches for many `s0` and
+scalar-body state candidates: 173 candidates under the legacy v0 split and 158
+candidates under the normal split. This does not prove that mffv1 should apply
+such an adjustment globally; it is a diagnostic-only result. It does, however,
+make the remaining v0 range-coded nonzero gap look much more like a historical
+signed-scalar boundary or value-mapping convention than a byte restore,
+initial-state, or simple arithmetic split issue.
+
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data
 or first-sample mismatch diagnostics, so they continue to support the earlier

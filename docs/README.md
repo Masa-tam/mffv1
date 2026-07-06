@@ -31,6 +31,8 @@ starting point for library integration.
   contracts and implementation boundaries.
 - [Phase 5 Encoder Specification](PHASE5_ENCODER_SPEC.md): encoder internals,
   entropy writers, slice assembly, threading, and SIMD boundaries.
+- [Legacy Bootstrap Design](LEGACY_BOOTSTRAP_DESIGN.md): proposed decoder API
+  for version 0/1 keyframe-embedded `Parameters()` initialization.
 
 Design documents may include future work. Public behavior should be taken from
 the API references and public headers when the documents differ.

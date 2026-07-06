@@ -47,6 +47,54 @@ std::string describe_status(const mffv1::Status& status)
     return out.str();
 }
 
+std::string describe_range_state(
+    const mffv1::entropy::RangeCoder::ArithmeticState& state)
+{
+    std::ostringstream out;
+    out << "range=0x" << std::hex << state.range
+        << " low=0x" << state.low << std::dec
+        << " byte=" << state.byte_position
+        << " end=" << state.end
+        << " init=" << state.initialized;
+    return out.str();
+}
+
+std::string describe_legacy_bootstrap_state(
+    const mffv1_testvectors::DecodeVector& vector)
+{
+    if (!vector.configuration_record.empty() || vector.frame_payloads.empty()) {
+        return {};
+    }
+
+    mffv1::codec::LegacyFrameBootstrap bootstrap;
+    const mffv1::codec::LegacyFrameBootstrapParser bootstrap_parser;
+    const auto status = bootstrap_parser.parse(
+        vector.frame_payloads.front(),
+        vector.frame_width,
+        vector.frame_height,
+        bootstrap);
+    if (!status.ok()) {
+        return std::string{" bootstrap="} + describe_status(status);
+    }
+
+    std::ostringstream out;
+    out << " bootstrap keyframe="
+        << bootstrap.keyframe
+        << " embedded="
+        << bootstrap.has_embedded_parameters
+        << " content="
+        << bootstrap.content_byte_offset
+        << " after_keyframe{"
+        << describe_range_state(bootstrap.range_state_after_keyframe)
+        << "}";
+    if (bootstrap.has_embedded_parameters) {
+        out << " after_parameters{"
+            << describe_range_state(bootstrap.range_state_after_parameters)
+            << "}";
+    }
+    return out.str();
+}
+
 std::string describe_frame_parse(
     const mffv1_testvectors::DecodeVector& vector,
     std::span<const std::byte> frame_payload)
@@ -1033,7 +1081,8 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
         const auto unsupported_reason = unsupported_decode_vector_reason(vector);
         if (!unsupported_reason.empty()) {
             std::ostringstream entry;
-            entry << vector.name << ": " << unsupported_reason;
+            entry << vector.name << ": " << unsupported_reason
+                  << describe_legacy_bootstrap_state(vector);
             unsupported_vectors.push_back(entry.str());
             continue;
         }

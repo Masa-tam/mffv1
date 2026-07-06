@@ -792,3 +792,10 @@ boundary probe still finds only short zero-prefix matches with trailing-data
 or first-sample mismatch diagnostics, so they continue to support the earlier
 conclusion: the missing piece is a legacy v0 Golomb-Rice payload boundary or
 embedded-parameter convention, not ordinary sample reconstruction.
+Running the same v0 Golomb-Rice set with
+`MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` confirms that the public decode path
+reaches the same class of failure: `1x1`, `2x1`, `4x1`, `8x1`, and `16x1`
+all decode up to a candidate plane end and then report trailing bytes. The
+matching v1 Golomb-Rice legacy set passes in strict mode, so this is still
+best treated as a v0-specific payload-boundary or embedded-parameter placement
+gap rather than a shared Golomb-Rice sample decoder problem.

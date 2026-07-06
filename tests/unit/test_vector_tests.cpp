@@ -1909,6 +1909,7 @@ std::string describe_legacy_range_expected_residual_probe(
         };
         const auto evaluate_body_state_pair = [&](std::uint8_t zero_state,
                                                   std::uint8_t body_state,
+                                                  bool legacy_arithmetic,
                                                   BodyStateResult& result) {
             result.zero_state = zero_state;
             result.body_state = body_state;
@@ -1925,7 +1926,7 @@ std::string describe_legacy_range_expected_residual_probe(
                 {},
                 stream.state_transition,
                 state);
-            if (probe_status.ok()) {
+            if (probe_status.ok() && legacy_arithmetic) {
                 probe_status = probe_reader.set_legacy_v0_arithmetic(true);
             }
             if (probe_status.ok()) {
@@ -1959,52 +1960,58 @@ std::string describe_legacy_range_expected_residual_probe(
                 : expected_sample - result.sample;
             return probe_status;
         };
-        std::array<BodyStateResult, 8> body_best{};
-        std::size_t body_best_count = 0;
-        std::size_t body_exact_count = 0;
-        for (std::uint16_t zero_state = 0; zero_state <= 255; ++zero_state) {
-            for (std::uint16_t body_state = 0; body_state <= 255; ++body_state) {
-                BodyStateResult result;
-                const auto probe_status = evaluate_body_state_pair(
-                    static_cast<std::uint8_t>(zero_state),
-                    static_cast<std::uint8_t>(body_state),
-                    result);
-                if (!probe_status.ok()) {
-                    continue;
+        const auto append_body_state_sweep = [&](std::string_view label,
+                                                 bool legacy_arithmetic) {
+            std::array<BodyStateResult, 8> body_best{};
+            std::size_t body_best_count = 0;
+            std::size_t body_exact_count = 0;
+            for (std::uint16_t zero_state = 0; zero_state <= 255; ++zero_state) {
+                for (std::uint16_t body_state = 0; body_state <= 255; ++body_state) {
+                    BodyStateResult result;
+                    const auto probe_status = evaluate_body_state_pair(
+                        static_cast<std::uint8_t>(zero_state),
+                        static_cast<std::uint8_t>(body_state),
+                        legacy_arithmetic,
+                        result);
+                    if (!probe_status.ok()) {
+                        continue;
+                    }
+                    if (result.sample == expected_sample) {
+                        ++body_exact_count;
+                    }
+                    if (body_best_count < body_best.size()) {
+                        body_best[body_best_count] = result;
+                        ++body_best_count;
+                    } else if (result.error < body_best[body_best_count - 1].error) {
+                        body_best[body_best_count - 1] = result;
+                    } else {
+                        continue;
+                    }
+                    std::sort(
+                        body_best.begin(),
+                        body_best.begin() + static_cast<std::ptrdiff_t>(body_best_count),
+                        [](const BodyStateResult& lhs, const BodyStateResult& rhs) {
+                            if (lhs.error != rhs.error) {
+                                return lhs.error < rhs.error;
+                            }
+                            if (lhs.zero_state != rhs.zero_state) {
+                                return lhs.zero_state < rhs.zero_state;
+                            }
+                            return lhs.body_state < rhs.body_state;
+                        });
                 }
-                if (result.sample == expected_sample) {
-                    ++body_exact_count;
-                }
-                if (body_best_count < body_best.size()) {
-                    body_best[body_best_count] = result;
-                    ++body_best_count;
-                } else if (result.error < body_best[body_best_count - 1].error) {
-                    body_best[body_best_count - 1] = result;
-                } else {
-                    continue;
-                }
-                std::sort(
-                    body_best.begin(),
-                    body_best.begin() + static_cast<std::ptrdiff_t>(body_best_count),
-                    [](const BodyStateResult& lhs, const BodyStateResult& rhs) {
-                        if (lhs.error != rhs.error) {
-                            return lhs.error < rhs.error;
-                        }
-                        if (lhs.zero_state != rhs.zero_state) {
-                            return lhs.zero_state < rhs.zero_state;
-                        }
-                        return lhs.body_state < rhs.body_state;
-                    });
             }
-        }
-        trace << " s0_body_sweep exact=" << body_exact_count << " best";
-        for (std::size_t i = 0; i < body_best_count; ++i) {
-            trace << " s0=" << body_best[i].zero_state
-                  << "/body=" << body_best[i].body_state
-                  << ":" << body_best[i].difference
-                  << "/" << body_best[i].sample
-                  << "/err" << body_best[i].error;
-        }
+            trace << " " << label << " exact=" << body_exact_count << " best";
+            for (std::size_t i = 0; i < body_best_count; ++i) {
+                trace << " s0=" << body_best[i].zero_state
+                      << "/body=" << body_best[i].body_state
+                      << ":" << body_best[i].difference
+                      << "/" << body_best[i].sample
+                      << "/err" << body_best[i].error;
+            }
+        };
+        append_body_state_sweep("s0_body_sweep", true);
+        append_body_state_sweep("normal_s0_body_sweep", false);
     };
     std::size_t decoded_samples = 0;
     for (std::uint32_t y = 0; y < expected.info.height; ++y) {

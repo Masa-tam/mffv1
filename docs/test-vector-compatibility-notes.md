@@ -714,6 +714,11 @@ no exact first-sample match under the current scalar body syntax, although the
 best candidates reached 127 or 129. This suggests that the remaining v0 range
 nonzero issue is not merely an initial-state selection problem; an interval
 rounding boundary or legacy scalar-body coding detail is likely still missing.
+Repeating that `s0`/body-state sweep with the normal arithmetic split rather
+than the v0 split also produced no exact match and again stopped at 127/129.
+This weakens the hypothesis that the residual is one arithmetic split variant
+away from compatibility; the missing rule is more likely in the scalar value
+mapping or in a v0-specific signed residual boundary convention.
 
 The refreshed tiny v0 Golomb-Rice vectors remain intentionally skipped. Their
 boundary probe still finds only short zero-prefix matches with trailing-data

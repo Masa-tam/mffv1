@@ -34,6 +34,10 @@ namespace {
 bool compute_plane_size(const mffv1_testvectors::PlaneVector& plane,
                         std::size_t& out_size);
 
+std::string describe_legacy_golomb_rice_boundary_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap);
+
 std::uint32_t read_sample(std::span<const std::byte> bytes,
                           std::size_t sample_offset,
                           mffv1::SampleFormat format);
@@ -1640,6 +1644,7 @@ std::string describe_legacy_bootstrap_state(
                 vector, bootstrap.stream, true, "range_probe")
             << describe_legacy_range_symbol_probe(
                 vector, bootstrap.stream, false, "range_probe_carry_context")
+            << describe_legacy_golomb_rice_boundary_probe(vector, bootstrap)
             << describe_legacy_range_shifted_state_probe(vector, bootstrap)
             << describe_legacy_range_initial_state_probe(vector, bootstrap)
             << describe_legacy_range_reset_boundary_probe(vector, bootstrap)
@@ -2265,6 +2270,60 @@ std::string describe_golomb_rice_candidate_decode(
         if (!mismatch.empty()) {
             out << "\n" << mismatch;
             break;
+        }
+    }
+    return out.str();
+}
+
+std::string describe_legacy_golomb_rice_boundary_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    auto stream = bootstrap.stream;
+    if (stream.entropy_mode != mffv1::EntropyMode::GolombRice
+        || vector.frame_payloads.empty()
+        || vector.expected_planes.empty()
+        || vector.expected_planes.front().empty()) {
+        return {};
+    }
+
+    stream.width = vector.frame_width;
+    stream.height = vector.frame_height;
+
+    const auto payload = vector.frame_payloads.front();
+    mffv1::syntax::SliceDescriptor candidate;
+    candidate.index = 0;
+    candidate.x = 0;
+    candidate.y = 0;
+    candidate.width = 1;
+    candidate.height = 1;
+    candidate.raster_x = 0;
+    candidate.raster_y = 0;
+    candidate.raster_width = 1;
+    candidate.raster_height = 1;
+    candidate.payload = payload;
+    candidate.payload_byte_offset = 0;
+    candidate.quant_table_set_indexes.push_back(0);
+
+    const auto center = std::min<std::uint64_t>(
+        bootstrap.content_byte_offset,
+        static_cast<std::uint64_t>(payload.size()));
+    const auto begin = center > 2 ? center - 2 : std::uint64_t{0};
+    const auto end = std::min<std::uint64_t>(
+        center + 2,
+        static_cast<std::uint64_t>(payload.size()));
+
+    std::ostringstream out;
+    out << " gr_boundary_probe";
+    for (auto offset = begin; offset <= end; ++offset) {
+        for (std::uint8_t bit = 0; bit < 8; ++bit) {
+            candidate.content_byte_offset = offset;
+            candidate.content_bit_offset = bit;
+            out << "\n" << describe_golomb_rice_candidate_decode(
+                stream,
+                candidate,
+                vector.expected_planes.front(),
+                "legacy-gr");
         }
     }
     return out.str();

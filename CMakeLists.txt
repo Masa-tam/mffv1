@@ -6,6 +6,8 @@ project(mffv1
 )
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
 include(Mffv1Options)
 
 add_library(mffv1
@@ -83,3 +85,49 @@ include(CTest)
 if(BUILD_TESTING AND MFFV1_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+install(
+    TARGETS mffv1
+    EXPORT mffv1Targets
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/mffv1ConfigVersion.cmake"
+    VERSION "${PROJECT_VERSION}"
+    COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mffv1Config.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/mffv1Config.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/mffv1"
+)
+
+install(
+    EXPORT mffv1Targets
+    NAMESPACE mffv1::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/mffv1"
+)
+
+install(
+    FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/mffv1Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/mffv1ConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/mffv1"
+)
+
+install(
+    FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+        "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+)

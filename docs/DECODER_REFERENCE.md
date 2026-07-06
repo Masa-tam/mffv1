@@ -415,6 +415,5 @@ Before declaring a stable decoder release, the project should complete:
 3. Parser and slice-decoder fuzz targets with retained regression corpus.
 4. AddressSanitizer, UndefinedBehaviorSanitizer, and equivalent MSVC checks
    where available.
-5. CMake install/export rules and a consumer-project build test.
-6. Changelog, release metadata, and support-policy documents.
-7. Explicit tests or API changes for the currently reserved `strict` option.
+5. Changelog, release metadata, and support-policy documents.
+6. Explicit tests or API changes for the currently reserved `strict` option.

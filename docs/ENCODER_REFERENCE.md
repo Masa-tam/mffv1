@@ -429,6 +429,5 @@ Before declaring a stable encoder release, the project should complete:
 2. Black-box interoperability checks with independent FFV1 decoders.
 3. Encoder fuzzing and retained regression corpora.
 4. Sanitizer and MSVC runtime-analysis coverage.
-5. CMake install/export rules and a consumer build test.
-6. Changelog, release metadata, and support-policy documents.
-7. Measured SIMD kernels with exhaustive scalar equivalence tests.
+5. Changelog, release metadata, and support-policy documents.
+6. Measured SIMD kernels with exhaustive scalar equivalence tests.

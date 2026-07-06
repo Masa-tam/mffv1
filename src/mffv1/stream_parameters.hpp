@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cstdint>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include "mffv1/frame.hpp"
@@ -193,6 +193,57 @@ struct StreamParameters {
         }
     }
     return PlaneRole::Alpha;
+}
+
+[[nodiscard]] inline bool quant_table_sets_equal(const QuantTableSet& lhs,
+                                                 const QuantTableSet& rhs) noexcept
+{
+    return lhs.context_count == rhs.context_count
+        && lhs.tables == rhs.tables;
+}
+
+[[nodiscard]] inline bool initial_state_sets_equal(const InitialStateSet& lhs,
+                                                   const InitialStateSet& rhs) noexcept
+{
+    return lhs.contexts == rhs.contexts;
+}
+
+[[nodiscard]] inline bool stream_parameters_equivalent(
+    const StreamParameters& lhs,
+    const StreamParameters& rhs) noexcept
+{
+    if (lhs.version != rhs.version
+        || lhs.micro_version != rhs.micro_version
+        || lhs.entropy_mode != rhs.entropy_mode
+        || lhs.width != rhs.width
+        || lhs.height != rhs.height
+        || lhs.bits_per_raw_sample != rhs.bits_per_raw_sample
+        || lhs.colorspace_type != rhs.colorspace_type
+        || lhs.chroma_planes != rhs.chroma_planes
+        || lhs.extra_plane != rhs.extra_plane
+        || lhs.log2_h_chroma_subsample != rhs.log2_h_chroma_subsample
+        || lhs.log2_v_chroma_subsample != rhs.log2_v_chroma_subsample
+        || lhs.num_h_slices != rhs.num_h_slices
+        || lhs.num_v_slices != rhs.num_v_slices
+        || lhs.state_transition != rhs.state_transition
+        || lhs.error_status_enabled != rhs.error_status_enabled
+        || lhs.intra_only != rhs.intra_only
+        || lhs.quant_table_sets.size() != rhs.quant_table_sets.size()
+        || lhs.initial_states.size() != rhs.initial_states.size()) {
+        return false;
+    }
+
+    for (std::size_t i = 0; i < lhs.quant_table_sets.size(); ++i) {
+        if (!quant_table_sets_equal(lhs.quant_table_sets[i], rhs.quant_table_sets[i])) {
+            return false;
+        }
+    }
+    for (std::size_t i = 0; i < lhs.initial_states.size(); ++i) {
+        if (!initial_state_sets_equal(lhs.initial_states[i], rhs.initial_states[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace mffv1::syntax

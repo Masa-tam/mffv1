@@ -150,4 +150,75 @@ TEST(StreamParametersTest, UsesWideArithmeticForSliceRasterScaling)
     EXPECT_EQ(mffv1::syntax::slice_pixel_y(stream, stream.num_v_slices), stream.height);
 }
 
+TEST(StreamParametersTest, EquivalentStreamsMatchAfterNormalization)
+{
+    mffv1::syntax::StreamParameters lhs;
+    lhs.version = 1;
+    lhs.width = 320;
+    lhs.height = 240;
+    lhs.entropy_mode = mffv1::EntropyMode::Range;
+    lhs.chroma_planes = true;
+    lhs.log2_h_chroma_subsample = 1;
+    lhs.log2_v_chroma_subsample = 1;
+    lhs.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
+
+    auto rhs = lhs;
+
+    EXPECT_TRUE(mffv1::syntax::stream_parameters_equivalent(lhs, rhs));
+}
+
+TEST(StreamParametersTest, EquivalentStreamsDetectContainerDimensionChanges)
+{
+    mffv1::syntax::StreamParameters lhs;
+    lhs.version = 1;
+    lhs.width = 320;
+    lhs.height = 240;
+    lhs.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
+
+    auto rhs = lhs;
+    rhs.width = 640;
+
+    EXPECT_FALSE(mffv1::syntax::stream_parameters_equivalent(lhs, rhs));
+}
+
+TEST(StreamParametersTest, EquivalentStreamsDetectQuantTableChanges)
+{
+    mffv1::syntax::StreamParameters lhs;
+    lhs.version = 1;
+    lhs.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
+
+    auto rhs = lhs;
+    rhs.quant_table_sets[0].tables[0][1] = 7;
+
+    EXPECT_FALSE(mffv1::syntax::stream_parameters_equivalent(lhs, rhs));
+}
+
+TEST(StreamParametersTest, EquivalentStreamsDetectInitialStateChanges)
+{
+    mffv1::syntax::StreamParameters lhs;
+    lhs.version = 3;
+    lhs.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
+    lhs.initial_states.resize(1);
+    lhs.initial_states[0].contexts.resize(1);
+
+    auto rhs = lhs;
+    rhs.initial_states[0].contexts[0][3] = 129;
+
+    EXPECT_FALSE(mffv1::syntax::stream_parameters_equivalent(lhs, rhs));
+}
+
+TEST(StreamParametersTest, EquivalentStreamsDetectStateTransitionChanges)
+{
+    mffv1::syntax::StreamParameters lhs;
+    lhs.version = 1;
+    lhs.entropy_mode = mffv1::EntropyMode::Range;
+    lhs.quant_table_sets.push_back(mffv1::syntax::make_zero_quant_table_set());
+
+    auto rhs = lhs;
+    rhs.state_transition[17] =
+        static_cast<std::uint8_t>(rhs.state_transition[17] + 1);
+
+    EXPECT_FALSE(mffv1::syntax::stream_parameters_equivalent(lhs, rhs));
+}
+
 } // namespace

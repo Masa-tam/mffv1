@@ -823,3 +823,14 @@ matches through the two 2-sample runs; the following zero terminates the run
 too early under the current run table. This narrows the next investigation to
 the legacy v0 long-run code table or continuation threshold rather than slice
 boundary placement.
+An exhaustive expected-output scan corrected that conclusion: the valid
+`16x1` content begins at `byte=18 bit=0`, where the payload suffix is
+`111111111...` and the current run table decodes all 16 flat samples. The same
+`byte=18 bit=0` boundary also fully matches the `1x1`, `2x1`, `4x1`, and
+`8x1` flat v0 Golomb-Rice vectors. The parser-reported boundary at byte 3 is
+therefore too early for these keyframe-embedded Parameters. However, status-only
+candidate scanning is ambiguous: the `16x1` vector has six syntactically valid
+content candidates from `15:5` through `18:0`, and only the expected output
+selects the right one. Production decoding must not adopt a generic
+"first/last candidate that parses" heuristic without another deterministic
+legacy boundary rule or more constraining vectors.

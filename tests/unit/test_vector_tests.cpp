@@ -3804,6 +3804,13 @@ struct GolombRiceBoundaryCandidateSummary {
     bool measured = false;
 };
 
+struct GolombRiceBoundaryScanSummary {
+    GolombRiceBoundaryCandidateSummary best_candidate;
+    std::size_t ok_status_count = 0;
+    GolombRiceBoundaryCandidateSummary first_ok_candidate;
+    GolombRiceBoundaryCandidateSummary last_ok_candidate;
+};
+
 GolombRiceBoundaryCandidateSummary measure_golomb_rice_boundary_candidate(
     const mffv1::syntax::StreamParameters& stream,
     const mffv1::syntax::SliceDescriptor& candidate,
@@ -3895,6 +3902,125 @@ GolombRiceBoundaryCandidateSummary measure_golomb_rice_boundary_candidate(
     }
     summary.measured = true;
     return summary;
+}
+
+bool is_better_golomb_rice_boundary_candidate(
+    const GolombRiceBoundaryCandidateSummary& candidate,
+    const GolombRiceBoundaryCandidateSummary& best)
+{
+    if (!candidate.measured) {
+        return false;
+    }
+    if (!best.measured) {
+        return true;
+    }
+    if (candidate.output_matches != best.output_matches) {
+        return candidate.output_matches;
+    }
+    if (candidate.status.ok() != best.status.ok()) {
+        return candidate.status.ok();
+    }
+    if (candidate.matched_samples != best.matched_samples) {
+        return candidate.matched_samples > best.matched_samples;
+    }
+    if (candidate.byte_offset != best.byte_offset) {
+        return candidate.byte_offset > best.byte_offset;
+    }
+    return candidate.bit_offset < best.bit_offset;
+}
+
+GolombRiceBoundaryScanSummary scan_golomb_rice_boundary_candidates(
+    const mffv1::syntax::StreamParameters& stream,
+    mffv1::syntax::SliceDescriptor candidate,
+    std::span<const mffv1_testvectors::PlaneVector> expected_planes)
+{
+    GolombRiceBoundaryScanSummary scan;
+    for (std::uint64_t offset = 0; offset < candidate.payload.size(); ++offset) {
+        for (std::uint8_t bit = 0; bit < 8; ++bit) {
+            candidate.content_byte_offset = offset;
+            candidate.content_bit_offset = bit;
+            const auto summary = measure_golomb_rice_boundary_candidate(
+                stream,
+                candidate,
+                expected_planes);
+            if (summary.measured && summary.status.ok()) {
+                ++scan.ok_status_count;
+                if (!scan.first_ok_candidate.measured) {
+                    scan.first_ok_candidate = summary;
+                }
+                scan.last_ok_candidate = summary;
+            }
+            if (is_better_golomb_rice_boundary_candidate(summary, scan.best_candidate)) {
+                scan.best_candidate = summary;
+            }
+        }
+    }
+    return scan;
+}
+
+std::string describe_legacy_parameter_termination_probe(
+    std::span<const std::byte> payload,
+    const mffv1::syntax::StreamParameters& expected_stream)
+{
+    mffv1::entropy::RangeCoder probe;
+    auto status = probe.reset(payload);
+    if (!status.ok()) {
+        return std::string{"legacy-parameter-termination reset="}
+            + describe_status(status);
+    }
+    bool keyframe = false;
+    status = probe.read_bool(keyframe);
+    if (!status.ok()) {
+        return std::string{"legacy-parameter-termination keyframe="}
+            + describe_status(status);
+    }
+    const std::array<std::size_t, 1> parameter_context_counts{1};
+    status = probe.reconfigure_contexts(parameter_context_counts);
+    if (!status.ok()) {
+        return std::string{"legacy-parameter-termination reconfigure="}
+            + describe_status(status);
+    }
+    mffv1::syntax::StreamParameters stream;
+    const mffv1::syntax::ConfigurationParser parser;
+    status = parser.parse(probe, stream);
+    if (!status.ok()) {
+        return std::string{"legacy-parameter-termination parse="}
+            + describe_status(status);
+    }
+    stream.width = expected_stream.width;
+    stream.height = expected_stream.height;
+    const auto before_termination = probe.byte_position();
+    status = probe.read_termination_sentinel();
+    std::ostringstream out;
+    out << "legacy-parameter-termination before=" << before_termination
+        << " after=" << probe.byte_position()
+        << " status: " << describe_status(status)
+        << " equivalent="
+        << mffv1::syntax::stream_parameters_equivalent(
+               stream,
+               expected_stream);
+    return out.str();
+}
+
+std::string describe_golomb_rice_boundary_summary(
+    std::string_view label,
+    const GolombRiceBoundaryCandidateSummary& candidate)
+{
+    std::ostringstream out;
+    if (!candidate.measured) {
+        out << label << " no-measured-candidates";
+        return out.str();
+    }
+    out << label << " byte=" << candidate.byte_offset
+        << " bit=" << static_cast<int>(candidate.bit_offset)
+        << " matched_traced_samples=" << candidate.matched_samples
+        << " output_match=" << candidate.output_matches
+        << " status: " << describe_status(candidate.status);
+    if (!candidate.first_output_mismatch.empty()) {
+        out << "\n" << label << "-output "
+            << candidate.first_output_mismatch;
+    }
+    return out.str();
 }
 
 std::string describe_current_flat_run_prefix(
@@ -3997,12 +4123,7 @@ std::string describe_legacy_golomb_rice_boundary_probe(
             if (summary.measured) {
                 measured_candidates.push_back(summary);
             }
-            if (summary.measured
-                && (!best_candidate.measured
-                    || summary.matched_samples > best_candidate.matched_samples
-                    || (summary.matched_samples == best_candidate.matched_samples
-                        && summary.status.ok()
-                        && !best_candidate.status.ok()))) {
+            if (is_better_golomb_rice_boundary_candidate(summary, best_candidate)) {
                 best_candidate = summary;
             }
             out << "\n" << describe_golomb_rice_candidate_decode(
@@ -4048,6 +4169,21 @@ std::string describe_legacy_golomb_rice_boundary_probe(
         out << " count=" << peer_count
             << " output_match_count=" << peer_output_match_count;
     }
+    const auto scan = scan_golomb_rice_boundary_candidates(
+        stream,
+        candidate,
+        vector.expected_planes.front());
+    out << "\n" << describe_legacy_parameter_termination_probe(payload, stream);
+    out << "\nlegacy-gr-scan-ok count=" << scan.ok_status_count;
+    if (scan.first_ok_candidate.measured) {
+        out << " first=" << scan.first_ok_candidate.byte_offset
+            << ":" << static_cast<int>(scan.first_ok_candidate.bit_offset)
+            << " last=" << scan.last_ok_candidate.byte_offset
+            << ":" << static_cast<int>(scan.last_ok_candidate.bit_offset);
+    }
+    out << "\n" << describe_golomb_rice_boundary_summary(
+        "legacy-gr-scan-best",
+        scan.best_candidate);
     return out.str();
 }
 

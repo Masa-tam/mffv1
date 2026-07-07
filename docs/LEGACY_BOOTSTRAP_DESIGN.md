@@ -130,7 +130,7 @@ create_decoder(options with frame_width/frame_height)
 for each frame:
   if frame may be a keyframe:
     result = decoder->bootstrap_legacy_frame(frame_payload)
-    if result.state == DiffersFromCurrentConfiguration:
+    if result.info.state == DiffersFromCurrentConfiguration:
       create or reconfigure a fresh decoder from this same frame
       discard old reference state
   decode_frame(frame_payload, output)

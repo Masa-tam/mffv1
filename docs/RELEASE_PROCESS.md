@@ -14,6 +14,8 @@ A stable release candidate should satisfy all of the following:
 - `CHANGELOG.md` has a versioned release section with user-visible changes.
 - `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `docs/LICENSE_AND_PROVENANCE.md`
   are current.
+- `CONTRIBUTING.md`, `SECURITY.md`, and `docs/SUPPORT_POLICY.md` point to the
+  current public repository and reporting policy.
 - Optional committed external vectors, if any, have complete entries in
   `docs/test-vectors.md`.
 - Local-only vector data and generator build outputs are absent from the commit.
@@ -114,6 +116,7 @@ The repository release should include:
 
 - Source archive.
 - License and third-party notices.
+- Contributing, security, and support policy documents.
 - User-facing Markdown references under `docs/`, preserving the installed
   documentation directory layout.
 - Changelog section for the released version.

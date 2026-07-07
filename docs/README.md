@@ -20,6 +20,8 @@
   expectations.
 - [Security Policy](../SECURITY.md): reporting path for security-sensitive or
   confidential input issues.
+- [Contributing](../CONTRIBUTING.md): clean-room contribution rules and
+  verification expectations.
 - [Changelog](../CHANGELOG.md): user-visible project changes.
 
 These references describe implemented public behavior and are the appropriate

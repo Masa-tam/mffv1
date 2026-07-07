@@ -129,6 +129,7 @@ mffv1_package_smoke_run(
 set(mffv1_package_smoke_required_docs
     README.md
     CHANGELOG.md
+    CONTRIBUTING.md
     LICENSE
     SECURITY.md
     THIRD_PARTY_NOTICES.md

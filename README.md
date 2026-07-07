@@ -80,6 +80,7 @@ cmake `
 - [Release Process](docs/RELEASE_PROCESS.md)
 - [Support Policy](docs/SUPPORT_POLICY.md)
 - [Security Policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
 
 ## Clean-Room Boundary

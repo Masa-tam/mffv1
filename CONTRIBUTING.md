@@ -63,6 +63,20 @@ compiler, include the build command, compiler version, and test result in the
 pull request; add CI coverage when the platform is available through GitHub
 Actions.
 
+## Optimization Policy
+
+Before `1.0.0`, prioritize correctness, specification traceability,
+readability, robust bounds checking, and test coverage over broad algorithmic
+optimization. mffv1 should remain useful as a clean reference-quality
+implementation of RFC 9043 behavior.
+
+Performance work is welcome when it preserves that shape: keep optimized paths
+small, isolated, and covered by scalar-equivalence tests. Prefer localized SIMD
+or dispatch improvements over rewrites that make the core codec algorithm hard
+to compare with the specification. Large algorithmic tuning should wait until
+after the API, package shape, and interoperability baseline are stable, unless
+it fixes a correctness or safety problem.
+
 The pull request template asks for clean-room confirmation, relevant test
 commands, and documentation status. Treat unchecked items as an explicit note
 that the step was not applicable or could not be run.

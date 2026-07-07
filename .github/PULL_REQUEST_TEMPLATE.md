@@ -40,3 +40,9 @@ Check the commands that were run:
       related.
 - [ ] CI coverage was added when the platform is available through GitHub
       Actions, or the reason is noted above.
+
+## Optimization
+
+- [ ] Performance changes remain isolated, preserve the readable scalar path,
+      and include equivalence or regression tests, or this change is not an
+      optimization.

@@ -40,6 +40,8 @@ start only once the first public release is tagged.
   build, test, and package checks.
 - Contribution guidance for portability fixes and new compiler/platform
   reports.
+- Contribution guidance that keeps pre-1.0 optimization secondary to
+  correctness, specification traceability, readability, and test coverage.
 - Public repository documentation for GitHub Issues, security reporting,
   contribution rules, pull requests, CI, CODEOWNERS, Dependabot, and generated
   release-note categories.

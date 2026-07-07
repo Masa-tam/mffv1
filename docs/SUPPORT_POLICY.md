@@ -21,6 +21,11 @@ clarity, or release packaging. Public API changes should be recorded in
 `CHANGELOG.md`, and the reference documents should be updated in the same
 change.
 
+Broad algorithmic optimization is not a pre-1.0 stability goal. Until the
+library reaches `1.0.0`, the project favors clear, specification-traceable code
+and robust tests over complex tuning, except where optimization is localized
+and preserves scalar-equivalent behavior.
+
 Do not interpret a `0.x` release as a stable ABI promise. Consumers that need
 long-term stability should pin an exact tag and review changelog entries before
 upgrading.

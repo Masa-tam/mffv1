@@ -53,6 +53,9 @@ Release notes use GitHub labels through `.github/release.yml`. Add labels such
 as `bug`, `compatibility`, `documentation`, or `maintenance` to pull requests
 when they should appear in a specific release-note category.
 
+Release-preparation changes should keep the CMake project version, release tag,
+and `CHANGELOG.md` section aligned.
+
 Portability fixes and new toolchain support are welcome. Prefer changes that
 preserve the existing CMake option surface and keep platform-specific code
 behind narrow compile-time branches. When adding support for a new platform or

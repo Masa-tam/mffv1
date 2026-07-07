@@ -98,6 +98,11 @@ test-vector payloads, generator archives, or build output:
 cmake -P cmake\CheckPublicTrackedFiles.cmake
 ```
 
+Before tagging a versioned release, confirm that the CMake project version,
+tag name, and `CHANGELOG.md` section agree. For example, for version `0.1.0`,
+`CMakeLists.txt` should contain `VERSION 0.1.0`, the release tag should be
+`v0.1.0`, and `CHANGELOG.md` should contain `## 0.1.0`.
+
 Also verify package consumer builds. The package smoke runner checks installed
 headers, the exported `mffv1::mffv1` target, static artifact shape, installed
 documentation, installed documentation links, and absence of non-user-facing

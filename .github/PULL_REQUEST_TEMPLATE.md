@@ -29,6 +29,9 @@ Check the commands that were run:
       behavior.
 - [ ] `CHANGELOG.md` was updated, or this change has no user-visible release
       note.
+- [ ] Release-preparation changes keep `CMakeLists.txt` version,
+      `CHANGELOG.md`, and the intended tag name aligned, or this change is not
+      release preparation.
 
 ## Portability
 

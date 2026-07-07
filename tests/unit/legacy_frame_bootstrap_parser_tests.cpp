@@ -58,6 +58,16 @@ std::vector<std::byte> make_legacy_frame_parameters(
     return payload;
 }
 
+void expect_split_first_quant_table(const mffv1::syntax::QuantTableSet& quant_table_set)
+{
+    EXPECT_EQ(quant_table_set.context_count, 2u);
+    EXPECT_EQ(quant_table_set.tables[0][0], 0);
+    EXPECT_EQ(quant_table_set.tables[0][1], 1);
+    EXPECT_EQ(quant_table_set.tables[0][127], 1);
+    EXPECT_EQ(quant_table_set.tables[0][128], -1);
+    EXPECT_EQ(quant_table_set.tables[0][255], -1);
+}
+
 TEST(LegacyFrameBootstrapParserTest, ParsesVersionZeroRangeKeyframeParameters)
 {
     const auto payload = make_legacy_frame_parameters(
@@ -124,13 +134,7 @@ TEST(LegacyFrameBootstrapParserTest, ParsesVersionZeroEmbeddedQuantTableSet)
 
     ASSERT_TRUE(status.ok()) << status.message;
     ASSERT_EQ(bootstrap.stream.quant_table_sets.size(), 1u);
-    const auto& quant_table_set = bootstrap.stream.quant_table_sets[0];
-    EXPECT_EQ(quant_table_set.context_count, 2u);
-    EXPECT_EQ(quant_table_set.tables[0][0], 0);
-    EXPECT_EQ(quant_table_set.tables[0][1], 1);
-    EXPECT_EQ(quant_table_set.tables[0][127], 1);
-    EXPECT_EQ(quant_table_set.tables[0][128], -1);
-    EXPECT_EQ(quant_table_set.tables[0][255], -1);
+    expect_split_first_quant_table(bootstrap.stream.quant_table_sets[0]);
 }
 
 TEST(LegacyFrameBootstrapParserTest, ParsesVersionOneEmbeddedQuantTableSet)
@@ -154,13 +158,7 @@ TEST(LegacyFrameBootstrapParserTest, ParsesVersionOneEmbeddedQuantTableSet)
     EXPECT_EQ(bootstrap.stream.version, 1);
     EXPECT_EQ(bootstrap.stream.bits_per_raw_sample, 8u);
     ASSERT_EQ(bootstrap.stream.quant_table_sets.size(), 1u);
-    const auto& quant_table_set = bootstrap.stream.quant_table_sets[0];
-    EXPECT_EQ(quant_table_set.context_count, 2u);
-    EXPECT_EQ(quant_table_set.tables[0][0], 0);
-    EXPECT_EQ(quant_table_set.tables[0][1], 1);
-    EXPECT_EQ(quant_table_set.tables[0][127], 1);
-    EXPECT_EQ(quant_table_set.tables[0][128], -1);
-    EXPECT_EQ(quant_table_set.tables[0][255], -1);
+    expect_split_first_quant_table(bootstrap.stream.quant_table_sets[0]);
 }
 
 TEST(LegacyFrameBootstrapParserTest, ExposesRangeStateBoundaries)

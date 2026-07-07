@@ -26,13 +26,21 @@ start only once the first public release is tagged.
 - Optional local test-vector header workflow that keeps generated vectors out
   of ordinary commits.
 - CMake install and package configuration support.
+- Installed `mffv1/build_config.hpp` records build-time public configuration
+  such as `MFFV1_ENABLE_STATUS_MESSAGES`.
+- Installed user-facing Markdown documentation under `share/doc/mffv1`.
 - Build option `MFFV1_ENABLE_STATUS_MESSAGES` for disabling library-generated
   diagnostic message text in `Status::message`.
+- Package smoke runner for installed-header, exported-target, static-artifact,
+  installed-documentation, and installed-documentation-link checks.
+- Markdown link checker for source and installed documentation.
 
 ### Changed
 
 - Project name changed from `ffv1` to `mffv1` to avoid confusion with FFmpeg's
   official FFV1 implementation and to emphasize the modular, modern C++ design.
+- The CMake target is explicitly static; `BUILD_SHARED_LIBS` does not change
+  the supported package artifact type.
 
 ### Known Limitations
 

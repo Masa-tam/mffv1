@@ -23,7 +23,6 @@
 These references describe implemented public behavior and are the appropriate
 starting point for library integration.
 
-Design notes, historical plans, and implementation investigation records live
-under [plans](../plans/README.md). Those files may include future work or
-superseded sketches; public behavior should be taken from the API references
-and public headers when documents differ.
+Design notes, historical plans, and implementation investigation records are
+kept outside the user-facing documentation set. Public behavior should be
+taken from the API references and public headers when documents differ.

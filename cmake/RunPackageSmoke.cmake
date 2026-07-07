@@ -140,8 +140,6 @@ set(mffv1_package_smoke_required_docs
     docs/RELEASE_PROCESS.md
     docs/SUPPORT_POLICY.md
     docs/test-vectors.md
-    plans/README.md
-    plans/PHASE5_ENCODER_SPEC.md
 )
 
 foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)

@@ -13,9 +13,8 @@ Runtime CPU dispatch is implemented. The RGB forward color transform uses AVX2
 or SSE2 row kernels on supported x86/x64 systems and otherwise uses the scalar
 reference implementation.
 
-This document describes implemented public behavior. Internal design and
-future work are documented separately in the
-[Phase 5 Encoder Specification](../plans/PHASE5_ENCODER_SPEC.md).
+This document describes implemented public behavior. Internal design notes and
+future-work records are kept outside the user-facing documentation set.
 
 ## Header And Namespace
 

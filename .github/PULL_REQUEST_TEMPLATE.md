@@ -29,3 +29,11 @@ Check the commands that were run:
       behavior.
 - [ ] `CHANGELOG.md` was updated, or this change has no user-visible release
       note.
+
+## Portability
+
+- [ ] New platform or compiler behavior includes compiler version, CMake
+      generator/options, and test result, or this change is not portability
+      related.
+- [ ] CI coverage was added when the platform is available through GitHub
+      Actions, or the reason is noted above.

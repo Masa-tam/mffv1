@@ -38,6 +38,8 @@ start only once the first public release is tagged.
   vectors, generator archives, and build outputs.
 - GitHub Actions smoke coverage for hosted Windows plus Ubuntu GCC and Clang
   builds.
+- Contribution guidance for portability fixes and new compiler/platform
+  reports.
 - Public repository documentation for GitHub Issues, security reporting,
   contribution rules, pull requests, CI, CODEOWNERS, Dependabot, and generated
   release-note categories.

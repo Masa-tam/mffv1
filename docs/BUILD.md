@@ -87,6 +87,12 @@ configure/build/test commands instead of the Visual Studio 2026-specific
 preset, because the hosted image may not match the primary local development
 toolchain. Ubuntu builds run both GCC and Clang Debug smoke jobs.
 
+Other compilers and operating systems may work when they provide CMake 3.25 or
+newer and a conforming C++20 compiler, but they are not release-gated until CI
+coverage or a documented maintainer workflow is added. Portability reports
+should include the compiler version, CMake generator, configure options, and
+test result.
+
 ## Sanitizer Build
 
 Use the sanitizer preset when checking memory safety issues before release or

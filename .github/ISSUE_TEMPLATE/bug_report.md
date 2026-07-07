@@ -16,6 +16,7 @@ Describe the problem and the expected behavior.
 - Operating system:
 - Compiler and version:
 - CMake generator and options:
+- Test command and result, if available:
 
 ## Reproduction
 

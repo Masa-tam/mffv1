@@ -53,6 +53,13 @@ Release notes use GitHub labels through `.github/release.yml`. Add labels such
 as `bug`, `compatibility`, `documentation`, or `maintenance` to pull requests
 when they should appear in a specific release-note category.
 
+Portability fixes and new toolchain support are welcome. Prefer changes that
+preserve the existing CMake option surface and keep platform-specific code
+behind narrow compile-time branches. When adding support for a new platform or
+compiler, include the build command, compiler version, and test result in the
+pull request; add CI coverage when the platform is available through GitHub
+Actions.
+
 The pull request template asks for clean-room confirmation, relevant test
 commands, and documentation status. Treat unchecked items as an explicit note
 that the step was not applicable or could not be run.

@@ -15,6 +15,9 @@ Status note: this is the Phase 2 decoder construction plan, not the complete
 current decoder reference. Some milestones described below are now implemented
 or superseded. For public API contracts and current behavior, prefer
 `include/mffv1/*.hpp`, `../docs/DECODER_REFERENCE.md`, and the unit tests.
+Historical references to `ErrorCode::NotImplemented` describe early scaffolding
+only; current valid-but-unsupported codec features should be reported as
+`ErrorCode::UnsupportedFeature`.
 
 Normative reference:
 
@@ -125,7 +128,7 @@ Location: `include/mffv1/codec.hpp`
 Phase 2 status:
 
 - Stays as API skeleton.
-- May continue returning `ErrorCode::NotImplemented`.
+- May return a placeholder error until the encoder implementation phase starts.
 - Must keep build and public ABI stable while decoder internals evolve.
 
 ## Core Internal Value Types
@@ -764,8 +767,8 @@ Integration tests:
 - `create_decoder()` returns a valid decoder.
 - `configure()` succeeds for a minimal project-owned configuration record once
   the parser supports it.
-- `decode_frame()` returns `NotImplemented` only until the first real profile is
-  connected, then returns decoded samples or a precise error.
+- `decode_frame()` may return a placeholder error only until the first real
+  profile is connected, then returns decoded samples or a precise error.
 
 ## Clean Implementation Notes
 

@@ -126,6 +126,7 @@ jobs:
       - name: Package smoke
         run: >
           cmake
+          -DMFFV1_PACKAGE_SMOKE_PROFILE=no-status
           -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build/no-status
           -DMFFV1_PACKAGE_SMOKE_BUILD_DIR=build/no-status-package-smoke
           -DMFFV1_PACKAGE_SMOKE_INSTALL_DIR=build/no-status-package-smoke/install

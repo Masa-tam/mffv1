@@ -50,6 +50,8 @@ start only once the first public release is tagged.
   build, test, and package checks.
 - GitHub Actions no-status package smoke coverage for the installed
   `mffv1/build_config.hpp` contract.
+- GitHub Actions no-status package smoke uses the dedicated package smoke
+  profile.
 - Contribution guidance for portability fixes and new compiler/platform
   reports.
 - Contribution guidance that keeps pre-1.0 optimization secondary to

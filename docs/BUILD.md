@@ -155,3 +155,13 @@ cmake -S tests\package_smoke -B build\package-smoke\build -G "Visual Studio 18 2
 cmake --build build\package-smoke\build --config Debug
 & '.\build\package-smoke\build\Debug\mffv1_package_smoke.exe'
 ```
+
+The smoke project also checks the installed `mffv1/build_config.hpp` value.
+For a no-status install, pass the expected value explicitly:
+
+```powershell
+cmake --install build\vs2026-x64-no-status --config Release --prefix build\package-smoke-no-status\install
+cmake -S tests\package_smoke -B build\package-smoke-no-status\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke-no-status\install" -DMFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES=0
+cmake --build build\package-smoke-no-status\build --config Release
+& '.\build\package-smoke-no-status\build\Release\mffv1_package_smoke.exe'
+```

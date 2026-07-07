@@ -74,6 +74,16 @@ cmake --build build\package-smoke\build --config Debug
 & '.\build\package-smoke\build\Debug\mffv1_package_smoke.exe'
 ```
 
+Repeat the package consumer check for the no-status Release install so the
+generated and installed `mffv1/build_config.hpp` contract is verified:
+
+```powershell
+cmake --install build\vs2026-x64-no-status --config Release --prefix build\package-smoke-no-status\install
+cmake -S tests\package_smoke -B build\package-smoke-no-status\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke-no-status\install" -DMFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES=0
+cmake --build build\package-smoke-no-status\build --config Release
+& '.\build\package-smoke-no-status\build\Release\mffv1_package_smoke.exe'
+```
+
 ## Versioning
 
 Before `1.0.0`, source and binary compatibility may change between releases.

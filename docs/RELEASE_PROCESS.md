@@ -103,6 +103,7 @@ The repository release should include:
 
 - Source archive.
 - License and third-party notices.
+- User-facing Markdown references under `docs/`.
 - Changelog section for the released version.
 - Any generated package artifacts that are intentionally published.
 

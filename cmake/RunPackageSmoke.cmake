@@ -126,6 +126,32 @@ mffv1_package_smoke_run(
     --prefix "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}"
 )
 
+set(mffv1_package_smoke_required_docs
+    README.md
+    CHANGELOG.md
+    LICENSE
+    THIRD_PARTY_NOTICES.md
+    BUILD.md
+    DECODER_REFERENCE.md
+    ENCODER_REFERENCE.md
+    FRAME_BUFFER_REFERENCE.md
+    LICENSE_AND_PROVENANCE.md
+    RELEASE_PROCESS.md
+    SUPPORT_POLICY.md
+    test-vectors.md
+)
+
+foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)
+    set(mffv1_package_smoke_doc_path
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1/${mffv1_package_smoke_doc}"
+    )
+    if(NOT EXISTS "${mffv1_package_smoke_doc_path}")
+        message(FATAL_ERROR
+            "installed package documentation is missing: ${mffv1_package_smoke_doc_path}"
+        )
+    endif()
+endforeach()
+
 mffv1_package_smoke_run(${mffv1_package_smoke_configure_command})
 
 mffv1_package_smoke_run(

@@ -126,8 +126,9 @@ conformance vectors; they only keep the standalone file-input path exercised.
 
 ## Install
 
-The library installs public headers, the static library, and a CMake package
-under `lib/cmake/mffv1`.
+The library installs public headers, the static library, user-facing Markdown
+references under `share/doc/mffv1`, and a CMake package under
+`lib/cmake/mffv1`.
 
 The supported package artifact is currently a static library. Shared-library
 exports are intentionally not part of the release surface yet because the

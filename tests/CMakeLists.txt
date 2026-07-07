@@ -73,6 +73,17 @@ if(NOT MFFV1_BUILD_STATUS_CONTRACT_TESTS_ONLY)
         unit/test_vector_tests.cpp
         unit/version3_constraints_tests.cpp
     )
+
+    add_executable(mffv1_header_fallback_smoke
+        header_fallback_smoke/main.cpp
+    )
+    target_compile_features(mffv1_header_fallback_smoke PRIVATE cxx_std_20)
+    target_include_directories(mffv1_header_fallback_smoke
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/include"
+    )
+    mffv1_apply_common_options(mffv1_header_fallback_smoke)
+    add_test(NAME HeaderFallbackSmoke COMMAND mffv1_header_fallback_smoke)
 endif()
 
 add_executable(mffv1_unit_tests ${mffv1_unit_test_sources})

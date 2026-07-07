@@ -138,7 +138,6 @@ set(mffv1_package_smoke_required_docs
     docs/ENCODER_REFERENCE.md
     docs/FRAME_BUFFER_REFERENCE.md
     docs/LICENSE_AND_PROVENANCE.md
-    docs/PUBLICATION_CHECKLIST.md
     docs/README.md
     docs/RELEASE_PROCESS.md
     docs/SUPPORT_POLICY.md

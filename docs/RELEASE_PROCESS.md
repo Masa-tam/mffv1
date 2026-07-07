@@ -22,8 +22,6 @@ A stable release candidate should satisfy all of the following:
   intended maintainer and dependency boundaries.
 - `.github/release.yml` categories match the labels used by merged pull
   requests for the release.
-- GitHub repository settings have been reviewed against
-  [Publication Checklist](PUBLICATION_CHECKLIST.md).
 - Optional committed external vectors, if any, have complete entries in
   `docs/test-vectors.md`.
 - Local-only vector data and generator build outputs are absent from the commit.
@@ -136,6 +134,3 @@ The repository release should include:
 Do not publish local FFmpeg binaries, generated vector headers, MKV files, or
 generator build products as mffv1 release artifacts unless their license and
 provenance have been reviewed separately.
-
-Before publishing the repository or tagging the first public release, also
-review [Publication Checklist](PUBLICATION_CHECKLIST.md).

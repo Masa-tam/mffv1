@@ -18,6 +18,8 @@ A stable release candidate should satisfy all of the following:
 - The current limitations in `DECODER_REFERENCE.md` and
   `ENCODER_REFERENCE.md` are accurate.
 - `CHANGELOG.md` has a versioned release section with user-visible changes.
+- The release changelog is curated for users rather than copied directly from
+  day-to-day development notes.
 - `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `docs/LICENSE_AND_PROVENANCE.md`
   are current.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `docs/SUPPORT_POLICY.md` point to the
@@ -101,6 +103,11 @@ Before tagging a versioned release, confirm that the CMake project version,
 tag name, and `CHANGELOG.md` section agree. For example, for version `0.1.0`,
 `CMakeLists.txt` should contain `VERSION 0.1.0`, the release tag should be
 `v0.1.0`, and `CHANGELOG.md` should contain `## 0.1.0`.
+When preparing that section, rewrite accumulated development notes into
+user-facing release information: supported codec coverage, public API and
+package behavior, known limitations, compatibility notes, and verification
+scope. Omit internal chronology unless it explains a user-visible migration or
+risk.
 Pre-1.0 package version compatibility should remain exact; switch to
 same-major compatibility only when a stable `1.0.0` source-compatibility policy
 is declared.

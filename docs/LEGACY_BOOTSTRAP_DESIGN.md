@@ -105,6 +105,10 @@ Behavior:
   `DiffersFromCurrentConfiguration`, return `FrameInfo` for the embedded
   keyframe. When parameters differ, this describes the new keyframe rather than
   the current decoder state.
+- If no container dimensions were supplied, bootstrap may still configure the
+  embedded legacy parameters, but the resulting decoder remains unable to
+  inspect or decode frames until dimensions are provided through the public
+  setup path.
 - If the frame does not contain embedded parameters, return
   `NoEmbeddedParameters`. If the decoder is unconfigured this is not sufficient
   to decode the frame, but it is not a syntax error by itself.

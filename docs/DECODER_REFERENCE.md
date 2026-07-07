@@ -189,6 +189,13 @@ embedded keyframe after applying external frame dimensions. In the
 `DiffersFromCurrentConfiguration` case this is the new keyframe's layout, not
 the decoder's previous configuration.
 
+If no external frame dimensions were supplied in `DecoderOptions`, legacy
+bootstrap can still parse and configure the embedded parameters, but the
+resulting stream has unknown dimensions. Later `inspect_frame()` and
+`decode_frame()` calls fail with `InvalidState` until the caller creates a
+decoder with container-provided dimensions or otherwise supplies them through
+the normal configuration path.
+
 The comparison includes normalized stream parameters after applying external
 frame dimensions, including entropy mode, colorspace, bit depth, chroma layout,
 extra-plane layout, state transitions, quantization tables, and quantization

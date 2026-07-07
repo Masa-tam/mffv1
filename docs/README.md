@@ -16,6 +16,8 @@
   external vector inventory.
 - [Release Process](RELEASE_PROCESS.md): release readiness, verification, and
   artifact checklist.
+- [Publication Checklist](PUBLICATION_CHECKLIST.md): GitHub repository settings
+  and first-public-release checklist.
 - [Support Policy](SUPPORT_POLICY.md): pre-release compatibility and reporting
   expectations.
 - [Security Policy](../SECURITY.md): reporting path for security-sensitive or

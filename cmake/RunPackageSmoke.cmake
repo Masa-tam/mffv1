@@ -12,6 +12,48 @@ function(mffv1_package_smoke_run)
     endif()
 endfunction()
 
+function(mffv1_package_smoke_check_allowlist root_dir required_files_var label)
+    foreach(mffv1_package_smoke_required_file IN LISTS ${required_files_var})
+        set(mffv1_package_smoke_required_path
+            "${root_dir}/${mffv1_package_smoke_required_file}"
+        )
+        if(NOT EXISTS "${mffv1_package_smoke_required_path}")
+            message(FATAL_ERROR
+                "${label} is missing: ${mffv1_package_smoke_required_path}"
+            )
+        endif()
+    endforeach()
+
+    file(GLOB_RECURSE mffv1_package_smoke_installed_files
+        LIST_DIRECTORIES FALSE
+        RELATIVE "${root_dir}"
+        "${root_dir}/*"
+    )
+
+    foreach(mffv1_package_smoke_installed_file IN LISTS mffv1_package_smoke_installed_files)
+        if(NOT mffv1_package_smoke_installed_file IN_LIST ${required_files_var})
+            message(FATAL_ERROR
+                "${label} allowlist rejected unexpected file: "
+                "${mffv1_package_smoke_installed_file}"
+            )
+        endif()
+    endforeach()
+endfunction()
+
+function(mffv1_package_smoke_require_empty_tree root_dir label)
+    file(GLOB_RECURSE mffv1_package_smoke_installed_files
+        LIST_DIRECTORIES FALSE
+        "${root_dir}/*"
+    )
+
+    if(mffv1_package_smoke_installed_files)
+        message(FATAL_ERROR
+            "${label} unexpectedly contains files: "
+            "${mffv1_package_smoke_installed_files}"
+        )
+    endif()
+endfunction()
+
 get_filename_component(
     MFFV1_PACKAGE_SMOKE_SOURCE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/.."
@@ -135,32 +177,11 @@ set(mffv1_package_smoke_required_headers
     mffv1/result.hpp
 )
 
-foreach(mffv1_package_smoke_header IN LISTS mffv1_package_smoke_required_headers)
-    set(mffv1_package_smoke_header_path
-        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/include/${mffv1_package_smoke_header}"
-    )
-    if(NOT EXISTS "${mffv1_package_smoke_header_path}")
-        message(FATAL_ERROR
-            "installed package header is missing: ${mffv1_package_smoke_header_path}"
-        )
-    endif()
-endforeach()
-
-file(GLOB_RECURSE mffv1_package_smoke_installed_headers
-    LIST_DIRECTORIES FALSE
-    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/include"
-    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/include/*"
+mffv1_package_smoke_check_allowlist(
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/include"
+    mffv1_package_smoke_required_headers
+    "installed package header"
 )
-
-foreach(mffv1_package_smoke_installed_header IN LISTS mffv1_package_smoke_installed_headers)
-    if(NOT mffv1_package_smoke_installed_header IN_LIST mffv1_package_smoke_required_headers)
-        message(FATAL_ERROR
-            "installed package headers contain an unexpected file: "
-            "${mffv1_package_smoke_installed_header}. Add it to the package "
-            "smoke allowlist if it is intentionally public."
-        )
-    endif()
-endforeach()
 
 string(TOLOWER
     "${MFFV1_PACKAGE_SMOKE_CONFIG}"
@@ -174,34 +195,11 @@ set(mffv1_package_smoke_required_cmake_package_files
     "mffv1Targets-${mffv1_package_smoke_config_lower}.cmake"
 )
 
-foreach(mffv1_package_smoke_cmake_package_file IN LISTS mffv1_package_smoke_required_cmake_package_files)
-    set(mffv1_package_smoke_cmake_package_file_path
-        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/cmake/mffv1/${mffv1_package_smoke_cmake_package_file}"
-    )
-    if(NOT EXISTS "${mffv1_package_smoke_cmake_package_file_path}")
-        message(FATAL_ERROR
-            "installed CMake package file is missing: "
-            "${mffv1_package_smoke_cmake_package_file_path}"
-        )
-    endif()
-endforeach()
-
-file(GLOB_RECURSE mffv1_package_smoke_installed_cmake_package_files
-    LIST_DIRECTORIES FALSE
-    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/cmake/mffv1"
-    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/cmake/mffv1/*"
+mffv1_package_smoke_check_allowlist(
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/cmake/mffv1"
+    mffv1_package_smoke_required_cmake_package_files
+    "installed CMake package file"
 )
-
-foreach(mffv1_package_smoke_installed_cmake_package_file IN LISTS mffv1_package_smoke_installed_cmake_package_files)
-    if(NOT mffv1_package_smoke_installed_cmake_package_file
-       IN_LIST mffv1_package_smoke_required_cmake_package_files)
-        message(FATAL_ERROR
-            "installed CMake package directory contains an unexpected file: "
-            "${mffv1_package_smoke_installed_cmake_package_file}. Add it to "
-            "the package smoke allowlist if it is intentionally exported."
-        )
-    endif()
-endforeach()
 
 set(mffv1_package_smoke_required_docs
     README.md
@@ -221,32 +219,11 @@ set(mffv1_package_smoke_required_docs
     docs/test-vectors.md
 )
 
-foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)
-    set(mffv1_package_smoke_doc_path
-        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1/${mffv1_package_smoke_doc}"
-    )
-    if(NOT EXISTS "${mffv1_package_smoke_doc_path}")
-        message(FATAL_ERROR
-            "installed package documentation is missing: ${mffv1_package_smoke_doc_path}"
-        )
-    endif()
-endforeach()
-
-file(GLOB_RECURSE mffv1_package_smoke_installed_docs
-    LIST_DIRECTORIES FALSE
-    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1"
-    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1/*"
+mffv1_package_smoke_check_allowlist(
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1"
+    mffv1_package_smoke_required_docs
+    "installed package documentation"
 )
-
-foreach(mffv1_package_smoke_installed_doc IN LISTS mffv1_package_smoke_installed_docs)
-    if(NOT mffv1_package_smoke_installed_doc IN_LIST mffv1_package_smoke_required_docs)
-        message(FATAL_ERROR
-            "installed package documentation contains an unexpected file: "
-            "${mffv1_package_smoke_installed_doc}. Add it to the package "
-            "smoke allowlist if it is intentionally user-facing."
-        )
-    endif()
-endforeach()
 
 set(mffv1_package_smoke_forbidden_doc_paths
     .github
@@ -308,34 +285,16 @@ foreach(mffv1_package_smoke_cmake_package_file IN LISTS mffv1_package_smoke_requ
     )
 endforeach()
 
-file(GLOB_RECURSE mffv1_package_smoke_installed_library_files
-    LIST_DIRECTORIES FALSE
-    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib"
-    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/*"
+mffv1_package_smoke_check_allowlist(
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib"
+    mffv1_package_smoke_required_library_files
+    "installed package library file"
 )
 
-foreach(mffv1_package_smoke_installed_library_file IN LISTS mffv1_package_smoke_installed_library_files)
-    if(NOT mffv1_package_smoke_installed_library_file
-       IN_LIST mffv1_package_smoke_required_library_files)
-        message(FATAL_ERROR
-            "installed package library directory contains an unexpected file: "
-            "${mffv1_package_smoke_installed_library_file}. Add it to the "
-            "package smoke allowlist if it is intentionally shipped."
-        )
-    endif()
-endforeach()
-
-file(GLOB_RECURSE mffv1_package_smoke_installed_runtime_files
-    LIST_DIRECTORIES FALSE
-    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/bin/*"
+mffv1_package_smoke_require_empty_tree(
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/bin"
+    "installed package runtime directory"
 )
-
-if(mffv1_package_smoke_installed_runtime_files)
-    message(FATAL_ERROR
-        "installed package unexpectedly contains runtime files under bin/: "
-        "${mffv1_package_smoke_installed_runtime_files}"
-    )
-endif()
 
 mffv1_package_smoke_run(
     "${CMAKE_COMMAND}"

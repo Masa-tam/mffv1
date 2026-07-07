@@ -28,7 +28,8 @@ and preserves scalar-equivalent behavior.
 
 Do not interpret a `0.x` release as a stable ABI promise. Consumers that need
 long-term stability should pin an exact tag and review changelog entries before
-upgrading.
+upgrading. The installed CMake package version file follows this policy by
+using exact-version compatibility before `1.0.0`.
 
 After `1.0.0`, the project should avoid breaking source compatibility within a
 major version unless a security or correctness issue requires it.

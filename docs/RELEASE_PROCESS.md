@@ -101,6 +101,9 @@ Before tagging a versioned release, confirm that the CMake project version,
 tag name, and `CHANGELOG.md` section agree. For example, for version `0.1.0`,
 `CMakeLists.txt` should contain `VERSION 0.1.0`, the release tag should be
 `v0.1.0`, and `CHANGELOG.md` should contain `## 0.1.0`.
+Pre-1.0 package version compatibility should remain exact; switch to
+same-major compatibility only when a stable `1.0.0` source-compatibility policy
+is declared.
 
 Also verify package consumer builds. The package smoke runner checks installed
 header allowlist, the exported `mffv1::mffv1` target, static artifact shape,

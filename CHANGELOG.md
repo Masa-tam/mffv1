@@ -28,6 +28,8 @@ start only once the first public release is tagged.
 - CMake install and package configuration support.
 - Installed `mffv1/build_config.hpp` records build-time public configuration
   such as `MFFV1_ENABLE_STATUS_MESSAGES`.
+- Pre-1.0 installed CMake package version files require exact-version
+  compatibility.
 - Installed user-facing Markdown documentation under `share/doc/mffv1`.
 - Build option `MFFV1_ENABLE_STATUS_MESSAGES` for disabling library-generated
   diagnostic message text in `Status::message`.

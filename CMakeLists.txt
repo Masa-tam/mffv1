@@ -121,10 +121,15 @@ install(
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
+set(MFFV1_PACKAGE_VERSION_COMPATIBILITY SameMajorVersion)
+if(PROJECT_VERSION VERSION_LESS 1.0.0)
+    set(MFFV1_PACKAGE_VERSION_COMPATIBILITY ExactVersion)
+endif()
+
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/mffv1ConfigVersion.cmake"
     VERSION "${PROJECT_VERSION}"
-    COMPATIBILITY SameMajorVersion
+    COMPATIBILITY "${MFFV1_PACKAGE_VERSION_COMPATIBILITY}"
 )
 
 configure_package_config_file(

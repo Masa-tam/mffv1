@@ -16,6 +16,8 @@ A stable release candidate should satisfy all of the following:
   are current.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `docs/SUPPORT_POLICY.md` point to the
   current public repository and reporting policy.
+- GitHub issue and pull request templates still match the clean-room and
+  verification policy.
 - Optional committed external vectors, if any, have complete entries in
   `docs/test-vectors.md`.
 - Local-only vector data and generator build outputs are absent from the commit.

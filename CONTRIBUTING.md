@@ -44,6 +44,10 @@ Keep patches focused and update the relevant public reference when behavior
 changes. Public API changes should update headers, tests, references, and
 `CHANGELOG.md` together.
 
+The pull request template asks for clean-room confirmation, relevant test
+commands, and documentation status. Treat unchecked items as an explicit note
+that the step was not applicable or could not be run.
+
 Before submitting a patch, run the most relevant verification:
 
 ```powershell

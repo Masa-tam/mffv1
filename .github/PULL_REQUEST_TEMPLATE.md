@@ -1,0 +1,31 @@
+## Summary
+
+Describe the change and the user-visible behavior it affects.
+
+## Clean-Room Confirmation
+
+- [ ] This change is based on public specifications, generated tests,
+      black-box observations, or original reasoning.
+- [ ] This change does not copy or translate code, comments, identifiers,
+      internal tables, or implementation details from FFmpeg or another
+      incompatibly licensed implementation.
+- [ ] Any new committed test vectors have recorded provenance and license
+      review in `docs/test-vectors.md`.
+
+## Verification
+
+Check the commands that were run:
+
+- [ ] `cmake --preset vs2026-x64`
+- [ ] `cmake --build --preset vs2026-x64-debug`
+- [ ] `ctest --preset vs2026-x64-debug --output-on-failure`
+- [ ] `cmake -DMFFV1_MARKDOWN_LINK_ROOT=. -P cmake\CheckMarkdownLinks.cmake`
+- [ ] package smoke test, if the change affects CMake packaging, public
+      headers, installed docs, or release artifacts
+
+## Documentation
+
+- [ ] Public API references were updated, or this change does not affect public
+      behavior.
+- [ ] `CHANGELOG.md` was updated, or this change has no user-visible release
+      note.

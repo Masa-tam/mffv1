@@ -696,6 +696,33 @@ TEST(DecoderTest, BootstrapLegacyFrameReportsNoEmbeddedParameters)
     EXPECT_EQ(inspect_status.code, mffv1::ErrorCode::InvalidState);
 }
 
+TEST(DecoderTest, BootstrapLegacyNonKeyframePreservesCurrentConfiguration)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 1;
+    options.frame_height = 1;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+    const auto payload = make_legacy_non_keyframe();
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::NoEmbeddedParameters);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 0u);
+
+    std::array<std::uint8_t, 1> storage{0xee};
+    auto plane = make_y_plane(storage.data(), 1, 1, 1);
+    mffv1::MutableFrameView output{&plane, 1};
+    const auto decode_status =
+        result.decoder->decode_frame(zero_scalar_payload(), output);
+    EXPECT_TRUE(decode_status.ok()) << decode_status.message;
+    EXPECT_EQ(storage[0], 0u);
+}
+
 TEST(DecoderTest, BootstrapLegacyFrameRejectsEmptyPayload)
 {
     const auto result = mffv1::create_decoder({});

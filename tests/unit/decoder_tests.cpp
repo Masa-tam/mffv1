@@ -576,8 +576,11 @@ TEST(DecoderTest, BootstrapLegacyFrameReportsMatchingCurrentConfiguration)
     ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
     EXPECT_EQ(bootstrap.info.state,
               mffv1::LegacyBootstrapState::MatchesCurrentConfiguration);
+    EXPECT_EQ(bootstrap.info.frame_info.version, 0u);
     EXPECT_EQ(bootstrap.info.frame_info.width, 16u);
     EXPECT_EQ(bootstrap.info.frame_info.height, 8u);
+    EXPECT_TRUE(bootstrap.info.frame_info.keyframe);
+    EXPECT_FALSE(bootstrap.info.frame_info.has_chroma_planes);
 }
 
 TEST(DecoderTest, BootstrapLegacyFrameReportsDifferentCurrentConfiguration)

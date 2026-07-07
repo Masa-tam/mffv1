@@ -172,7 +172,8 @@ that creates encoder and decoder instances through the exported
 `mffv1::mffv1` package target.
 The package smoke runner also verifies that required installed Markdown files
 exist and that local Markdown links under the installed documentation root
-resolve.
+resolve. It also rejects non-user-facing installed documentation paths such as
+`.github`, `plans`, `private`, and `testvectors`.
 
 ```powershell
 cmake `

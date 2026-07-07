@@ -155,15 +155,24 @@ foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)
     endif()
 endforeach()
 
-set(mffv1_package_smoke_plans_dir
-    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1/plans"
+set(mffv1_package_smoke_forbidden_doc_paths
+    .github
+    plans
+    private
+    testvectors
 )
-if(EXISTS "${mffv1_package_smoke_plans_dir}")
-    message(FATAL_ERROR
-        "installed package documentation contains non-user-facing plans directory: "
-        "${mffv1_package_smoke_plans_dir}. Use a clean install prefix."
+
+foreach(mffv1_package_smoke_forbidden_doc_path IN LISTS mffv1_package_smoke_forbidden_doc_paths)
+    set(mffv1_package_smoke_forbidden_path
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1/${mffv1_package_smoke_forbidden_doc_path}"
     )
-endif()
+    if(EXISTS "${mffv1_package_smoke_forbidden_path}")
+        message(FATAL_ERROR
+            "installed package documentation contains a non-user-facing path: "
+            "${mffv1_package_smoke_forbidden_path}. Use a clean install prefix."
+        )
+    endif()
+endforeach()
 
 if(WIN32)
     set(mffv1_package_smoke_static_library

@@ -100,7 +100,8 @@ cmake -P cmake\CheckPublicTrackedFiles.cmake
 
 Also verify package consumer builds. The package smoke runner checks installed
 headers, the exported `mffv1::mffv1` target, static artifact shape, installed
-documentation, and installed documentation links:
+documentation, installed documentation links, and absence of non-user-facing
+installed documentation paths:
 
 ```powershell
 cmake `

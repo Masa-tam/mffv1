@@ -183,6 +183,12 @@ Parameter changes are reported as a successful result with
 create or reconfigure a decoder deliberately from that keyframe and discard
 old reference state.
 
+For `Configured`, `MatchesCurrentConfiguration`, and
+`DiffersFromCurrentConfiguration`, `bootstrap.info.frame_info` describes the
+embedded keyframe after applying external frame dimensions. In the
+`DiffersFromCurrentConfiguration` case this is the new keyframe's layout, not
+the decoder's previous configuration.
+
 The comparison includes normalized stream parameters after applying external
 frame dimensions, including entropy mode, colorspace, bit depth, chroma layout,
 extra-plane layout, state transitions, quantization tables, and quantization

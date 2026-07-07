@@ -101,6 +101,10 @@ Behavior:
 - If the decoder is configured and the embedded parameters differ, leave the
   decoder state unchanged and return `DiffersFromCurrentConfiguration` with
   `status.ok() == true`.
+- For `Configured`, `MatchesCurrentConfiguration`, and
+  `DiffersFromCurrentConfiguration`, return `FrameInfo` for the embedded
+  keyframe. When parameters differ, this describes the new keyframe rather than
+  the current decoder state.
 - If the frame does not contain embedded parameters, return
   `NoEmbeddedParameters`. If the decoder is unconfigured this is not sufficient
   to decode the frame, but it is not a syntax error by itself.

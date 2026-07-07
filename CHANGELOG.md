@@ -48,6 +48,8 @@ start only once the first public release is tagged.
 - Public tracked-file checker allowlist for the `testvectors` local drop
   directory.
 - Ignore local agent workspace directories by default.
+- Repository attributes normalize text files to LF and keep binary media and
+  archives unmodified.
 - GitHub Actions smoke coverage for hosted Windows plus Ubuntu GCC and Clang
   build, test, and package checks.
 - GitHub Actions no-status package smoke coverage for the installed

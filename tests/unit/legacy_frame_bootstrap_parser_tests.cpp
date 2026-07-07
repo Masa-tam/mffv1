@@ -251,6 +251,9 @@ TEST(LegacyFrameBootstrapParserTest, FailedParsePreservesOutput)
     const auto status = parser.parse(payload, 320, 240, bootstrap);
 
     EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message,
+              "range coder payload must contain at least two bytes");
     expect_sentinel_bootstrap_preserved(bootstrap);
 }
 

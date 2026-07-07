@@ -206,24 +206,28 @@ mffv1_package_smoke_run(
     --config "${MFFV1_PACKAGE_SMOKE_CONFIG}"
 )
 
-set(mffv1_package_smoke_executable_name mffv1_package_smoke)
-if(WIN32)
-    string(APPEND mffv1_package_smoke_executable_name ".exe")
-endif()
+foreach(mffv1_package_smoke_target
+        mffv1_package_header_smoke
+        mffv1_package_smoke)
+    set(mffv1_package_smoke_executable_name "${mffv1_package_smoke_target}")
+    if(WIN32)
+        string(APPEND mffv1_package_smoke_executable_name ".exe")
+    endif()
 
-set(mffv1_package_smoke_executable
-    "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}/${MFFV1_PACKAGE_SMOKE_CONFIG}/${mffv1_package_smoke_executable_name}"
-)
-if(NOT EXISTS "${mffv1_package_smoke_executable}")
     set(mffv1_package_smoke_executable
-        "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}/${mffv1_package_smoke_executable_name}"
+        "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}/${MFFV1_PACKAGE_SMOKE_CONFIG}/${mffv1_package_smoke_executable_name}"
     )
-endif()
+    if(NOT EXISTS "${mffv1_package_smoke_executable}")
+        set(mffv1_package_smoke_executable
+            "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}/${mffv1_package_smoke_executable_name}"
+        )
+    endif()
 
-if(NOT EXISTS "${mffv1_package_smoke_executable}")
-    message(FATAL_ERROR
-        "package smoke executable was not found: ${mffv1_package_smoke_executable}"
-    )
-endif()
+    if(NOT EXISTS "${mffv1_package_smoke_executable}")
+        message(FATAL_ERROR
+            "package smoke executable was not found: ${mffv1_package_smoke_executable}"
+        )
+    endif()
 
-mffv1_package_smoke_run("${mffv1_package_smoke_executable}")
+    mffv1_package_smoke_run("${mffv1_package_smoke_executable}")
+endforeach()

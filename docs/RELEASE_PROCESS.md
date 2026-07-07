@@ -12,10 +12,10 @@ A stable release candidate should satisfy all of the following:
 - The current limitations in `DECODER_REFERENCE.md` and
   `ENCODER_REFERENCE.md` are accurate.
 - `CHANGELOG.md` has a versioned release section with user-visible changes.
-- `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `LICENSE_AND_PROVENANCE.md` are
-  current.
+- `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `docs/LICENSE_AND_PROVENANCE.md`
+  are current.
 - Optional committed external vectors, if any, have complete entries in
-  `test-vectors.md`.
+  `docs/test-vectors.md`.
 - Local-only vector data and generator build outputs are absent from the commit.
 - The package smoke test passes against the installed CMake package.
 

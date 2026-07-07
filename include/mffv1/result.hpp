@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <string>
 
+#if __has_include("mffv1/build_config.hpp")
+#include "mffv1/build_config.hpp"
+#endif
+
 #ifndef MFFV1_ENABLE_STATUS_MESSAGES
 #define MFFV1_ENABLE_STATUS_MESSAGES 1
 #endif

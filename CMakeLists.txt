@@ -10,6 +10,16 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 include(Mffv1Options)
 
+set(MFFV1_ENABLE_STATUS_MESSAGES_DEFINE 0)
+if(MFFV1_ENABLE_STATUS_MESSAGES)
+    set(MFFV1_ENABLE_STATUS_MESSAGES_DEFINE 1)
+endif()
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mffv1_build_config.hpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/include/mffv1/build_config.hpp"
+    @ONLY
+)
+
 add_library(mffv1
     src/bitstream/bit_reader.cpp
     src/bitstream/bit_writer.cpp
@@ -56,13 +66,9 @@ add_library(mffv1
 add_library(mffv1::mffv1 ALIAS mffv1)
 
 target_compile_features(mffv1 PUBLIC cxx_std_20)
-target_compile_definitions(mffv1
-    PUBLIC
-        MFFV1_ENABLE_STATUS_MESSAGES=$<BOOL:${MFFV1_ENABLE_STATUS_MESSAGES}>
-)
-
 target_include_directories(mffv1
     PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated/include>"
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
         "$<INSTALL_INTERFACE:include>"
     PRIVATE
@@ -106,6 +112,11 @@ install(
 
 install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+install(
+    DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated/include/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 

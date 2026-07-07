@@ -46,11 +46,11 @@ storage and copying in production-oriented builds. The no-status preset also
 sets `MFFV1_BUILD_TESTS=OFF` because many unit tests intentionally assert exact
 diagnostic text.
 
-When consuming an installed no-status build, prefer linking the exported CMake
-target `mffv1::mffv1`; it propagates the matching
-`MFFV1_ENABLE_STATUS_MESSAGES` definition to callers. Projects that include
-headers and link the library manually must define the same macro value used to
-build the library.
+When consuming an installed no-status build, prefer the installed headers from
+the same build. CMake generates and installs `mffv1/build_config.hpp`, which
+records the matching `MFFV1_ENABLE_STATUS_MESSAGES` value. Projects that copy
+only part of the include tree or mix headers from another build must define the
+same macro value used to build the library.
 
 To verify the no-status `Status` contract without building or running the
 diagnostics-heavy unit tests:

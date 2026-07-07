@@ -5,7 +5,10 @@ test vectors. The mffv1 repository intentionally does not commit generated
 vector headers, FFmpeg binaries, FFmpeg headers, media files, or generator
 outputs in this directory.
 
-Only this `README.md` and `.gitignore` are intended to be tracked here.
+Only this `README.md` and `.gitignore` are intended to be tracked here. The
+directory `.gitignore` ignores every other path by default, and the public tree
+check rejects tracked test-vector payloads unless that policy is deliberately
+changed.
 
 ## Default Behavior
 
@@ -100,6 +103,7 @@ state produced by earlier payloads in the same vector.
 ## Commit Policy
 
 Do not commit local vector data from this directory by default. If generated
-vectors are intentionally promoted to repository fixtures, add them through a
-separate reviewed change and record their provenance in
-`docs/test-vectors.md`.
+vectors are intentionally promoted to repository fixtures, change the tracked
+file policy through a separate reviewed change and record their provenance in
+`docs/test-vectors.md`. Avoid force-adding files from this directory for
+ordinary library, documentation, or test-maintenance commits.

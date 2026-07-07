@@ -36,6 +36,8 @@ start only once the first public release is tagged.
 - Markdown link checker for source and installed documentation.
 - Public tracked-file checker for local-only maintainer notes, generated
   vectors, generator archives, and build outputs.
+- Public tracked-file checker allowlist for the `testvectors` local drop
+  directory.
 - GitHub Actions smoke coverage for hosted Windows plus Ubuntu GCC and Clang
   build, test, and package checks.
 - GitHub Actions no-status package smoke coverage for the installed

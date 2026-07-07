@@ -45,6 +45,16 @@ set(mffv1_public_tree_forbidden_path_patterns
 )
 
 foreach(mffv1_public_tree_file IN LISTS mffv1_public_tree_files)
+    if(mffv1_public_tree_file MATCHES "^testvectors/"
+        AND NOT mffv1_public_tree_file STREQUAL "testvectors/.gitignore"
+        AND NOT mffv1_public_tree_file STREQUAL "testvectors/README.md"
+    )
+        message(FATAL_ERROR
+            "testvectors only allows tracked README.md and .gitignore files: "
+            "${mffv1_public_tree_file}"
+        )
+    endif()
+
     foreach(mffv1_public_tree_pattern IN LISTS mffv1_public_tree_forbidden_path_patterns)
         if(mffv1_public_tree_file MATCHES "${mffv1_public_tree_pattern}")
             message(FATAL_ERROR

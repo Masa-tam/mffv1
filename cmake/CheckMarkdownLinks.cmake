@@ -60,6 +60,10 @@ foreach(mffv1_markdown_link_file IN LISTS mffv1_markdown_link_files)
     endif()
 
     file(READ "${mffv1_markdown_link_file}" mffv1_markdown_link_content)
+    string(REGEX REPLACE "!\\[[^]]*\\]\\([^)]+\\)" "image"
+        mffv1_markdown_link_content
+        "${mffv1_markdown_link_content}"
+    )
     string(REGEX MATCHALL "\\[[^]]*\\]\\([^)]+\\)"
         mffv1_markdown_link_matches
         "${mffv1_markdown_link_content}"

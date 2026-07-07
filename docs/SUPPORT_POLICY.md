@@ -31,8 +31,9 @@ Reports should include:
   vector generation.
 
 Do not attach FFmpeg source code or generated data with unclear licensing.
-When the repository is public, use GitHub Issues for ordinary reports. If a
-report needs private coordination because it contains sensitive input data,
+When the repository is public, use
+[GitHub Issues](https://github.com/Masa-tam/mffv1/issues) for ordinary reports.
+If a report needs private coordination because it contains sensitive input data,
 contact the maintainer first and share only the minimum information needed to
 arrange a safe disclosure path.
 

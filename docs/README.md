@@ -18,6 +18,8 @@
   artifact checklist.
 - [Support Policy](SUPPORT_POLICY.md): pre-release compatibility and reporting
   expectations.
+- [Security Policy](../SECURITY.md): reporting path for security-sensitive or
+  confidential input issues.
 - [Changelog](../CHANGELOG.md): user-visible project changes.
 
 These references describe implemented public behavior and are the appropriate

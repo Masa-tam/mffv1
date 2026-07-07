@@ -20,7 +20,8 @@ std::vector<std::byte> make_legacy_frame_parameters(
     std::uint8_t log2_h_chroma_subsample = 0,
     std::uint8_t log2_v_chroma_subsample = 0,
     bool extra_plane = false,
-    bool split_first_quant_table = false)
+    bool split_first_quant_table = false,
+    int version = 0)
 {
     mffv1::entropy::RangeEncoder writer;
     EXPECT_TRUE(writer.reset().ok());
@@ -28,11 +29,14 @@ std::vector<std::byte> make_legacy_frame_parameters(
     if (keyframe) {
         const std::array<std::size_t, 1> parameter_context_counts{1};
         EXPECT_TRUE(writer.reconfigure_contexts(parameter_context_counts).ok());
-        EXPECT_TRUE(writer.write_unsigned(0).ok()); // version
+        EXPECT_TRUE(writer.write_unsigned(static_cast<std::uint64_t>(version)).ok());
         EXPECT_TRUE(writer.write_unsigned(
             entropy_mode == mffv1::EntropyMode::GolombRice ? 0 : 1).ok());
         EXPECT_TRUE(writer.write_unsigned(
             static_cast<std::uint64_t>(colorspace_type)).ok());
+        if (version >= 1) {
+            EXPECT_TRUE(writer.write_unsigned(8).ok());
+        }
         EXPECT_TRUE(writer.write_bool(chroma_planes).ok());
         EXPECT_TRUE(writer.write_unsigned(log2_h_chroma_subsample).ok());
         EXPECT_TRUE(writer.write_unsigned(log2_v_chroma_subsample).ok());
@@ -119,6 +123,36 @@ TEST(LegacyFrameBootstrapParserTest, ParsesVersionZeroEmbeddedQuantTableSet)
     const auto status = parser.parse(payload, 16, 8, bootstrap);
 
     ASSERT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(bootstrap.stream.quant_table_sets.size(), 1u);
+    const auto& quant_table_set = bootstrap.stream.quant_table_sets[0];
+    EXPECT_EQ(quant_table_set.context_count, 2u);
+    EXPECT_EQ(quant_table_set.tables[0][0], 0);
+    EXPECT_EQ(quant_table_set.tables[0][1], 1);
+    EXPECT_EQ(quant_table_set.tables[0][127], 1);
+    EXPECT_EQ(quant_table_set.tables[0][128], -1);
+    EXPECT_EQ(quant_table_set.tables[0][255], -1);
+}
+
+TEST(LegacyFrameBootstrapParserTest, ParsesVersionOneEmbeddedQuantTableSet)
+{
+    const auto payload = make_legacy_frame_parameters(
+        true,
+        mffv1::EntropyMode::Range,
+        0,
+        false,
+        0,
+        0,
+        false,
+        true,
+        1);
+    const mffv1::codec::LegacyFrameBootstrapParser parser;
+    mffv1::codec::LegacyFrameBootstrap bootstrap;
+
+    const auto status = parser.parse(payload, 16, 8, bootstrap);
+
+    ASSERT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(bootstrap.stream.version, 1);
+    EXPECT_EQ(bootstrap.stream.bits_per_raw_sample, 8u);
     ASSERT_EQ(bootstrap.stream.quant_table_sets.size(), 1u);
     const auto& quant_table_set = bootstrap.stream.quant_table_sets[0];
     EXPECT_EQ(quant_table_set.context_count, 2u);

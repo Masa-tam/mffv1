@@ -36,3 +36,48 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build\ci -C Debug --output-on-failure
+
+  linux-smoke:
+    name: Linux ${{ matrix.compiler }} smoke
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: GCC
+            cc: gcc
+            cxx: g++
+          - compiler: Clang
+            cc: clang
+            cxx: clang++
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Show tool versions
+        run: |
+          cmake --version
+          ${{ matrix.cxx }} --version
+
+      - name: Check Markdown links
+        run: cmake -DMFFV1_MARKDOWN_LINK_ROOT=. -P cmake/CheckMarkdownLinks.cmake
+
+      - name: Check public tracked files
+        run: cmake -P cmake/CheckPublicTrackedFiles.cmake
+
+      - name: Configure
+        run: >
+          cmake -S . -B build/ci
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_COMPILER=${{ matrix.cc }}
+          -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          -DMFFV1_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build/ci
+
+      - name: Test
+        run: ctest --test-dir build/ci --output-on-failure

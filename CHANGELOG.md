@@ -36,6 +36,8 @@ start only once the first public release is tagged.
 - Markdown link checker for source and installed documentation.
 - Public tracked-file checker for local-only maintainer notes, generated
   vectors, generator archives, and build outputs.
+- GitHub Actions smoke coverage for hosted Windows plus Ubuntu GCC and Clang
+  builds.
 - Public repository documentation for GitHub Issues, security reporting,
   contribution rules, pull requests, CI, CODEOWNERS, Dependabot, and generated
   release-note categories.

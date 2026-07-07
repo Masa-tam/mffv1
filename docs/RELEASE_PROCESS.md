@@ -32,8 +32,8 @@ A stable release candidate should satisfy all of the following:
   `docs/test-vectors.md`.
 - Local-only vector data and generator build outputs are absent from the commit.
 - The package smoke test passes against the installed CMake package.
-- GitHub Actions smoke checks pass for the commit being released, when the
-  repository is public.
+- GitHub Actions Windows, Linux GCC, and Linux Clang smoke checks pass for the
+  commit being released, when the repository is public.
 
 ## Required Verification
 

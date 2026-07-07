@@ -216,8 +216,8 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
             payload, frame_reader, keyframe, false, out_frame);
     }
     if (stream_.num_h_slices != 1 || stream_.num_v_slices != 1) {
-        return make_error(ErrorCode::NotImplemented,
-                          "legacy Golomb-Rice multi-slice frame parsing is not implemented");
+        return make_error(ErrorCode::UnsupportedFeature,
+                          "legacy Golomb-Rice multi-slice frames are not supported");
     }
     if (parse_legacy_range_header) {
         status = frame_reader.reset(payload);

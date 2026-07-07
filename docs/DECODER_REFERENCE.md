@@ -475,8 +475,8 @@ The current decoder implements:
 - Legacy version 0/1 multi-slice is not a primary compatibility target because
   stable multi-slice usage is associated with version 3 rather than the
   abandoned experimental version 2 line. Range-coded legacy multi-slice parsing
-  exists as defensive coverage; Golomb-Rice legacy multi-slice parsing remains
-  unimplemented.
+  exists as defensive coverage; Golomb-Rice legacy multi-slice frames are
+  reported as unsupported.
 - Relaxed parsing mode is not implemented; `DecoderOptions::strict` must stay
   true.
 - SIMD coverage is currently limited to the RGB inverse color transform on

@@ -1107,7 +1107,7 @@ TEST(FrameParserTest, ParsesLegacyRangeMultiSliceAfterEmbeddedParameters)
     EXPECT_TRUE(frame.slices[1].uses_legacy_v0_arithmetic);
 }
 
-TEST(FrameParserTest, ReportsLegacyGolombRiceMultiSliceAsNotImplemented)
+TEST(FrameParserTest, ReportsLegacyGolombRiceMultiSliceAsUnsupported)
 {
     auto stream = make_stream();
     stream.version = 0;
@@ -1120,9 +1120,8 @@ TEST(FrameParserTest, ReportsLegacyGolombRiceMultiSliceAsNotImplemented)
     const auto status = parser.parse(payload, frame);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_EQ(status.code, mffv1::ErrorCode::NotImplemented);
-    EXPECT_EQ(status.message,
-              "legacy Golomb-Rice multi-slice frame parsing is not implemented");
+    EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature);
+    EXPECT_EQ(status.message, "legacy Golomb-Rice multi-slice frames are not supported");
     expect_existing_frame_preserved(frame);
 }
 

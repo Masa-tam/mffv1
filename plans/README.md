@@ -28,6 +28,8 @@ public references, headers, and tests as authoritative for current behavior.
   boundaries.
 - [Legacy Bootstrap Design](LEGACY_BOOTSTRAP_DESIGN.md): design notes for
   version 0/1 keyframe-embedded `Parameters()` initialization.
+- [RFC 9043 Implementation Notes](rfc9043-implementation-notes.md): collected
+  implementation interpretations and possible clarification topics.
 - [Test Vector Compatibility Notes](test-vector-compatibility-notes.md):
   investigation notes for external vector compatibility work.
 - [Test Vector Generator Review](test-vector-generator-review.md): review

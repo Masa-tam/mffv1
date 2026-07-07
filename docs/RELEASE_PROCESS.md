@@ -103,9 +103,9 @@ tag name, and `CHANGELOG.md` section agree. For example, for version `0.1.0`,
 `v0.1.0`, and `CHANGELOG.md` should contain `## 0.1.0`.
 
 Also verify package consumer builds. The package smoke runner checks installed
-headers, the exported `mffv1::mffv1` target, static artifact shape, installed
-documentation allowlist, installed documentation links, and absence of
-non-user-facing installed documentation paths:
+header allowlist, the exported `mffv1::mffv1` target, static artifact shape,
+installed documentation allowlist, installed documentation links, and absence
+of non-user-facing installed documentation paths:
 
 ```powershell
 cmake `

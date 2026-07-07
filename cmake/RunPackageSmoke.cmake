@@ -126,6 +126,42 @@ mffv1_package_smoke_run(
     --prefix "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}"
 )
 
+set(mffv1_package_smoke_required_headers
+    mffv1/build_config.hpp
+    mffv1/codec.hpp
+    mffv1/config.hpp
+    mffv1/frame.hpp
+    mffv1/options.hpp
+    mffv1/result.hpp
+)
+
+foreach(mffv1_package_smoke_header IN LISTS mffv1_package_smoke_required_headers)
+    set(mffv1_package_smoke_header_path
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/include/${mffv1_package_smoke_header}"
+    )
+    if(NOT EXISTS "${mffv1_package_smoke_header_path}")
+        message(FATAL_ERROR
+            "installed package header is missing: ${mffv1_package_smoke_header_path}"
+        )
+    endif()
+endforeach()
+
+file(GLOB_RECURSE mffv1_package_smoke_installed_headers
+    LIST_DIRECTORIES FALSE
+    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/include"
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/include/*"
+)
+
+foreach(mffv1_package_smoke_installed_header IN LISTS mffv1_package_smoke_installed_headers)
+    if(NOT mffv1_package_smoke_installed_header IN_LIST mffv1_package_smoke_required_headers)
+        message(FATAL_ERROR
+            "installed package headers contain an unexpected file: "
+            "${mffv1_package_smoke_installed_header}. Add it to the package "
+            "smoke allowlist if it is intentionally public."
+        )
+    endif()
+endforeach()
+
 set(mffv1_package_smoke_required_docs
     README.md
     CHANGELOG.md

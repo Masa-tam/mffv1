@@ -33,6 +33,7 @@ start only once the first public release is tagged.
   diagnostic message text in `Status::message`.
 - Package smoke runner for installed-header, exported-target, static-artifact,
   installed-documentation, and installed-documentation-link checks.
+- Package smoke installed-header allowlist to reject unexpected public headers.
 - Package smoke installed-documentation allowlist to reject unexpected packaged
   files.
 - Markdown link checker for source and installed documentation.

@@ -179,6 +179,9 @@ unexpected files under `share/doc/mffv1` fail the smoke run unless they are
 intentionally added to the package contract. It also rejects non-user-facing
 installed documentation paths such as `.github`, `plans`, `private`, and
 `testvectors`.
+The installed public header set is checked the same way; unexpected files
+under `include/` fail the smoke run unless they are intentionally added to the
+public header contract.
 
 ```powershell
 cmake `

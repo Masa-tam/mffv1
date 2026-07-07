@@ -5,9 +5,14 @@
 #error "mffv1/build_config.hpp must define MFFV1_ENABLE_STATUS_MESSAGES"
 #endif
 
+#ifndef MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES
+#error "package smoke must define MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES"
+#endif
+
 int main()
 {
-    static_assert(MFFV1_ENABLE_STATUS_MESSAGES == 1);
+    static_assert(
+        MFFV1_ENABLE_STATUS_MESSAGES == MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES);
 
     const mffv1::DecoderOptions decoder_options{};
     auto decoder_result = mffv1::create_decoder(decoder_options);

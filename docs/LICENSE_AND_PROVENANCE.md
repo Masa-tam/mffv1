@@ -69,6 +69,11 @@ information. Record committed external vectors in:
 
 - [Test Vector Registry](test-vectors.md)
 
+Vectors derived from private, personal, unreleased, or commercial media must
+not be committed unless publication has been explicitly approved by the content
+owner and the license review is complete. Prefer synthetic or minimized inputs
+when they can reproduce the same codec behavior.
+
 The `testvectors/` directory is an optional local workspace for black-box
 interoperability vectors. When no local `testvectors/test_vector_data.hpp`
 exists, CMake generates a build-tree placeholder defining

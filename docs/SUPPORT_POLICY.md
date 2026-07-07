@@ -26,7 +26,7 @@ Reports should include:
 
 - mffv1 commit or release tag.
 - Build configuration and compiler.
-- Minimal input data or reproduction steps when it can be shared.
+- Minimal input data or reproduction steps when it can be shared safely.
 - Whether the issue affects decoding, encoding, container integration, or test
   vector generation.
 
@@ -35,6 +35,11 @@ When the repository is public, use GitHub Issues for ordinary reports. If a
 report needs private coordination because it contains sensitive input data,
 contact the maintainer first and share only the minimum information needed to
 arrange a safe disclosure path.
+
+Video inputs may contain personal data, unreleased creative work, commercial
+project material, or other confidential content. Prefer synthetic,
+minimized, or redacted reproducers over original media. If the original media
+is required to explain the problem, do not upload it to a public issue.
 
 ## Clean-Room Reporting Notes
 

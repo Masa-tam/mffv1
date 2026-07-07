@@ -60,6 +60,12 @@ data.
 Only generated vector data that is committed to the repository needs a registry
 entry with full provenance and license review.
 
+Do not commit vectors derived from private, personal, unreleased, or otherwise
+sensitive media unless the content owner has explicitly approved publication
+and the license review is complete. When possible, reproduce issues with
+synthetic or minimized media that preserves the codec behavior without exposing
+the original content.
+
 ## Current Local Compatibility Coverage
 
 The current optional local vector set validates v3 range and Golomb-Rice
@@ -176,3 +182,4 @@ covering the syntax and context-state behavior under test.
 - Do not commit FFmpeg binaries, headers, or local build outputs as vectors.
 - Keep committed generated data mechanically reproducible from the recorded
   inputs and commands whenever possible.
+- Prefer synthetic or minimized inputs over sensitive real-world media.

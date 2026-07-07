@@ -44,6 +44,8 @@ start only once the first public release is tagged.
   files.
 - Package smoke consumer requests the current package version so installed
   CMake version metadata is exercised.
+- Package smoke derives the requested package version from the root CMake
+  project version by default.
 - Markdown link checker for source and installed documentation.
 - Public tracked-file checker for local-only maintainer notes, generated
   vectors, generator archives, and build outputs.

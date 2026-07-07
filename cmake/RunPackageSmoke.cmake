@@ -54,6 +54,25 @@ function(mffv1_package_smoke_require_empty_tree root_dir label)
     endif()
 endfunction()
 
+function(mffv1_package_smoke_read_project_version out_var)
+    file(READ
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/CMakeLists.txt"
+        mffv1_package_smoke_root_cmake
+    )
+    string(REGEX MATCH
+        "project\\([ \t\r\n]*mffv1[ \t\r\n]+VERSION[ \t\r\n]+([0-9]+\\.[0-9]+\\.[0-9]+)"
+        mffv1_package_smoke_project_version_match
+        "${mffv1_package_smoke_root_cmake}"
+    )
+    if(NOT CMAKE_MATCH_1)
+        message(FATAL_ERROR
+            "could not read mffv1 project VERSION from CMakeLists.txt"
+        )
+    endif()
+
+    set("${out_var}" "${CMAKE_MATCH_1}" PARENT_SCOPE)
+endfunction()
+
 get_filename_component(
     MFFV1_PACKAGE_SMOKE_SOURCE_DIR
     "${CMAKE_CURRENT_LIST_DIR}/.."
@@ -141,13 +160,17 @@ if(NOT DEFINED MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES)
     )
 endif()
 
+if(NOT DEFINED MFFV1_PACKAGE_SMOKE_FIND_VERSION)
+    mffv1_package_smoke_read_project_version(MFFV1_PACKAGE_SMOKE_FIND_VERSION)
+endif()
+
 set(mffv1_package_smoke_configure_command
     "${CMAKE_COMMAND}"
     -S "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/tests/package_smoke"
     -B "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}"
     "-DCMAKE_PREFIX_PATH=${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}"
     "-DMFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES=${MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES}"
-    "-DMFFV1_PACKAGE_SMOKE_FIND_VERSION=0.1.0"
+    "-DMFFV1_PACKAGE_SMOKE_FIND_VERSION=${MFFV1_PACKAGE_SMOKE_FIND_VERSION}"
 )
 
 if(DEFINED MFFV1_PACKAGE_SMOKE_GENERATOR)

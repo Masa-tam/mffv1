@@ -665,6 +665,22 @@ TEST(DecoderTest, BootstrapLegacyFrameReportsNoEmbeddedParameters)
     EXPECT_EQ(inspect_status.code, mffv1::ErrorCode::InvalidState);
 }
 
+TEST(DecoderTest, BootstrapLegacyFrameRejectsEmptyPayload)
+{
+    const auto result = mffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame({});
+
+    EXPECT_FALSE(bootstrap.status.ok());
+    EXPECT_EQ(bootstrap.status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(bootstrap.status.message, "frame payload is empty");
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::NoEmbeddedParameters);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 0u);
+}
+
 TEST(DecoderTest, FailedBootstrapLegacyFrameDoesNotConfigureDecoder)
 {
     const auto result = mffv1::create_decoder({});

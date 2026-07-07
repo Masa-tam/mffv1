@@ -15,7 +15,7 @@ reference implementation.
 
 This document describes implemented public behavior. Internal design and
 future work are documented separately in the
-[Phase 5 Encoder Specification](PHASE5_ENCODER_SPEC.md).
+[Phase 5 Encoder Specification](../plans/PHASE5_ENCODER_SPEC.md).
 
 ## Header And Namespace
 

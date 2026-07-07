@@ -14,7 +14,8 @@ letting either leak into the normative bitstream logic.
 Status note: this is the original stage-1 architecture document. It preserves
 early design intent, but some API sketches below predate the current public
 headers. For implemented public API contracts, prefer `include/mffv1/*.hpp`,
-`docs/DECODER_REFERENCE.md`, `docs/ENCODER_REFERENCE.md`, and the unit tests.
+`../docs/DECODER_REFERENCE.md`, `../docs/ENCODER_REFERENCE.md`, and the unit
+tests.
 
 Authoritative format reference:
 
@@ -55,7 +56,7 @@ tests, and black-box interoperability observations.
 - Avoid copying code structure, identifiers, constants tables, comments, or
   implementation-specific tricks from incompatible libraries.
 - If external conformance samples are used, record provenance in
-  `docs/test-vectors.md` before committing them.
+  `../docs/test-vectors.md` before committing them.
 - Keep design decisions traceable to specification sections, measured behavior,
   or project-owned reasoning.
 - Write scalar code first. SIMD and threading must be behavior-preserving

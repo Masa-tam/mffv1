@@ -14,7 +14,7 @@ parallelism later.
 Status note: this is the Phase 2 decoder construction plan, not the complete
 current decoder reference. Some milestones described below are now implemented
 or superseded. For public API contracts and current behavior, prefer
-`include/mffv1/*.hpp`, `docs/DECODER_REFERENCE.md`, and the unit tests.
+`include/mffv1/*.hpp`, `../docs/DECODER_REFERENCE.md`, and the unit tests.
 
 Normative reference:
 
@@ -774,5 +774,5 @@ Integration tests:
   incompatible implementations.
 - Prefer small scalar functions with direct tests.
 - When RFC behavior is ambiguous, add a comment in this document or
-  `docs/DESIGN.md` before encoding the behavior in code.
+  `DESIGN.md` before encoding the behavior in code.
 - Future SIMD paths must prove equivalence to this scalar baseline.

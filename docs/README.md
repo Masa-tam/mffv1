@@ -23,16 +23,7 @@
 These references describe implemented public behavior and are the appropriate
 starting point for library integration.
 
-## Design And Implementation Documents
-
-- [Architecture Design](DESIGN.md): project-wide clean-room architecture and
-  long-term module boundaries.
-- [Phase 2 Class Specification](PHASE2_CLASS_SPEC.md): decoder-oriented class
-  contracts and implementation boundaries.
-- [Phase 5 Encoder Specification](PHASE5_ENCODER_SPEC.md): encoder internals,
-  entropy writers, slice assembly, threading, and SIMD boundaries.
-- [Legacy Bootstrap Design](LEGACY_BOOTSTRAP_DESIGN.md): proposed decoder API
-  for version 0/1 keyframe-embedded `Parameters()` initialization.
-
-Design documents may include future work. Public behavior should be taken from
-the API references and public headers when the documents differ.
+Design notes, historical plans, and implementation investigation records live
+under [plans](../plans/README.md). Those files may include future work or
+superseded sketches; public behavior should be taken from the API references
+and public headers when documents differ.

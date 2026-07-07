@@ -538,6 +538,29 @@ TEST(DecoderTest, BootstrapLegacyFrameConfiguresUnconfiguredDecoder)
     EXPECT_EQ(info.version, 0u);
 }
 
+TEST(DecoderTest, BootstrappedLegacyFrameStillRequiresExternalDimensions)
+{
+    const auto result = mffv1::create_decoder({});
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    const auto payload = make_legacy_bootstrap_frame();
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    EXPECT_EQ(bootstrap.info.state, mffv1::LegacyBootstrapState::Configured);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 0u);
+    EXPECT_EQ(bootstrap.info.frame_info.height, 0u);
+
+    mffv1::FrameInfo info;
+    const auto inspect_status =
+        result.decoder->inspect_frame(zero_scalar_payload(), info);
+    EXPECT_FALSE(inspect_status.ok());
+    EXPECT_EQ(inspect_status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(inspect_status.message,
+              "decoder frame dimensions are not configured");
+}
+
 TEST(DecoderTest, DecodeFrameAcceptsBootstrappedLegacyKeyframe)
 {
     mffv1::DecoderOptions options;

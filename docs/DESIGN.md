@@ -11,6 +11,11 @@ correct, testable decoding and a matching encoder architecture. The design keeps
 SIMD optimization and slice-level multithreading as first-class concerns without
 letting either leak into the normative bitstream logic.
 
+Status note: this is the original stage-1 architecture document. It preserves
+early design intent, but some API sketches below predate the current public
+headers. For implemented public API contracts, prefer `include/mffv1/*.hpp`,
+`docs/DECODER_REFERENCE.md`, `docs/ENCODER_REFERENCE.md`, and the unit tests.
+
 Authoritative format reference:
 
 - RFC 9043, "FFV1 Video Coding Format Versions 0, 1, and 3":

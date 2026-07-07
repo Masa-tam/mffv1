@@ -71,7 +71,9 @@ Verify source documentation links:
 cmake -DMFFV1_MARKDOWN_LINK_ROOT=docs -P cmake\CheckMarkdownLinks.cmake
 ```
 
-Also verify a package consumer build:
+Also verify package consumer builds. The package smoke runner checks installed
+headers, the exported `mffv1::mffv1` target, static artifact shape, installed
+documentation, and installed documentation links:
 
 ```powershell
 cmake `

@@ -151,8 +151,10 @@ target_link_libraries(app PRIVATE mffv1::mffv1)
 
 ## Package Smoke Test
 
-`tests/package_smoke` is a minimal consumer project that includes only public
-headers and links the installed `mffv1::mffv1` package target.
+`tests/package_smoke` is a minimal consumer project that builds two installed
+package checks: a public-header smoke executable and a link smoke executable
+that creates encoder and decoder instances through the exported
+`mffv1::mffv1` package target.
 The package smoke runner also verifies that required installed Markdown files
 exist and that local Markdown links under the installed documentation root
 resolve.

@@ -36,6 +36,8 @@ start only once the first public release is tagged.
 - Package smoke installed-header allowlist to reject unexpected public headers.
 - Package smoke CMake package metadata allowlist to reject unexpected exported
   package files.
+- Package smoke library and runtime artifact allowlist to reject unexpected
+  shipped binaries.
 - Package smoke installed-documentation allowlist to reject unexpected packaged
   files.
 - Markdown link checker for source and installed documentation.

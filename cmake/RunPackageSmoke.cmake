@@ -271,6 +271,7 @@ if(WIN32)
     set(mffv1_package_smoke_static_library
         "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/mffv1.lib"
     )
+    set(mffv1_package_smoke_static_library_relative "mffv1.lib")
     set(mffv1_package_smoke_shared_library
         "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/bin/mffv1.dll"
     )
@@ -278,6 +279,7 @@ else()
     set(mffv1_package_smoke_static_library
         "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/libmffv1.a"
     )
+    set(mffv1_package_smoke_static_library_relative "libmffv1.a")
     set(mffv1_package_smoke_shared_library
         "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/libmffv1${CMAKE_SHARED_LIBRARY_SUFFIX}"
     )
@@ -293,6 +295,45 @@ if(EXISTS "${mffv1_package_smoke_shared_library}")
     message(FATAL_ERROR
         "installed package unexpectedly contains a shared library: "
         "${mffv1_package_smoke_shared_library}"
+    )
+endif()
+
+set(mffv1_package_smoke_required_library_files
+    "${mffv1_package_smoke_static_library_relative}"
+)
+
+foreach(mffv1_package_smoke_cmake_package_file IN LISTS mffv1_package_smoke_required_cmake_package_files)
+    list(APPEND mffv1_package_smoke_required_library_files
+        "cmake/mffv1/${mffv1_package_smoke_cmake_package_file}"
+    )
+endforeach()
+
+file(GLOB_RECURSE mffv1_package_smoke_installed_library_files
+    LIST_DIRECTORIES FALSE
+    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib"
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/*"
+)
+
+foreach(mffv1_package_smoke_installed_library_file IN LISTS mffv1_package_smoke_installed_library_files)
+    if(NOT mffv1_package_smoke_installed_library_file
+       IN_LIST mffv1_package_smoke_required_library_files)
+        message(FATAL_ERROR
+            "installed package library directory contains an unexpected file: "
+            "${mffv1_package_smoke_installed_library_file}. Add it to the "
+            "package smoke allowlist if it is intentionally shipped."
+        )
+    endif()
+endforeach()
+
+file(GLOB_RECURSE mffv1_package_smoke_installed_runtime_files
+    LIST_DIRECTORIES FALSE
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/bin/*"
+)
+
+if(mffv1_package_smoke_installed_runtime_files)
+    message(FATAL_ERROR
+        "installed package unexpectedly contains runtime files under bin/: "
+        "${mffv1_package_smoke_installed_runtime_files}"
     )
 endif()
 

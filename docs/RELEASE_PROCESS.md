@@ -65,6 +65,12 @@ The fuzz CTest preset should include both empty-input and project-owned
 seed-input smoke checks. Any retained regression corpus added for a release
 should be project-owned or have recorded provenance.
 
+Verify source documentation links:
+
+```powershell
+cmake -DMFFV1_MARKDOWN_LINK_ROOT=docs -P cmake\CheckMarkdownLinks.cmake
+```
+
 Also verify a package consumer build:
 
 ```powershell

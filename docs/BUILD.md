@@ -151,12 +151,21 @@ target_link_libraries(app PRIVATE mffv1::mffv1)
 
 `tests/package_smoke` is a minimal consumer project that includes only public
 headers and links the installed `mffv1::mffv1` package target.
+The package smoke runner also verifies that required installed Markdown files
+exist and that local Markdown links under the installed documentation root
+resolve.
 
 ```powershell
 cmake `
   -DMFFV1_PACKAGE_SMOKE_GENERATOR="Visual Studio 18 2026" `
   -DMFFV1_PACKAGE_SMOKE_ARCHITECTURE=x64 `
   -P cmake\RunPackageSmoke.cmake
+```
+
+To check source documentation links without installing the package:
+
+```powershell
+cmake -DMFFV1_MARKDOWN_LINK_ROOT=docs -P cmake\CheckMarkdownLinks.cmake
 ```
 
 The smoke project also checks the installed `mffv1/build_config.hpp` value.

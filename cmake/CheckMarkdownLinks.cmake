@@ -18,7 +18,47 @@ file(GLOB_RECURSE mffv1_markdown_link_files
     "${MFFV1_MARKDOWN_LINK_ROOT}/*.md"
 )
 
+if(NOT DEFINED MFFV1_MARKDOWN_LINK_EXCLUDE_DIRS)
+    set(MFFV1_MARKDOWN_LINK_EXCLUDE_DIRS
+        .agents
+        .codex
+        .git
+        build
+        third-party
+    )
+endif()
+
+set(mffv1_markdown_link_exclude_paths)
+foreach(mffv1_markdown_link_exclude_dir IN LISTS MFFV1_MARKDOWN_LINK_EXCLUDE_DIRS)
+    get_filename_component(
+        mffv1_markdown_link_exclude_path
+        "${MFFV1_MARKDOWN_LINK_ROOT}/${mffv1_markdown_link_exclude_dir}"
+        ABSOLUTE
+    )
+    list(APPEND mffv1_markdown_link_exclude_paths
+        "${mffv1_markdown_link_exclude_path}"
+    )
+endforeach()
+
 foreach(mffv1_markdown_link_file IN LISTS mffv1_markdown_link_files)
+    set(mffv1_markdown_link_excluded FALSE)
+    foreach(mffv1_markdown_link_exclude_path IN LISTS mffv1_markdown_link_exclude_paths)
+        cmake_path(IS_PREFIX
+            mffv1_markdown_link_exclude_path
+            "${mffv1_markdown_link_file}"
+            NORMALIZE
+            mffv1_markdown_link_is_excluded
+        )
+        if(mffv1_markdown_link_is_excluded)
+            set(mffv1_markdown_link_excluded TRUE)
+            break()
+        endif()
+    endforeach()
+
+    if(mffv1_markdown_link_excluded)
+        continue()
+    endif()
+
     file(READ "${mffv1_markdown_link_file}" mffv1_markdown_link_content)
     string(REGEX MATCHALL "\\[[^]]*\\]\\([^)]+\\)"
         mffv1_markdown_link_matches

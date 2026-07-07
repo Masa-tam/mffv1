@@ -166,11 +166,14 @@ cmake `
   -P cmake\RunPackageSmoke.cmake
 ```
 
-To check source documentation links without installing the package:
+To check repository-owned Markdown links without installing the package:
 
 ```powershell
-cmake -DMFFV1_MARKDOWN_LINK_ROOT=docs -P cmake\CheckMarkdownLinks.cmake
+cmake -DMFFV1_MARKDOWN_LINK_ROOT=. -P cmake\CheckMarkdownLinks.cmake
 ```
+
+The checker excludes generated build output, Git metadata, local Codex
+workspaces, and third-party dependencies by default.
 
 The smoke project also checks the installed `mffv1/build_config.hpp` value.
 For a no-status install, use the no-status smoke profile:

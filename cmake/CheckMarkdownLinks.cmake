@@ -8,6 +8,12 @@ get_filename_component(
     ABSOLUTE
 )
 
+if(NOT IS_DIRECTORY "${MFFV1_MARKDOWN_LINK_ROOT}")
+    message(FATAL_ERROR
+        "Markdown link root does not exist: ${MFFV1_MARKDOWN_LINK_ROOT}"
+    )
+endif()
+
 file(GLOB_RECURSE mffv1_markdown_link_files
     "${MFFV1_MARKDOWN_LINK_ROOT}/*.md"
 )

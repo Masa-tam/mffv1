@@ -153,6 +153,16 @@ foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)
     endif()
 endforeach()
 
+set(mffv1_package_smoke_plans_dir
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1/plans"
+)
+if(EXISTS "${mffv1_package_smoke_plans_dir}")
+    message(FATAL_ERROR
+        "installed package documentation contains non-user-facing plans directory: "
+        "${mffv1_package_smoke_plans_dir}. Use a clean install prefix."
+    )
+endif()
+
 mffv1_package_smoke_run(
     "${CMAKE_COMMAND}"
     "-DMFFV1_MARKDOWN_LINK_ROOT=${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1"

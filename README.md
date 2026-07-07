@@ -46,8 +46,26 @@ ctest --preset vs2026-x64-debug --output-on-failure
 GoogleTest is used for unit and compatibility tests. The project can also be
 configured with `MFFV1_BUILD_TESTS=OFF` for library-only builds.
 
-The default package target is a static library. Shared-library ABI support is
-not part of the current release surface.
+The package target is a static library. Shared-library ABI support is not part
+of the current release surface.
+
+Installed consumers should use the exported CMake target:
+
+```cmake
+find_package(mffv1 CONFIG REQUIRED)
+target_link_libraries(app PRIVATE mffv1::mffv1)
+```
+
+The repository includes a package smoke runner that installs the library,
+checks the installed headers and documentation, builds a minimal consumer, and
+runs it:
+
+```powershell
+cmake `
+  -DMFFV1_PACKAGE_SMOKE_GENERATOR="Visual Studio 18 2026" `
+  -DMFFV1_PACKAGE_SMOKE_ARCHITECTURE=x64 `
+  -P cmake\RunPackageSmoke.cmake
+```
 
 ## Documentation
 

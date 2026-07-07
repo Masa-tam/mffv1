@@ -236,4 +236,25 @@ TEST(LegacyFrameBootstrapParserTest, FailedParsePreservesOutput)
     EXPECT_EQ(bootstrap.stream.width, 123u);
 }
 
+TEST(LegacyFrameBootstrapParserTest, EmptyPayloadPreservesOutput)
+{
+    const mffv1::ByteSpan payload;
+    const mffv1::codec::LegacyFrameBootstrapParser parser;
+    mffv1::codec::LegacyFrameBootstrap bootstrap;
+    bootstrap.keyframe = true;
+    bootstrap.has_embedded_parameters = true;
+    bootstrap.content_byte_offset = 99;
+    bootstrap.stream.width = 123;
+
+    const auto status = parser.parse(payload, 320, 240, bootstrap);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+    EXPECT_EQ(status.message, "frame payload is empty");
+    EXPECT_TRUE(bootstrap.keyframe);
+    EXPECT_TRUE(bootstrap.has_embedded_parameters);
+    EXPECT_EQ(bootstrap.content_byte_offset, 99u);
+    EXPECT_EQ(bootstrap.stream.width, 123u);
+}
+
 } // namespace

@@ -130,6 +130,7 @@ set(mffv1_package_smoke_required_docs
     README.md
     CHANGELOG.md
     LICENSE
+    SECURITY.md
     THIRD_PARTY_NOTICES.md
     docs/BUILD.md
     docs/DECODER_REFERENCE.md

@@ -131,14 +131,17 @@ set(mffv1_package_smoke_required_docs
     CHANGELOG.md
     LICENSE
     THIRD_PARTY_NOTICES.md
-    BUILD.md
-    DECODER_REFERENCE.md
-    ENCODER_REFERENCE.md
-    FRAME_BUFFER_REFERENCE.md
-    LICENSE_AND_PROVENANCE.md
-    RELEASE_PROCESS.md
-    SUPPORT_POLICY.md
-    test-vectors.md
+    docs/BUILD.md
+    docs/DECODER_REFERENCE.md
+    docs/ENCODER_REFERENCE.md
+    docs/FRAME_BUFFER_REFERENCE.md
+    docs/LICENSE_AND_PROVENANCE.md
+    docs/README.md
+    docs/RELEASE_PROCESS.md
+    docs/SUPPORT_POLICY.md
+    docs/test-vectors.md
+    plans/README.md
+    plans/PHASE5_ENCODER_SPEC.md
 )
 
 foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)
@@ -151,6 +154,12 @@ foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)
         )
     endif()
 endforeach()
+
+mffv1_package_smoke_run(
+    "${CMAKE_COMMAND}"
+    "-DMFFV1_MARKDOWN_LINK_ROOT=${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1"
+    -P "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/cmake/CheckMarkdownLinks.cmake"
+)
 
 mffv1_package_smoke_run(${mffv1_package_smoke_configure_command})
 

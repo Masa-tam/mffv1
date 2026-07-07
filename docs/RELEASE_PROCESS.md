@@ -103,7 +103,9 @@ The repository release should include:
 
 - Source archive.
 - License and third-party notices.
-- User-facing Markdown references under `docs/`.
+- User-facing Markdown references under `docs/` and linked implementation
+  notes under `plans/`, preserving the installed documentation directory
+  layout.
 - Changelog section for the released version.
 - Any generated package artifacts that are intentionally published.
 

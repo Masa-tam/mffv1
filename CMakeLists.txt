@@ -20,7 +20,7 @@ configure_file(
     @ONLY
 )
 
-add_library(mffv1
+add_library(mffv1 STATIC
     src/bitstream/bit_reader.cpp
     src/bitstream/bit_writer.cpp
     src/codec/decoder.cpp

@@ -135,6 +135,8 @@ The supported package artifact is currently a static library. Shared-library
 exports are intentionally not part of the release surface yet because the
 public C++ API uses STL types and `std::unique_ptr` ownership across the
 factory boundary, and the project has not declared a stable cross-DLL ABI.
+The `mffv1` target is declared `STATIC`, so `BUILD_SHARED_LIBS` does not change
+the library artifact type.
 
 ```powershell
 cmake --install build\vs2026-x64 --config Debug --prefix build\package-smoke\install

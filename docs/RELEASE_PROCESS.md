@@ -112,7 +112,8 @@ The repository release should include:
 - User-facing Markdown references under `docs/`, preserving the installed
   documentation directory layout.
 - Changelog section for the released version.
-- Any generated package artifacts that are intentionally published.
+- Any generated static-library package artifacts that are intentionally
+  published.
 
 Do not publish local FFmpeg binaries, generated vector headers, MKV files, or
 generator build products as mffv1 release artifacts unless their license and

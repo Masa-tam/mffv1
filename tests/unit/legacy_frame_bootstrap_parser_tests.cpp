@@ -210,7 +210,14 @@ TEST(LegacyFrameBootstrapParserTest, NonKeyframeHasNoEmbeddedParameters)
     ASSERT_TRUE(status.ok()) << status.message;
     EXPECT_FALSE(bootstrap.keyframe);
     EXPECT_FALSE(bootstrap.has_embedded_parameters);
-    EXPECT_GT(bootstrap.content_byte_offset, 0u);
+    mffv1::entropy::RangeCoder replay;
+    ASSERT_TRUE(replay.reset(payload).ok());
+    bool keyframe = true;
+    ASSERT_TRUE(replay.read_bool(keyframe).ok());
+    EXPECT_FALSE(keyframe);
+    EXPECT_EQ(bootstrap.content_byte_offset, replay.byte_position());
+    EXPECT_EQ(bootstrap.range_state_after_keyframe,
+              replay.arithmetic_state());
     EXPECT_EQ(bootstrap.stream.width, 0u);
     EXPECT_EQ(bootstrap.stream.height, 0u);
     EXPECT_EQ(bootstrap.range_state_after_parameters,

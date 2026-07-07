@@ -37,7 +37,7 @@ start only once the first public release is tagged.
 - Public tracked-file checker for local-only maintainer notes, generated
   vectors, generator archives, and build outputs.
 - GitHub Actions smoke coverage for hosted Windows plus Ubuntu GCC and Clang
-  builds.
+  build, test, and package checks.
 - Contribution guidance for portability fixes and new compiler/platform
   reports.
 - Public repository documentation for GitHub Issues, security reporting,

@@ -37,6 +37,15 @@ jobs:
       - name: Test
         run: ctest --test-dir build\ci -C Debug --output-on-failure
 
+      - name: Package smoke
+        run: >
+          cmake
+          -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build\ci
+          -DMFFV1_PACKAGE_SMOKE_BUILD_DIR=build\package-smoke
+          -DMFFV1_PACKAGE_SMOKE_INSTALL_DIR=build\package-smoke\install
+          -DMFFV1_PACKAGE_SMOKE_CONFIG=Debug
+          -P cmake\RunPackageSmoke.cmake
+
   linux-smoke:
     name: Linux ${{ matrix.compiler }} smoke
     runs-on: ubuntu-latest
@@ -81,3 +90,12 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build/ci --output-on-failure
+
+      - name: Package smoke
+        run: >
+          cmake
+          -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build/ci
+          -DMFFV1_PACKAGE_SMOKE_BUILD_DIR=build/package-smoke
+          -DMFFV1_PACKAGE_SMOKE_INSTALL_DIR=build/package-smoke/install
+          -DMFFV1_PACKAGE_SMOKE_CONFIG=Debug
+          -P cmake/RunPackageSmoke.cmake

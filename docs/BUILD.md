@@ -86,6 +86,9 @@ portability smoke checks. Windows intentionally uses standard CMake
 configure/build/test commands instead of the Visual Studio 2026-specific
 preset, because the hosted image may not match the primary local development
 toolchain. Ubuntu builds run both GCC and Clang Debug smoke jobs.
+Each CI job also runs the package smoke runner against the just-built library
+so installed headers, CMake package metadata, static artifacts, and installed
+documentation are checked on that platform.
 
 Other compilers and operating systems may work when they provide CMake 3.25 or
 newer and a conforming C++20 compiler, but they are not release-gated until CI

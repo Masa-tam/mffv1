@@ -155,6 +155,22 @@ foreach(mffv1_package_smoke_doc IN LISTS mffv1_package_smoke_required_docs)
     endif()
 endforeach()
 
+file(GLOB_RECURSE mffv1_package_smoke_installed_docs
+    LIST_DIRECTORIES FALSE
+    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1"
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1/*"
+)
+
+foreach(mffv1_package_smoke_installed_doc IN LISTS mffv1_package_smoke_installed_docs)
+    if(NOT mffv1_package_smoke_installed_doc IN_LIST mffv1_package_smoke_required_docs)
+        message(FATAL_ERROR
+            "installed package documentation contains an unexpected file: "
+            "${mffv1_package_smoke_installed_doc}. Add it to the package "
+            "smoke allowlist if it is intentionally user-facing."
+        )
+    endif()
+endforeach()
+
 set(mffv1_package_smoke_forbidden_doc_paths
     .github
     plans

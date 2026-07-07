@@ -751,6 +751,8 @@ TEST(DecoderTest, FailedBootstrapLegacyFrameDoesNotConfigureDecoder)
 
     EXPECT_FALSE(bootstrap.status.ok());
     EXPECT_EQ(bootstrap.status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(bootstrap.status.message,
+              "range coder payload must contain at least two bytes");
     EXPECT_EQ(bootstrap.info.state,
               mffv1::LegacyBootstrapState::NoEmbeddedParameters);
     EXPECT_EQ(bootstrap.info.frame_info.width, 0u);
@@ -779,6 +781,8 @@ TEST(DecoderTest, FailedBootstrapLegacyFramePreservesPreviousConfiguration)
 
     EXPECT_FALSE(bootstrap.status.ok());
     EXPECT_EQ(bootstrap.status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(bootstrap.status.message,
+              "range coder payload must contain at least two bytes");
     EXPECT_EQ(bootstrap.info.state,
               mffv1::LegacyBootstrapState::NoEmbeddedParameters);
     EXPECT_EQ(bootstrap.info.frame_info.width, 0u);

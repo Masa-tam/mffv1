@@ -18,21 +18,58 @@ get_filename_component(
     ABSOLUTE
 )
 
-if(NOT DEFINED MFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR)
+if(NOT DEFINED MFFV1_PACKAGE_SMOKE_PROFILE)
+    set(MFFV1_PACKAGE_SMOKE_PROFILE default)
+endif()
+
+if(NOT MFFV1_PACKAGE_SMOKE_PROFILE STREQUAL "default"
+   AND NOT MFFV1_PACKAGE_SMOKE_PROFILE STREQUAL "no-status")
     message(FATAL_ERROR
-        "Set MFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR to the configured mffv1 build directory"
+        "MFFV1_PACKAGE_SMOKE_PROFILE must be default or no-status"
+    )
+endif()
+
+if(MFFV1_PACKAGE_SMOKE_PROFILE STREQUAL "no-status")
+    set(mffv1_package_smoke_default_project_build_dir
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/vs2026-x64-no-status"
+    )
+    set(mffv1_package_smoke_default_install_dir
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/package-smoke-no-status/install"
+    )
+    set(mffv1_package_smoke_default_build_dir
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/package-smoke-no-status/build"
+    )
+    set(mffv1_package_smoke_default_config Release)
+    set(mffv1_package_smoke_default_expect_status_messages 0)
+else()
+    set(mffv1_package_smoke_default_project_build_dir
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/vs2026-x64"
+    )
+    set(mffv1_package_smoke_default_install_dir
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/package-smoke/install"
+    )
+    set(mffv1_package_smoke_default_build_dir
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/package-smoke/build"
+    )
+    set(mffv1_package_smoke_default_config Debug)
+    set(mffv1_package_smoke_default_expect_status_messages 1)
+endif()
+
+if(NOT DEFINED MFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR)
+    set(MFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR
+        "${mffv1_package_smoke_default_project_build_dir}"
     )
 endif()
 
 if(NOT DEFINED MFFV1_PACKAGE_SMOKE_INSTALL_DIR)
     set(MFFV1_PACKAGE_SMOKE_INSTALL_DIR
-        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/package-smoke/install"
+        "${mffv1_package_smoke_default_install_dir}"
     )
 endif()
 
 if(NOT DEFINED MFFV1_PACKAGE_SMOKE_BUILD_DIR)
     set(MFFV1_PACKAGE_SMOKE_BUILD_DIR
-        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build/package-smoke/build"
+        "${mffv1_package_smoke_default_build_dir}"
     )
 endif()
 
@@ -53,11 +90,13 @@ get_filename_component(
 )
 
 if(NOT DEFINED MFFV1_PACKAGE_SMOKE_CONFIG)
-    set(MFFV1_PACKAGE_SMOKE_CONFIG Debug)
+    set(MFFV1_PACKAGE_SMOKE_CONFIG "${mffv1_package_smoke_default_config}")
 endif()
 
 if(NOT DEFINED MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES)
-    set(MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES 1)
+    set(MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES
+        "${mffv1_package_smoke_default_expect_status_messages}"
+    )
 endif()
 
 set(mffv1_package_smoke_configure_command

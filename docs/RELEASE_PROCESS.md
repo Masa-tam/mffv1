@@ -69,7 +69,6 @@ Also verify a package consumer build:
 
 ```powershell
 cmake `
-  -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build\vs2026-x64 `
   -DMFFV1_PACKAGE_SMOKE_GENERATOR="Visual Studio 18 2026" `
   -DMFFV1_PACKAGE_SMOKE_ARCHITECTURE=x64 `
   -P cmake\RunPackageSmoke.cmake
@@ -80,11 +79,7 @@ generated and installed `mffv1/build_config.hpp` contract is verified:
 
 ```powershell
 cmake `
-  -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build\vs2026-x64-no-status `
-  -DMFFV1_PACKAGE_SMOKE_INSTALL_DIR=build\package-smoke-no-status\install `
-  -DMFFV1_PACKAGE_SMOKE_BUILD_DIR=build\package-smoke-no-status\build `
-  -DMFFV1_PACKAGE_SMOKE_CONFIG=Release `
-  -DMFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES=0 `
+  -DMFFV1_PACKAGE_SMOKE_PROFILE=no-status `
   -DMFFV1_PACKAGE_SMOKE_GENERATOR="Visual Studio 18 2026" `
   -DMFFV1_PACKAGE_SMOKE_ARCHITECTURE=x64 `
   -P cmake\RunPackageSmoke.cmake

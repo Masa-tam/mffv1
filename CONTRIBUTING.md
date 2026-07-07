@@ -44,6 +44,11 @@ Keep patches focused and update the relevant public reference when behavior
 changes. Public API changes should update headers, tests, references, and
 `CHANGELOG.md` together.
 
+The repository uses `CODEOWNERS` to route review to the maintainer. Dependabot
+may open maintenance pull requests for GitHub Actions and Git submodules; those
+updates still need the same clean-room and license-boundary review as ordinary
+changes.
+
 The pull request template asks for clean-room confirmation, relevant test
 commands, and documentation status. Treat unchecked items as an explicit note
 that the step was not applicable or could not be run.

@@ -403,7 +403,7 @@ messages empty.
 | `SyntaxError` | The bitstream violates syntax or is truncated. |
 | `CrcMismatch` | Configuration or slice CRC verification failed. |
 | `ResourceExhausted` | A size or allocation-related implementation limit was exceeded. |
-| `NotImplemented` | A recognized path has not yet been implemented. |
+| `NotImplemented` | Reserved for future recognized paths; unsupported bitstream features use `UnsupportedFeature`. |
 | `InternalError` | An internal invariant failed. |
 
 ### Error Locations

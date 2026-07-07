@@ -187,8 +187,8 @@ Legacy multi-slice streams are not a primary compatibility target. Historical
 multi-slice support started in the experimental version 2 line, and the stable
 widely supported multi-slice model is version 3. Version 0/1 range-coded
 multi-slice parsing exists as defensive parser coverage. Version 0/1
-Golomb-Rice multi-slice parsing remains intentionally unimplemented until a
-real compatibility requirement appears.
+Golomb-Rice multi-slice frames are intentionally reported as
+`UnsupportedFeature` unless a real compatibility requirement appears.
 
 ## Implementation Stages
 

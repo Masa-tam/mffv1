@@ -384,7 +384,7 @@ text.
 | `SyntaxError` | An internal syntax writer rejected values that cannot form the requested stream. |
 | `CrcMismatch` | Reserved for CRC-related operations; normally not returned by encoding. |
 | `ResourceExhausted` | A size, address, container, or allocation-related limit was exceeded. |
-| `NotImplemented` | A recognized path has not been implemented. |
+| `NotImplemented` | Reserved for future recognized paths; unsupported encoder profiles use `UnsupportedFeature`. |
 | `InternalError` | An internal invariant failed. |
 
 `Status::message` is diagnostic and is not a stable machine-readable contract.

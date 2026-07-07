@@ -54,6 +54,7 @@ start only once the first public release is tagged.
 ### Known Limitations
 
 - No stable release compatibility guarantee has been declared yet.
+- Pre-1.0 releases may change public API and package shape between tags.
 - The library does not demux or mux containers.
 - The decoder does not automatically extract legacy frame-embedded
   `Parameters()`.

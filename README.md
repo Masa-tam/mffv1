@@ -10,7 +10,7 @@ Repository: [https://github.com/Masa-tam/mffv1](https://github.com/Masa-tam/mffv
 The project is currently pre-release software. The decoder and encoder already
 cover the main version 3 profiles used by the test suite, but the public API
 and compatibility guarantees should still be treated as provisional until a
-stable release is tagged.
+stable `1.0.0` release is tagged.
 
 ## Goals
 

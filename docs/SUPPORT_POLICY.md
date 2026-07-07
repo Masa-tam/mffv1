@@ -13,9 +13,17 @@ until a stable release is tagged.
 
 ## Compatibility Policy
 
-Before `1.0.0`, compatibility is best effort. Public API changes should be
-recorded in `CHANGELOG.md`, and the reference documents should be updated in
-the same change.
+Before `1.0.0`, compatibility is best effort. Pre-1.0 releases are intended to
+make the library usable and reviewable while the public API, package shape,
+performance expectations, and interoperability coverage are still being proven.
+Breaking changes are allowed when they improve correctness, safety, API
+clarity, or release packaging. Public API changes should be recorded in
+`CHANGELOG.md`, and the reference documents should be updated in the same
+change.
+
+Do not interpret a `0.x` release as a stable ABI promise. Consumers that need
+long-term stability should pin an exact tag and review changelog entries before
+upgrading.
 
 After `1.0.0`, the project should avoid breaking source compatibility within a
 major version unless a security or correctness issue requires it.

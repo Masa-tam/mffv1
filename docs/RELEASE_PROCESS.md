@@ -130,7 +130,9 @@ cmake `
 
 Before `1.0.0`, source and binary compatibility may change between releases.
 Each release tag should still document notable behavior changes in
-`CHANGELOG.md`.
+`CHANGELOG.md`. Use `0.x` releases to publish usable milestones while the API,
+package shape, performance expectations, and interoperability coverage are
+still being validated.
 
 After `1.0.0`, use semantic versioning:
 

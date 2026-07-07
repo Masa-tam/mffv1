@@ -559,6 +559,14 @@ TEST(DecoderTest, BootstrappedLegacyFrameStillRequiresExternalDimensions)
     EXPECT_EQ(inspect_status.code, mffv1::ErrorCode::InvalidState);
     EXPECT_EQ(inspect_status.message,
               "decoder frame dimensions are not configured");
+
+    mffv1::MutableFrameView output{};
+    const auto decode_status =
+        result.decoder->decode_frame(zero_scalar_payload(), output);
+    EXPECT_FALSE(decode_status.ok());
+    EXPECT_EQ(decode_status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(decode_status.message,
+              "decoder frame dimensions are not configured");
 }
 
 TEST(DecoderTest, DecodeFrameAcceptsBootstrappedLegacyKeyframe)

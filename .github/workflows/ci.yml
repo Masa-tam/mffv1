@@ -25,6 +25,9 @@ jobs:
       - name: Check Markdown links
         run: cmake -DMFFV1_MARKDOWN_LINK_ROOT=. -P cmake\CheckMarkdownLinks.cmake
 
+      - name: Check public tracked files
+        run: cmake -P cmake\CheckPublicTrackedFiles.cmake
+
       - name: Configure
         run: cmake -S . -B build\ci -DMFFV1_BUILD_TESTS=ON
 

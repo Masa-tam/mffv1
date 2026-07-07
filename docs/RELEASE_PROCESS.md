@@ -84,6 +84,13 @@ cmake -DMFFV1_MARKDOWN_LINK_ROOT=. -P cmake\CheckMarkdownLinks.cmake
 The checker excludes generated build output, Git metadata, local Codex
 workspaces, and third-party dependencies by default.
 
+Verify that tracked files do not include local-only maintainer notes, generated
+test-vector payloads, generator archives, or build output:
+
+```powershell
+cmake -P cmake\CheckPublicTrackedFiles.cmake
+```
+
 Also verify package consumer builds. The package smoke runner checks installed
 headers, the exported `mffv1::mffv1` target, static artifact shape, installed
 documentation, and installed documentation links:

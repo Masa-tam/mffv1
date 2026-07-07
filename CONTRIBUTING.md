@@ -69,6 +69,7 @@ For release-facing or packaging changes, also run:
 
 ```powershell
 cmake -DMFFV1_MARKDOWN_LINK_ROOT=. -P cmake\CheckMarkdownLinks.cmake
+cmake -P cmake\CheckPublicTrackedFiles.cmake
 cmake `
   -DMFFV1_PACKAGE_SMOKE_GENERATOR="Visual Studio 18 2026" `
   -DMFFV1_PACKAGE_SMOKE_ARCHITECTURE=x64 `

@@ -34,6 +34,8 @@ start only once the first public release is tagged.
 - Package smoke runner for installed-header, exported-target, static-artifact,
   installed-documentation, and installed-documentation-link checks.
 - Markdown link checker for source and installed documentation.
+- Public tracked-file checker for local-only maintainer notes, generated
+  vectors, generator archives, and build outputs.
 - Public repository documentation for GitHub Issues, security reporting,
   contribution rules, pull requests, CI, CODEOWNERS, Dependabot, and generated
   release-note categories.

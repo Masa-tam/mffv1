@@ -693,6 +693,9 @@ TEST(DecoderTest, FailedBootstrapLegacyFrameDoesNotConfigureDecoder)
 
     EXPECT_FALSE(bootstrap.status.ok());
     EXPECT_EQ(bootstrap.status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::NoEmbeddedParameters);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 0u);
 
     mffv1::FrameInfo info;
     const auto inspect_status =
@@ -718,6 +721,9 @@ TEST(DecoderTest, FailedBootstrapLegacyFramePreservesPreviousConfiguration)
 
     EXPECT_FALSE(bootstrap.status.ok());
     EXPECT_EQ(bootstrap.status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::NoEmbeddedParameters);
+    EXPECT_EQ(bootstrap.info.frame_info.width, 0u);
 
     std::array<std::uint8_t, 1> storage{0xee};
     auto plane = make_y_plane(storage.data(), 1, 1, 1);

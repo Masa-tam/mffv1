@@ -68,6 +68,23 @@ void expect_split_first_quant_table(const mffv1::syntax::QuantTableSet& quant_ta
     EXPECT_EQ(quant_table_set.tables[0][255], -1);
 }
 
+void set_sentinel_bootstrap(mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    bootstrap.keyframe = true;
+    bootstrap.has_embedded_parameters = true;
+    bootstrap.content_byte_offset = 99;
+    bootstrap.stream.width = 123;
+}
+
+void expect_sentinel_bootstrap_preserved(
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    EXPECT_TRUE(bootstrap.keyframe);
+    EXPECT_TRUE(bootstrap.has_embedded_parameters);
+    EXPECT_EQ(bootstrap.content_byte_offset, 99u);
+    EXPECT_EQ(bootstrap.stream.width, 123u);
+}
+
 TEST(LegacyFrameBootstrapParserTest, ParsesVersionZeroRangeKeyframeParameters)
 {
     const auto payload = make_legacy_frame_parameters(
@@ -229,18 +246,12 @@ TEST(LegacyFrameBootstrapParserTest, FailedParsePreservesOutput)
     const std::vector<std::byte> payload{std::byte{0xff}};
     const mffv1::codec::LegacyFrameBootstrapParser parser;
     mffv1::codec::LegacyFrameBootstrap bootstrap;
-    bootstrap.keyframe = true;
-    bootstrap.has_embedded_parameters = true;
-    bootstrap.content_byte_offset = 99;
-    bootstrap.stream.width = 123;
+    set_sentinel_bootstrap(bootstrap);
 
     const auto status = parser.parse(payload, 320, 240, bootstrap);
 
     EXPECT_FALSE(status.ok());
-    EXPECT_TRUE(bootstrap.keyframe);
-    EXPECT_TRUE(bootstrap.has_embedded_parameters);
-    EXPECT_EQ(bootstrap.content_byte_offset, 99u);
-    EXPECT_EQ(bootstrap.stream.width, 123u);
+    expect_sentinel_bootstrap_preserved(bootstrap);
 }
 
 TEST(LegacyFrameBootstrapParserTest, EmptyPayloadPreservesOutput)
@@ -248,20 +259,14 @@ TEST(LegacyFrameBootstrapParserTest, EmptyPayloadPreservesOutput)
     const mffv1::ByteSpan payload;
     const mffv1::codec::LegacyFrameBootstrapParser parser;
     mffv1::codec::LegacyFrameBootstrap bootstrap;
-    bootstrap.keyframe = true;
-    bootstrap.has_embedded_parameters = true;
-    bootstrap.content_byte_offset = 99;
-    bootstrap.stream.width = 123;
+    set_sentinel_bootstrap(bootstrap);
 
     const auto status = parser.parse(payload, 320, 240, bootstrap);
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
     EXPECT_EQ(status.message, "frame payload is empty");
-    EXPECT_TRUE(bootstrap.keyframe);
-    EXPECT_TRUE(bootstrap.has_embedded_parameters);
-    EXPECT_EQ(bootstrap.content_byte_offset, 99u);
-    EXPECT_EQ(bootstrap.stream.width, 123u);
+    expect_sentinel_bootstrap_preserved(bootstrap);
 }
 
 } // namespace

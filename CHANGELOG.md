@@ -42,6 +42,8 @@ start only once the first public release is tagged.
   shipped binaries.
 - Package smoke installed-documentation allowlist to reject unexpected packaged
   files.
+- Package smoke consumer requests the current package version so installed
+  CMake version metadata is exercised.
 - Markdown link checker for source and installed documentation.
 - Public tracked-file checker for local-only maintainer notes, generated
   vectors, generator archives, and build outputs.

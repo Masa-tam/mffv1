@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.25)
 
 project(mffv1_package_smoke LANGUAGES CXX)
 
-find_package(mffv1 CONFIG REQUIRED)
+set(MFFV1_PACKAGE_SMOKE_FIND_VERSION "0.1.0" CACHE STRING
+    "mffv1 package version requested by the package smoke consumer")
+
+find_package(mffv1 ${MFFV1_PACKAGE_SMOKE_FIND_VERSION} CONFIG REQUIRED)
 
 set(MFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES "1" CACHE STRING
     "Expected MFFV1_ENABLE_STATUS_MESSAGES value from installed mffv1 headers")

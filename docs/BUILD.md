@@ -171,7 +171,8 @@ target_link_libraries(app PRIVATE mffv1::mffv1)
 `tests/package_smoke` is a minimal consumer project that builds two installed
 package checks: a public-header smoke executable and a link smoke executable
 that creates encoder and decoder instances through the exported
-`mffv1::mffv1` package target.
+`mffv1::mffv1` package target. The consumer also requests the current package
+version so the installed `mffv1ConfigVersion.cmake` metadata is exercised.
 The package smoke runner also verifies that required installed Markdown files
 exist and that local Markdown links under the installed documentation root
 resolve. It treats the installed documentation set as an allowlist, so

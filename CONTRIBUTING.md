@@ -49,6 +49,10 @@ may open maintenance pull requests for GitHub Actions and Git submodules; those
 updates still need the same clean-room and license-boundary review as ordinary
 changes.
 
+Release notes use GitHub labels through `.github/release.yml`. Add labels such
+as `bug`, `compatibility`, `documentation`, or `maintenance` to pull requests
+when they should appear in a specific release-note category.
+
 The pull request template asks for clean-room confirmation, relevant test
 commands, and documentation status. Treat unchecked items as an explicit note
 that the step was not applicable or could not be run.

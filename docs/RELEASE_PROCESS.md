@@ -20,6 +20,8 @@ A stable release candidate should satisfy all of the following:
   verification policy.
 - `CODEOWNERS` and Dependabot settings still route maintenance work to the
   intended maintainer and dependency boundaries.
+- `.github/release.yml` categories match the labels used by merged pull
+  requests for the release.
 - Optional committed external vectors, if any, have complete entries in
   `docs/test-vectors.md`.
 - Local-only vector data and generator build outputs are absent from the commit.

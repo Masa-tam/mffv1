@@ -99,3 +99,36 @@ jobs:
           -DMFFV1_PACKAGE_SMOKE_INSTALL_DIR=build/package-smoke/install
           -DMFFV1_PACKAGE_SMOKE_CONFIG=Debug
           -P cmake/RunPackageSmoke.cmake
+
+  no-status-smoke:
+    name: No-status package smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: >
+          cmake -S . -B build/no-status
+          -DCMAKE_BUILD_TYPE=Release
+          -DMFFV1_ENABLE_STATUS_MESSAGES=OFF
+          -DMFFV1_BUILD_STATUS_CONTRACT_TESTS_ONLY=ON
+
+      - name: Build
+        run: cmake --build build/no-status
+
+      - name: Test status contract
+        run: ctest --test-dir build/no-status --output-on-failure
+
+      - name: Package smoke
+        run: >
+          cmake
+          -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build/no-status
+          -DMFFV1_PACKAGE_SMOKE_BUILD_DIR=build/no-status-package-smoke
+          -DMFFV1_PACKAGE_SMOKE_INSTALL_DIR=build/no-status-package-smoke/install
+          -DMFFV1_PACKAGE_SMOKE_CONFIG=Release
+          -DMFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES=0
+          -P cmake/RunPackageSmoke.cmake

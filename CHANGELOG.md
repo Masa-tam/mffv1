@@ -38,6 +38,8 @@ start only once the first public release is tagged.
   vectors, generator archives, and build outputs.
 - GitHub Actions smoke coverage for hosted Windows plus Ubuntu GCC and Clang
   build, test, and package checks.
+- GitHub Actions no-status package smoke coverage for the installed
+  `mffv1/build_config.hpp` contract.
 - Contribution guidance for portability fixes and new compiler/platform
   reports.
 - Contribution guidance that keeps pre-1.0 optimization secondary to

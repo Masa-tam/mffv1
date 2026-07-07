@@ -89,6 +89,8 @@ toolchain. Ubuntu builds run both GCC and Clang Debug smoke jobs.
 Each CI job also runs the package smoke runner against the just-built library
 so installed headers, CMake package metadata, static artifacts, and installed
 documentation are checked on that platform.
+CI also runs a Release no-status package smoke job to verify the installed
+`mffv1/build_config.hpp` contract when `MFFV1_ENABLE_STATUS_MESSAGES=OFF`.
 
 Other compilers and operating systems may work when they provide CMake 3.25 or
 newer and a conforming C++20 compiler, but they are not release-gated until CI

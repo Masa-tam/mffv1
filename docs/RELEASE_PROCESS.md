@@ -4,6 +4,12 @@ This document defines the release checklist for mffv1. It is intentionally
 conservative because the project exists to provide a clean-room, permissively
 licensed FFV1 implementation.
 
+The audience is project maintainers and downstream fork maintainers preparing
+their own source or binary releases. Library users should start with
+[Build Notes](BUILD.md), [Decoder Reference](DECODER_REFERENCE.md),
+[Encoder Reference](ENCODER_REFERENCE.md), and
+[Frame Buffer Reference](FRAME_BUFFER_REFERENCE.md).
+
 ## Release Readiness
 
 A stable release candidate should satisfy all of the following:

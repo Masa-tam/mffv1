@@ -68,20 +68,26 @@ should be project-owned or have recorded provenance.
 Also verify a package consumer build:
 
 ```powershell
-cmake --install build\vs2026-x64 --config Debug --prefix build\package-smoke\install
-cmake -S tests\package_smoke -B build\package-smoke\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke\install"
-cmake --build build\package-smoke\build --config Debug
-& '.\build\package-smoke\build\Debug\mffv1_package_smoke.exe'
+cmake `
+  -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build\vs2026-x64 `
+  -DMFFV1_PACKAGE_SMOKE_GENERATOR="Visual Studio 18 2026" `
+  -DMFFV1_PACKAGE_SMOKE_ARCHITECTURE=x64 `
+  -P cmake\RunPackageSmoke.cmake
 ```
 
 Repeat the package consumer check for the no-status Release install so the
 generated and installed `mffv1/build_config.hpp` contract is verified:
 
 ```powershell
-cmake --install build\vs2026-x64-no-status --config Release --prefix build\package-smoke-no-status\install
-cmake -S tests\package_smoke -B build\package-smoke-no-status\build -G "Visual Studio 18 2026" -A x64 -DCMAKE_PREFIX_PATH="$PWD\build\package-smoke-no-status\install" -DMFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES=0
-cmake --build build\package-smoke-no-status\build --config Release
-& '.\build\package-smoke-no-status\build\Release\mffv1_package_smoke.exe'
+cmake `
+  -DMFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR=build\vs2026-x64-no-status `
+  -DMFFV1_PACKAGE_SMOKE_INSTALL_DIR=build\package-smoke-no-status\install `
+  -DMFFV1_PACKAGE_SMOKE_BUILD_DIR=build\package-smoke-no-status\build `
+  -DMFFV1_PACKAGE_SMOKE_CONFIG=Release `
+  -DMFFV1_PACKAGE_SMOKE_EXPECT_STATUS_MESSAGES=0 `
+  -DMFFV1_PACKAGE_SMOKE_GENERATOR="Visual Studio 18 2026" `
+  -DMFFV1_PACKAGE_SMOKE_ARCHITECTURE=x64 `
+  -P cmake\RunPackageSmoke.cmake
 ```
 
 ## Versioning

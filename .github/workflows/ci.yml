@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-smoke:
+    name: Windows smoke
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Show CMake version
+        run: cmake --version
+
+      - name: Check Markdown links
+        run: cmake -DMFFV1_MARKDOWN_LINK_ROOT=. -P cmake\CheckMarkdownLinks.cmake
+
+      - name: Configure
+        run: cmake -S . -B build\ci -DMFFV1_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build\ci --config Debug
+
+      - name: Test
+        run: ctest --test-dir build\ci -C Debug --output-on-failure

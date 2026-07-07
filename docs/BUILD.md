@@ -81,6 +81,11 @@ cmake --build --preset vs2026-x64-debug
 ctest --preset vs2026-x64-debug
 ```
 
+The GitHub Actions workflow uses the hosted Windows image as a portability
+smoke check. It intentionally uses standard CMake configure/build/test commands
+instead of the Visual Studio 2026-specific preset, because the hosted image may
+not match the primary local development toolchain.
+
 ## Sanitizer Build
 
 Use the sanitizer preset when checking memory safety issues before release or

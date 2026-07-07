@@ -34,6 +34,8 @@ start only once the first public release is tagged.
 - Package smoke runner for installed-header, exported-target, static-artifact,
   installed-documentation, and installed-documentation-link checks.
 - Package smoke installed-header allowlist to reject unexpected public headers.
+- Package smoke CMake package metadata allowlist to reject unexpected exported
+  package files.
 - Package smoke installed-documentation allowlist to reject unexpected packaged
   files.
 - Markdown link checker for source and installed documentation.

@@ -162,6 +162,47 @@ foreach(mffv1_package_smoke_installed_header IN LISTS mffv1_package_smoke_instal
     endif()
 endforeach()
 
+string(TOLOWER
+    "${MFFV1_PACKAGE_SMOKE_CONFIG}"
+    mffv1_package_smoke_config_lower
+)
+
+set(mffv1_package_smoke_required_cmake_package_files
+    mffv1Config.cmake
+    mffv1ConfigVersion.cmake
+    mffv1Targets.cmake
+    "mffv1Targets-${mffv1_package_smoke_config_lower}.cmake"
+)
+
+foreach(mffv1_package_smoke_cmake_package_file IN LISTS mffv1_package_smoke_required_cmake_package_files)
+    set(mffv1_package_smoke_cmake_package_file_path
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/cmake/mffv1/${mffv1_package_smoke_cmake_package_file}"
+    )
+    if(NOT EXISTS "${mffv1_package_smoke_cmake_package_file_path}")
+        message(FATAL_ERROR
+            "installed CMake package file is missing: "
+            "${mffv1_package_smoke_cmake_package_file_path}"
+        )
+    endif()
+endforeach()
+
+file(GLOB_RECURSE mffv1_package_smoke_installed_cmake_package_files
+    LIST_DIRECTORIES FALSE
+    RELATIVE "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/cmake/mffv1"
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/cmake/mffv1/*"
+)
+
+foreach(mffv1_package_smoke_installed_cmake_package_file IN LISTS mffv1_package_smoke_installed_cmake_package_files)
+    if(NOT mffv1_package_smoke_installed_cmake_package_file
+       IN_LIST mffv1_package_smoke_required_cmake_package_files)
+        message(FATAL_ERROR
+            "installed CMake package directory contains an unexpected file: "
+            "${mffv1_package_smoke_installed_cmake_package_file}. Add it to "
+            "the package smoke allowlist if it is intentionally exported."
+        )
+    endif()
+endforeach()
+
 set(mffv1_package_smoke_required_docs
     README.md
     CHANGELOG.md

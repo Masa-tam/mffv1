@@ -182,6 +182,8 @@ installed documentation paths such as `.github`, `plans`, `private`, and
 The installed public header set is checked the same way; unexpected files
 under `include/` fail the smoke run unless they are intentionally added to the
 public header contract.
+The exported CMake package metadata under `lib/cmake/mffv1` is also allowlisted
+so stale or accidental files do not silently become part of the package shape.
 
 ```powershell
 cmake `

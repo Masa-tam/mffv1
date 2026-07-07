@@ -163,6 +163,35 @@ if(EXISTS "${mffv1_package_smoke_plans_dir}")
     )
 endif()
 
+if(WIN32)
+    set(mffv1_package_smoke_static_library
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/mffv1.lib"
+    )
+    set(mffv1_package_smoke_shared_library
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/bin/mffv1.dll"
+    )
+else()
+    set(mffv1_package_smoke_static_library
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/libmffv1.a"
+    )
+    set(mffv1_package_smoke_shared_library
+        "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/lib/libmffv1${CMAKE_SHARED_LIBRARY_SUFFIX}"
+    )
+endif()
+
+if(NOT EXISTS "${mffv1_package_smoke_static_library}")
+    message(FATAL_ERROR
+        "installed package static library is missing: ${mffv1_package_smoke_static_library}"
+    )
+endif()
+
+if(EXISTS "${mffv1_package_smoke_shared_library}")
+    message(FATAL_ERROR
+        "installed package unexpectedly contains a shared library: "
+        "${mffv1_package_smoke_shared_library}"
+    )
+endif()
+
 mffv1_package_smoke_run(
     "${CMAKE_COMMAND}"
     "-DMFFV1_MARKDOWN_LINK_ROOT=${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}/share/doc/mffv1"

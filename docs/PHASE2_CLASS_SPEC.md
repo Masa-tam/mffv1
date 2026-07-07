@@ -11,6 +11,11 @@ small FFV1 version 3 profile. The design must not prevent adding FFV1 versions
 0 and 1, Golomb-Rice coding, RGB paths, CRC checks, SIMD dispatch, or slice
 parallelism later.
 
+Status note: this is the Phase 2 decoder construction plan, not the complete
+current decoder reference. Some milestones described below are now implemented
+or superseded. For public API contracts and current behavior, prefer
+`include/mffv1/*.hpp`, `docs/DECODER_REFERENCE.md`, and the unit tests.
+
 Normative reference:
 
 - RFC 9043, "FFV1 Video Coding Format Versions 0, 1, and 3":

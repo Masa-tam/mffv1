@@ -16,3 +16,7 @@
 
 # Local maintainer notes
 /private/
+
+# Local agent workspaces
+/.agents/
+/.codex/

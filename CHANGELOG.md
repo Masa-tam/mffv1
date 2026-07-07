@@ -45,6 +45,7 @@ start only once the first public release is tagged.
   vectors, generator archives, and build outputs.
 - Public tracked-file checker allowlist for the `testvectors` local drop
   directory.
+- Ignore local agent workspace directories by default.
 - GitHub Actions smoke coverage for hosted Windows plus Ubuntu GCC and Clang
   build, test, and package checks.
 - GitHub Actions no-status package smoke coverage for the installed

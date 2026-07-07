@@ -31,6 +31,18 @@ string(REPLACE "\n" ";" mffv1_public_tree_files
     "${mffv1_public_tree_files_output}"
 )
 
+function(mffv1_public_tree_reject file reason)
+    message(FATAL_ERROR
+        "tracked file is not part of the intended public tree: "
+        "${file} (${reason})"
+    )
+endfunction()
+
+set(mffv1_public_tree_allowed_testvector_files
+    testvectors/.gitignore
+    testvectors/README.md
+)
+
 set(mffv1_public_tree_forbidden_path_patterns
     "^\\.agents/"
     "^\\.codex/"
@@ -38,28 +50,23 @@ set(mffv1_public_tree_forbidden_path_patterns
     "^out/"
     "^private/"
     "^Testing/"
-    "^testvectors/createVector\\.zip$"
-    "^testvectors/test_vector_data\\.hpp$"
-    "^testvectors/.*\\.(avi|mkv|mov|mp4|bin|zip|7z|tar|gz|xz|dll|exe|lib|pdb)$"
     "^.*createVector\\.zip$"
 )
 
 foreach(mffv1_public_tree_file IN LISTS mffv1_public_tree_files)
     if(mffv1_public_tree_file MATCHES "^testvectors/"
-        AND NOT mffv1_public_tree_file STREQUAL "testvectors/.gitignore"
-        AND NOT mffv1_public_tree_file STREQUAL "testvectors/README.md"
-    )
-        message(FATAL_ERROR
-            "testvectors only allows tracked README.md and .gitignore files: "
+       AND NOT mffv1_public_tree_file IN_LIST mffv1_public_tree_allowed_testvector_files)
+        mffv1_public_tree_reject(
             "${mffv1_public_tree_file}"
+            "testvectors only allows tracked README.md and .gitignore files"
         )
     endif()
 
     foreach(mffv1_public_tree_pattern IN LISTS mffv1_public_tree_forbidden_path_patterns)
         if(mffv1_public_tree_file MATCHES "${mffv1_public_tree_pattern}")
-            message(FATAL_ERROR
-                "tracked file is not part of the intended public tree: "
+            mffv1_public_tree_reject(
                 "${mffv1_public_tree_file}"
+                "matched forbidden path pattern ${mffv1_public_tree_pattern}"
             )
         endif()
     endforeach()

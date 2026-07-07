@@ -183,6 +183,13 @@ Parameter changes are reported as a successful result with
 create or reconfigure a decoder deliberately from that keyframe and discard
 old reference state.
 
+The comparison includes normalized stream parameters after applying external
+frame dimensions, including entropy mode, colorspace, bit depth, chroma layout,
+extra-plane layout, state transitions, quantization tables, and quantization
+context counts. A version 0 keyframe with a different embedded quantization
+table therefore reports `DiffersFromCurrentConfiguration` rather than being
+silently accepted as equivalent.
+
 `decode_frame()` does not call `bootstrap_legacy_frame()` implicitly. This keeps
 configuration changes visible to container adapters and prevents hidden
 reference-state resets.

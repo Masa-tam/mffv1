@@ -111,7 +111,9 @@ Behavior:
   setup path.
 - If the frame does not contain embedded parameters, return
   `NoEmbeddedParameters`. If the decoder is unconfigured this is not sufficient
-  to decode the frame, but it is not a syntax error by itself.
+  to decode the frame, but it is not a syntax error by itself. If the decoder
+  is already configured, this is a no-op and the current configuration is
+  preserved.
 - If parsing fails, return a non-OK `Status` and leave the decoder unchanged.
 
 `decode_frame()` should not auto-bootstrap. Hidden reconfiguration would make

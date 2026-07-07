@@ -183,6 +183,9 @@ Parameter changes are reported as a successful result with
 create or reconfigure a decoder deliberately from that keyframe and discard
 old reference state.
 
+Calling `bootstrap_legacy_frame()` on a non-keyframe is safe. It returns
+`NoEmbeddedParameters` and leaves any existing decoder configuration unchanged.
+
 For `Configured`, `MatchesCurrentConfiguration`, and
 `DiffersFromCurrentConfiguration`, `bootstrap.info.frame_info` describes the
 embedded keyframe after applying external frame dimensions. In the

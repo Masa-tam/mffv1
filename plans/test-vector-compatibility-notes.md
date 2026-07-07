@@ -7,31 +7,49 @@ repository test data.
 
 ## Current Local Vector Status
 
-The local `testvectors/test_vector_data.hpp` set currently contains:
+The local `testvectors/test_vector_data.hpp` set currently contains the
+regression vectors:
 
-- `gr_intra_gray8_1slice_ygrad_small`: gray-only vertical gradient. This
-  isolates row-boundary zero-run carry without chroma state.
-- `gr_intra_gray8_1slice_xgrad_small`: gray-only horizontal gradient. This
-  checks scalar and run-interruption transitions within a row.
-- `gr_intra_420p8_1slice_yflat_uvflat_small`: flat Y with neutral flat chroma.
-  This is the compact chroma predictor and slot-state control.
-- `gr_intra_420p8_1slice_yflat_uvstep_small`: flat Y with a single simple
-  chroma step. This checks chroma-plane alignment after the flat control.
-- `range_intra_420p8_1slice_chroma_grad`: 8-bit 4:2:0 range-coded chroma
-  gradients with one slice.
-- `range_intra_420p10_2x2_chroma_grad`: 10-bit 4:2:0 range-coded chroma
-  gradients with a 2x2 slice grid.
-- `range_intra_yuva8_1slice`: range-coded 8-bit YUVA, including an extra
-  plane.
-- `range_intra_rgba8_1slice`: range-coded 8-bit planar RGBA when the generator
-  can supply unpacked planes.
-- `range_intra_420p8_1slice_qidx`: range-coded 8-bit 4:2:0 with nonzero
-  Slice Header quantization-table-set indexes.
+- `gr_intra_rgb_v3_1slice.mkv`: 8-bit RGB, version 3.4, Golomb-Rice, one
+  slice, planar R/G/B expected planes.
+- `gr_intra_rgb_v3_2x2.mkv`: the same source format split into a 2x2 slice
+  grid.
 
-All vectors in this local set decode through the public API and match the
-generated expected planes. No new local vector request is active as of this
-note; the next vector request should be driven by a specific unsupported
-profile or a newly observed mismatch.
+Both vectors are detected by the generated-vector test harness and reach frame
+decode through the public API. The one-slice vector currently decodes to an
+`ok` status but fails plane comparison. The 2x2 vector enters Golomb-Rice RGB
+Slice Content and then fails before its output planes are fully written. This
+makes the current active compatibility gap RGB-specific Golomb-Rice
+reconstruction and multi-slice payload consumption, not Configuration Record
+parsing, Slice Header parsing, Slice Footer discovery, or generated-plane
+ingestion.
+
+The one-slice vector's first public mismatch is at `x=87,y=1`, where the
+expected RGB sample is `255/0/255` but mffv1 outputs `158/157/38`. The
+diagnostic for the same location reports a coded RGB/RCT plane-1 mismatch:
+the expected internal chroma sample is `511`, while mffv1 reconstructs `393`
+from the current bit position. The 2x2 vector also reaches frame decode but
+fails in slice content; slice descriptors and footer sizes are coherent.
+
+Three local probes were rejected while checking these vectors:
+
+- Making RGB Golomb-Rice run state independent per coded plane worsens the
+  one-slice vector to an immediate coded-chroma mismatch at `x=0,y=0`.
+- Resetting the shared RGB Golomb-Rice run state once per RGB output row moves
+  the failure but still diverges before completing the frame; it is not a
+  sufficient compatibility rule.
+- Using a neutral `1 << bits_per_raw_sample` border for RGB/RCT chroma worsens
+  the first coded-chroma sample. This reinforces the current zero-border model
+  for RGB/RGBA RCT planes.
+
+The next useful external vectors would be smaller RGB Golomb-Rice controls
+that isolate the same failure class:
+
+- flat black RGB, 1 slice, 16x16 or 32x16;
+- flat magenta RGB, 1 slice, 16x16 or 32x16;
+- vertical RGB color bars, 1 slice and 2x2 slices, preferably 64x48;
+- the same set with range coding if not already covered by existing local
+  controls, to keep the RGB RCT transform separate from the GR bitstream issue.
 
 Several previously rejected probes remain useful guardrails:
 

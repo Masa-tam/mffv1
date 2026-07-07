@@ -13,11 +13,17 @@
 
 namespace {
 
-void write_zero_quant_table_set(mffv1::entropy::RangeEncoder& writer)
+void write_quant_table_set(mffv1::entropy::RangeEncoder& writer,
+                           bool split_first_quant_table = false)
 {
     for (int table = 0; table < 5; ++table) {
         EXPECT_TRUE(writer.begin_independent_scalar_contexts(1).ok());
-        EXPECT_TRUE(writer.write_unsigned(127).ok());
+        if (split_first_quant_table && table == 0) {
+            EXPECT_TRUE(writer.write_unsigned(0).ok());
+            EXPECT_TRUE(writer.write_unsigned(126).ok());
+        } else {
+            EXPECT_TRUE(writer.write_unsigned(127).ok());
+        }
         EXPECT_TRUE(writer.end_independent_scalar_contexts().ok());
     }
 }
@@ -36,7 +42,7 @@ std::vector<std::byte> minimal_v0_configuration_record(
     EXPECT_TRUE(writer.write_unsigned(0).ok()); // log2_h_chroma_subsample
     EXPECT_TRUE(writer.write_unsigned(0).ok()); // log2_v_chroma_subsample
     EXPECT_TRUE(writer.write_bool(false).ok()); // extra_plane
-    write_zero_quant_table_set(writer);
+    write_quant_table_set(writer);
 
     std::vector<std::byte> record;
     EXPECT_TRUE(writer.finalize(record).ok());
@@ -105,7 +111,8 @@ std::array<std::byte, 16> zero_frame_payload()
 std::vector<std::byte> make_legacy_bootstrap_frame(
     mffv1::EntropyMode entropy_mode = mffv1::EntropyMode::Range,
     bool chroma_planes = false,
-    bool extra_plane = false)
+    bool extra_plane = false,
+    bool split_first_quant_table = false)
 {
     mffv1::entropy::RangeEncoder writer;
     EXPECT_TRUE(writer.reset().ok());
@@ -120,7 +127,7 @@ std::vector<std::byte> make_legacy_bootstrap_frame(
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_unsigned(chroma_planes ? 1 : 0).ok());
     EXPECT_TRUE(writer.write_bool(extra_plane).ok());
-    write_zero_quant_table_set(writer);
+    write_quant_table_set(writer, split_first_quant_table);
 
     std::vector<std::byte> payload;
     EXPECT_TRUE(writer.finalize(payload).ok());
@@ -596,6 +603,33 @@ TEST(DecoderTest, BootstrapLegacyFrameReportsDifferentCurrentConfiguration)
     const auto inspect_status = result.decoder->inspect_frame(zero_scalar_payload(), info);
     EXPECT_TRUE(inspect_status.ok()) << inspect_status.message;
     EXPECT_FALSE(info.has_chroma_planes);
+}
+
+TEST(DecoderTest, BootstrapLegacyFrameReportsDifferentQuantTableConfiguration)
+{
+    mffv1::DecoderOptions options;
+    options.frame_width = 16;
+    options.frame_height = 8;
+    const auto result = mffv1::create_decoder(options);
+    ASSERT_TRUE(result.status.ok());
+    ASSERT_NE(result.decoder, nullptr);
+    ASSERT_TRUE(configure_minimal_v0_y_only(*result.decoder).ok());
+    const auto payload = make_legacy_bootstrap_frame(
+        mffv1::EntropyMode::Range,
+        false,
+        false,
+        true);
+
+    const auto bootstrap = result.decoder->bootstrap_legacy_frame(payload);
+
+    ASSERT_TRUE(bootstrap.status.ok()) << bootstrap.status.message;
+    EXPECT_EQ(bootstrap.info.state,
+              mffv1::LegacyBootstrapState::DiffersFromCurrentConfiguration);
+
+    mffv1::FrameInfo info;
+    const auto inspect_status = result.decoder->inspect_frame(zero_scalar_payload(), info);
+    EXPECT_TRUE(inspect_status.ok()) << inspect_status.message;
+    EXPECT_EQ(info.version, 0u);
 }
 
 TEST(DecoderTest, BootstrapLegacyFrameReportsNoEmbeddedParameters)

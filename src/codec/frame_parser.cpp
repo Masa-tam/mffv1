@@ -24,6 +24,16 @@ std::size_t maximum_slice_count(const syntax::StreamParameters& stream) noexcept
     return static_cast<std::size_t>(stream.num_h_slices) * static_cast<std::size_t>(stream.num_v_slices);
 }
 
+std::uint64_t golomb_rice_content_byte_position(
+    const entropy::RangeCoder& header_reader) noexcept
+{
+    const auto arithmetic = header_reader.arithmetic_state();
+    if (arithmetic.byte_position != 0 && (arithmetic.low & 0xffu) != 0) {
+        return arithmetic.byte_position - 1;
+    }
+    return arithmetic.byte_position;
+}
+
 void add_byte_offset(Status& status, std::uint64_t base_offset) noexcept
 {
     if (status.location.has_byte_offset) {
@@ -461,7 +471,8 @@ Status FrameParser::parse_located_range_slices(ByteSpan payload, FrameDecodeCont
             return status;
         }
         if (stream_.entropy_mode == EntropyMode::GolombRice) {
-            parsed_slice.content_byte_offset = header_reader.byte_position();
+            parsed_slice.content_byte_offset =
+                golomb_rice_content_byte_position(header_reader);
         }
         if (parsed_slice.content_byte_offset > located_slice.payload.size()) {
             status = make_byte_error(ErrorCode::SyntaxError,

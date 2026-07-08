@@ -822,6 +822,16 @@ std::int32_t plane_border_value(const syntax::StreamParameters& stream,
     return 0;
 }
 
+std::uint64_t golomb_rice_content_byte_position(
+    const entropy::RangeCoder& header_reader) noexcept
+{
+    const auto arithmetic = header_reader.arithmetic_state();
+    if (arithmetic.byte_position != 0 && (arithmetic.low & 0xffu) != 0) {
+        return arithmetic.byte_position - 1;
+    }
+    return arithmetic.byte_position;
+}
+
 } // namespace
 
 Status SliceState::reset(const syntax::StreamParameters& stream)
@@ -1301,7 +1311,12 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             add_byte_offset(status, slice.payload_byte_offset);
             return status;
         }
-        const auto local_content_offset = slice.content_byte_offset - slice.payload_byte_offset;
+        const auto local_content_offset =
+            slice.content_byte_offset - slice.payload_byte_offset;
+        const auto encoded_content_offset =
+            stream_.entropy_mode == EntropyMode::GolombRice
+            ? golomb_rice_content_byte_position(reader)
+            : reader.byte_position();
         if (encoded_slice.raster_x != slice.raster_x
             || encoded_slice.raster_y != slice.raster_y
             || encoded_slice.raster_width != slice.raster_width
@@ -1310,7 +1325,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             || encoded_slice.picture_structure != slice.picture_structure
             || encoded_slice.sar_num != slice.sar_num
             || encoded_slice.sar_den != slice.sar_den
-            || encoded_slice.content_byte_offset != local_content_offset) {
+            || encoded_content_offset != local_content_offset) {
             return make_byte_error(ErrorCode::SyntaxError,
                                    "slice descriptor does not match its encoded header",
                                    slice.header_byte_offset);

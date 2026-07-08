@@ -181,7 +181,7 @@ TEST(SliceEncoderTest, LocatesGolombRiceContentAfterRangeHeader)
     ASSERT_TRUE(header_writer.write(header, stream, values).ok());
     std::vector<std::byte> payload;
     ASSERT_TRUE(header.finalize(payload).ok());
-    const auto expected_content_offset = payload.size() + 1;
+    const auto expected_content_offset = payload.size();
     payload.push_back(std::byte{0x80});
     const mffv1::codec::SliceFooterWriter footer_writer;
     ASSERT_TRUE(footer_writer.append(stream, 0, payload).ok());

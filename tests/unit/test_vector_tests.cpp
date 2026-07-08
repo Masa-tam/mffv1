@@ -7,6 +7,7 @@
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_header_parser.hpp"
 #include "codec/slice_output_window.hpp"
+#include "codec/slice_payload_locator.hpp"
 #include "entropy/golomb_rice_run.hpp"
 #include "entropy/range_coder.hpp"
 #include "mffv1/color_transform.hpp"
@@ -3165,6 +3166,72 @@ std::string describe_legacy_bootstrap_state(
     return out.str();
 }
 
+std::string describe_slice_header_range_states(
+    std::span<const std::byte> frame_payload,
+    const mffv1::syntax::StreamParameters& stream)
+{
+    if (stream.version < 3 || stream.entropy_mode != mffv1::EntropyMode::GolombRice) {
+        return {};
+    }
+
+    std::vector<mffv1::syntax::SliceDescriptor> located_slices;
+    const mffv1::codec::SlicePayloadLocator payload_locator;
+    auto status = payload_locator.locate_slices(
+        frame_payload,
+        stream,
+        static_cast<std::size_t>(stream.num_h_slices)
+            * static_cast<std::size_t>(stream.num_v_slices),
+        located_slices,
+        true);
+    if (!status.ok()) {
+        return std::string{" header_states=locate:"} + describe_status(status);
+    }
+
+    const mffv1::codec::SliceHeaderParser header_parser;
+    std::ostringstream out;
+    out << " header_states=";
+    for (std::size_t slice_index = 0;
+         slice_index < located_slices.size();
+         ++slice_index) {
+        const auto& located_slice = located_slices[slice_index];
+        mffv1::entropy::RangeCoder reader;
+        status = reader.reset(located_slice.payload, stream.state_transition);
+        if (!status.ok()) {
+            out << " [#" << located_slice.index
+                << " reset:" << describe_status(status) << "]";
+            continue;
+        }
+        if (slice_index == 0) {
+            bool keyframe = false;
+            status = reader.read_bool(keyframe);
+            if (!status.ok()) {
+                out << " [#" << located_slice.index
+                    << " keyframe:" << describe_status(status) << "]";
+                continue;
+            }
+            const std::array<std::size_t, 1> slice_header_context_counts{1};
+            status = reader.reconfigure_contexts(slice_header_context_counts, {});
+            if (!status.ok()) {
+                out << " [#" << located_slice.index
+                    << " reconfigure:" << describe_status(status) << "]";
+                continue;
+            }
+        }
+
+        mffv1::syntax::SliceDescriptor parsed_slice;
+        status = header_parser.read_descriptor(reader, stream, parsed_slice);
+        const auto arithmetic = reader.arithmetic_state();
+        out << " [#" << located_slice.index
+            << " status=" << describe_status(status)
+            << " byte=" << arithmetic.byte_position
+            << " range=0x" << std::hex << arithmetic.range
+            << " low=0x" << arithmetic.low << std::dec
+            << " end=" << arithmetic.end
+            << "]";
+    }
+    return out.str();
+}
+
 std::string describe_frame_parse(
     const mffv1_testvectors::DecodeVector& vector,
     std::span<const std::byte> frame_payload)
@@ -3202,6 +3269,7 @@ std::string describe_frame_parse(
 
     std::ostringstream out;
     out << describe_stream_summary(stream);
+    out << describe_slice_header_range_states(frame_payload, stream);
     out
         << " slices=" << frame.slices.size();
     for (const auto& slice : frame.slices) {
@@ -4457,6 +4525,8 @@ std::string describe_golomb_rice_stateful_frame_trace(
             const auto candidates =
                 golomb_rice_content_candidates_for_trace(stream, slice);
             bool decoded = false;
+            auto selected_state = reference_states[slice_index];
+            const auto base_state = reference_states[slice_index];
             mffv1::Status first_status;
             bool has_first_status = false;
             for (std::size_t candidate_index = 0;
@@ -4488,7 +4558,7 @@ std::string describe_golomb_rice_stateful_frame_trace(
                     stream,
                     plane_origin_x,
                     plane_origin_y);
-                auto candidate_state = reference_states[slice_index];
+                auto candidate_state = base_state;
                 status = slice_decoder.decode(
                     candidate, window, candidate_state, &observer);
                 if (frame_index == target_frame_index) {
@@ -4504,9 +4574,13 @@ std::string describe_golomb_rice_stateful_frame_trace(
                     }
                 }
                 if (status.ok()) {
-                    reference_states[slice_index] = std::move(candidate_state);
-                    decoded = true;
-                    break;
+                    if (!decoded) {
+                        selected_state = std::move(candidate_state);
+                        decoded = true;
+                    }
+                    if (frame_index != target_frame_index) {
+                        break;
+                    }
                 }
                 if (!has_first_status) {
                     first_status = status;
@@ -4519,6 +4593,7 @@ std::string describe_golomb_rice_stateful_frame_trace(
                 }
                 return out.str();
             }
+            reference_states[slice_index] = std::move(selected_state);
         }
     }
     return out.str();
@@ -4851,9 +4926,6 @@ std::string known_decode_gap_reason(std::string_view name)
 {
     if (name.find("gr_rgba") != std::string_view::npos) {
         return "pending Golomb-Rice RGBA alpha-plane compatibility investigation";
-    }
-    if (name.find("gr_yuv420p_inter_64x48_2x2_2frames.mkv") != std::string_view::npos) {
-        return "pending Golomb-Rice multi-slice inter-frame reference-state investigation";
     }
     if (name.find("_v0_legacy_") != std::string_view::npos) {
         return "pending legacy version 0 no-Codec-Private compatibility investigation";

@@ -59,6 +59,17 @@ failure region rather than scale size further. Good candidates are cropped or
 synthetic RGB patterns that contain the first failing magenta transition around
 `x=17,y=1`, plus a sibling range-coded version for each generated GR probe.
 
+Follow-up decoding showed that the failing RGB Golomb-Rice testsrc vectors
+depend on deriving the run-interruption context at the interruption sample,
+not reusing context 0 from the position where run mode started. At
+`gr_rgb_testsrc_64x48_1slice.mkv` plane 1 `x=17,y=1`, the run started in
+context 0, but the interruption sample's current neighbors derive context 242.
+The bit sequence at that point decodes to the expected small residual when it
+uses the interruption context's adaptive VLC state; reusing the old context 0
+state drives `k` too high and produces a large chroma residual. Encoder and
+decoder now mirror this rule, including context inversion for the derived
+interruption context.
+
 Several previously rejected probes remain useful guardrails:
 
 - Clearing pending Golomb-Rice runs at row boundaries breaks the gray ramp and

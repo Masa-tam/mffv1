@@ -730,13 +730,23 @@ Status SliceEncoder::encode_golomb_rice_samples(
                         interruption_neighbors.left,
                         interruption_neighbors.top,
                         interruption_neighbors.top_left);
-                const auto difference = syntax::Predictor::difference(
+                syntax::ContextDecision interruption_context;
+                status = context_model.derive_context(
+                    interruption_neighbors, interruption_context);
+                if (!status.ok()) {
+                    return status;
+                }
+                auto difference = syntax::Predictor::difference(
                     samples[x],
                     interruption_prediction,
                     reconstruction_bits);
+                if (interruption_context.invert_difference) {
+                    difference = -difference;
+                }
                 status = entropy::write_golomb_rice_run_interruption(
                     writer,
-                    state.golomb_rice_context(context_bank, 0),
+                    state.golomb_rice_context(
+                        context_bank, interruption_context.context),
                     reconstruction_bits,
                     difference);
                 if (!status.ok()) {

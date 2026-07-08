@@ -2192,6 +2192,62 @@ TEST(SliceDecoderTest, KeepsGolombRiceRunModeAcrossDerivedContextChanges)
     EXPECT_EQ(storage, (std::array<std::uint8_t, 4>{5, 6, 6, 6}));
 }
 
+TEST(SliceDecoderTest, DecodesGolombRiceRunInterruptionWithDerivedContext)
+{
+    auto stream = make_stream();
+    stream.width = 2;
+    stream.height = 1;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    stream.quant_table_sets[0].context_count = 2;
+    stream.quant_table_sets[0].tables[1][255] = 1;
+
+    mffv1::bitstream::BitWriter bit_writer;
+    mffv1::entropy::GolombRiceRunState run_state;
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run(
+        bit_writer, run_state, 0, stream.width, 1).ok());
+    mffv1::entropy::GolombRiceWriter rice_writer(bit_writer);
+    mffv1::entropy::GolombRiceContextState context_one;
+    ASSERT_TRUE(mffv1::entropy::write_golomb_rice_run_interruption(
+        rice_writer, context_one, stream.bits_per_raw_sample, 1).ok());
+    ASSERT_TRUE(bit_writer.byte_align_zero().ok());
+    std::vector<std::byte> payload;
+    ASSERT_TRUE(bit_writer.finalize(payload).ok());
+
+    std::array<std::uint8_t, 2> storage{};
+    storage.fill(0xee);
+    mffv1::MutablePlaneView plane;
+    plane.data = storage.data();
+    plane.info.role = mffv1::PlaneRole::Y;
+    plane.info.sample_format = mffv1::SampleFormat::UInt8;
+    plane.info.width = stream.width;
+    plane.info.height = stream.height;
+    plane.info.stride_bytes = stream.width;
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = stream.width;
+    slice.height = stream.height;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    state.line_state(0).mutable_previous() = {5, 6};
+    const std::array<std::size_t, 1> context_counts{2};
+    ASSERT_TRUE(state.prepare_golomb_rice(context_counts, 1).ok());
+    state.golomb_rice_context(0, 0) = {-5, 1274, -5, 6};
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage, (std::array<std::uint8_t, 2>{5, 7}));
+    EXPECT_EQ(state.golomb_rice_context(0, 0).error_sum, 1274);
+    EXPECT_EQ(state.golomb_rice_context(0, 1).count, 2);
+}
+
 TEST(SliceDecoderTest, AcceptsNonzeroGolombRiceBitPadding)
 {
     auto stream = make_stream();

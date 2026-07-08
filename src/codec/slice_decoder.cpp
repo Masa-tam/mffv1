@@ -387,8 +387,20 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 continue;
             }
 
+            const auto interruption_neighbors = line.neighbors(x);
+            const auto interruption_prediction = syntax::Predictor::median_predict(
+                interruption_neighbors.left,
+                interruption_neighbors.top,
+                interruption_neighbors.top_left);
+            syntax::ContextDecision interruption_context;
+            status = context_model.derive_context(interruption_neighbors, interruption_context);
+            if (!status.ok()) {
+                return status;
+            }
+
             std::int32_t difference = 0;
-            auto& adaptive_state = state.golomb_rice_context(context_bank, 0);
+            auto& adaptive_state = state.golomb_rice_context(
+                context_bank, interruption_context.context);
             const auto adaptive_state_before = adaptive_state;
             const auto run_state_before = run_state;
             const auto bit_position_before = bit_reader.bit_position();
@@ -413,7 +425,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                                 x,
                                 failure_neighbors,
                                 failure_prediction,
-                                context,
+                                interruption_context,
                                 run_state,
                                 bit_reader.bit_position())
                             + format_golomb_rice_adaptive_state(adaptive_state));
@@ -421,11 +433,9 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 set_reader_byte_offset(status, payload_offset, bit_reader.byte_position());
                 return status;
             }
-            const auto interruption_neighbors = line.neighbors(x);
-            const auto interruption_prediction = syntax::Predictor::median_predict(
-                interruption_neighbors.left,
-                interruption_neighbors.top,
-                interruption_neighbors.top_left);
+            if (interruption_context.invert_difference) {
+                difference = -difference;
+            }
             const auto reconstructed = syntax::Predictor::reconstruct(
                 interruption_prediction, difference, reconstruction_bits);
             line.mutable_current()[x] = reconstructed;
@@ -435,7 +445,7 @@ Status decode_golomb_rice_line(bitstream::BitReader& bit_reader,
                 trace.x = x;
                 trace.y = y;
                 trace.context_bank = context_bank;
-                trace.context = context;
+                trace.context = interruption_context;
                 trace.neighbors = interruption_neighbors;
                 trace.run_state_before = run_state_before;
                 trace.run_state_after = run_state;

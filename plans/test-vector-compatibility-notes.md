@@ -1107,3 +1107,17 @@ frame; it moves the first luma mismatch only to `p0@1,15`. Forcing the version
 This refocuses the compact legacy YUV444p range gap on the arithmetic
 renormalization/low-carry behavior around repeated high-probability zero
 symbols at low `range`, rather than on the final luma context alone.
+
+A deliberately non-production row-major diagnostic then added a small `low`
+bias after every decoded zero-valued scalar. Bias values `+1`, `+2`, `+4`,
+`+8`, and `+16` all reconstruct all three YUV444p planes correctly for
+`range_yuv444p_v1_legacy_1slice.mkv`. This strongly suggests that the
+remaining compact legacy range gap is a missing carry/rounding rule on
+zero-valued scalar symbols, not the pixel order, predictor, quantized context,
+state transition table, or initial state.
+
+The same diagnostic is not yet suitable as a decoder rule: it leaves an
+unnatural arithmetic state with unread payload bytes (`byte=186` instead of
+the normal end near `byte=200`). The next implementation-oriented step should
+therefore find the smallest legacy RangeCoder rule that preserves valid
+arithmetic-state progression while reproducing the same effective carry.

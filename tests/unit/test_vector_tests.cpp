@@ -3528,7 +3528,8 @@ std::string describe_legacy_range_planar_row_probe(
             bool use_default_transition,
             bool use_left_edge_context_border,
             bool force_legacy_arithmetic,
-            bool force_final_luma_zero_symbol) {
+            bool force_final_luma_zero_symbol,
+            std::uint32_t low_bias_after_zero_symbol) {
             const auto& transition = use_default_transition
                 ? mffv1::syntax::kDefaultStateTransition
                 : stream.state_transition;
@@ -3657,6 +3658,34 @@ std::string describe_legacy_range_planar_row_probe(
                     }
                     if (context.invert_difference) {
                         difference = -difference;
+                    }
+                    if (low_bias_after_zero_symbol != 0 && difference == 0) {
+                        mffv1::entropy::RangeCoder::ContextStateBanks banks;
+                        probe_status = probe_reader.copy_contexts(banks);
+                        if (!probe_status.ok()) {
+                            out << " " << label << "=err("
+                                << describe_status(probe_status) << ")";
+                            return false;
+                        }
+                        std::vector<std::span<const mffv1::entropy::RangeCoder::ScalarContextStates>>
+                            spans;
+                        spans.reserve(banks.size());
+                        for (const auto& bank : banks) {
+                            spans.emplace_back(bank);
+                        }
+                        auto biased_state = probe_reader.arithmetic_state();
+                        biased_state.low += low_bias_after_zero_symbol;
+                        probe_status = probe_reader.reset_from_arithmetic_state(
+                            vector.frame_payloads.front(),
+                            context_counts,
+                            spans,
+                            transition,
+                            biased_state);
+                        if (!probe_status.ok()) {
+                            out << " " << label << "=err("
+                                << describe_status(probe_status) << ")";
+                            return false;
+                        }
                     }
                     if (difference < std::numeric_limits<std::int32_t>::min()
                         || difference > std::numeric_limits<std::int32_t>::max()) {
@@ -3835,15 +3864,20 @@ std::string describe_legacy_range_planar_row_probe(
             }
             out << " after{" << describe_range_state(probe_reader.arithmetic_state()) << "}";
         };
-    append_full_candidate("row_major_neutral", true, false, false, 0, false, false, false, false);
-    append_full_candidate("row_major_neutral_default_transition", true, false, false, 0, true, false, false, false);
-    append_full_candidate("row_major_neutral_left_edge_context_border", true, false, false, 0, false, true, false, false);
-    append_full_candidate("row_major_neutral_force_legacy_arithmetic", true, false, false, 0, false, false, true, false);
-    append_full_candidate("row_major_neutral_force_final_luma_zero", true, false, false, 0, false, false, false, true);
-    append_full_candidate("row_major_neutral_shared_bank", true, true, false, 0, false, false, false, false);
-    append_full_candidate("row_major_neutral_row_reset", true, false, true, 0, false, false, false, false);
-    append_full_candidate("row_major_15_then_plane_tail", true, false, false, 15, false, false, false, false);
-    append_full_candidate("row_major_16_then_plane_tail", true, false, false, 16, false, false, false, false);
+    append_full_candidate("row_major_neutral", true, false, false, 0, false, false, false, false, 0);
+    append_full_candidate("row_major_neutral_default_transition", true, false, false, 0, true, false, false, false, 0);
+    append_full_candidate("row_major_neutral_left_edge_context_border", true, false, false, 0, false, true, false, false, 0);
+    append_full_candidate("row_major_neutral_force_legacy_arithmetic", true, false, false, 0, false, false, true, false, 0);
+    append_full_candidate("row_major_neutral_force_final_luma_zero", true, false, false, 0, false, false, false, true, 0);
+    append_full_candidate("row_major_zero_symbol_low_bias_1", true, false, false, 0, false, false, false, false, 1);
+    append_full_candidate("row_major_zero_symbol_low_bias_2", true, false, false, 0, false, false, false, false, 2);
+    append_full_candidate("row_major_zero_symbol_low_bias_4", true, false, false, 0, false, false, false, false, 4);
+    append_full_candidate("row_major_zero_symbol_low_bias_8", true, false, false, 0, false, false, false, false, 8);
+    append_full_candidate("row_major_zero_symbol_low_bias_16", true, false, false, 0, false, false, false, false, 16);
+    append_full_candidate("row_major_neutral_shared_bank", true, true, false, 0, false, false, false, false, 0);
+    append_full_candidate("row_major_neutral_row_reset", true, false, true, 0, false, false, false, false, 0);
+    append_full_candidate("row_major_15_then_plane_tail", true, false, false, 15, false, false, false, false, 0);
+    append_full_candidate("row_major_16_then_plane_tail", true, false, false, 16, false, false, false, false, 0);
     return out.str();
 }
 

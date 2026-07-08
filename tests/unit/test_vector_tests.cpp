@@ -3559,12 +3559,16 @@ public:
         std::span<const std::byte> content_payload,
         std::span<const mffv1::syntax::QuantTableSet> quant_table_sets,
         std::span<const std::uint32_t> plane_quant_table_set_indexes,
-        const mffv1::syntax::StreamParameters& stream)
+        const mffv1::syntax::StreamParameters& stream,
+        std::span<const std::uint32_t> plane_origin_x = {},
+        std::span<const std::uint32_t> plane_origin_y = {})
         : expected_planes_(expected_planes),
           content_payload_(content_payload),
           quant_table_sets_(quant_table_sets),
           plane_quant_table_set_indexes_(plane_quant_table_set_indexes),
-          stream_(stream)
+          stream_(stream),
+          plane_origin_x_(plane_origin_x.begin(), plane_origin_x.end()),
+          plane_origin_y_(plane_origin_y.begin(), plane_origin_y.end())
     {
     }
 
@@ -3575,7 +3579,9 @@ public:
             return;
         }
         const auto& expected = expected_planes_[trace.plane];
-        if (trace.x >= expected.info.width || trace.y >= expected.info.height) {
+        const auto expected_x = expected_x_for(trace);
+        const auto expected_y = expected_y_for(trace);
+        if (expected_x >= expected.info.width || expected_y >= expected.info.height) {
             return;
         }
         const auto expected_sample = expected_internal_sample(trace);
@@ -3596,8 +3602,10 @@ public:
 
         std::ostringstream out;
         out << "first traced GR mismatch plane=" << trace.plane
-            << " x=" << trace.x
-            << " y=" << trace.y
+            << " x=" << expected_x
+            << " y=" << expected_y
+            << " local_x=" << trace.x
+            << " local_y=" << trace.y
             << " context=" << trace.context.context
             << (trace.context.invert_difference ? " invert=1" : " invert=0")
             << (trace.run_interruption ? " run_interruption=1" : " run_interruption=0")
@@ -3660,18 +3668,20 @@ private:
     std::uint32_t expected_internal_sample(
         const mffv1::codec::GolombRiceSampleTrace& trace) const
     {
+        const auto expected_x = expected_x_for(trace);
+        const auto expected_y = expected_y_for(trace);
         if (stream_.colorspace_type != 1 || trace.plane > 2
             || expected_planes_.size() < 3) {
             const auto& expected = expected_planes_[trace.plane];
-            return sample_at(expected.samples, expected.info, trace.x, trace.y);
+            return sample_at(expected.samples, expected.info, expected_x, expected_y);
         }
 
         const auto r = sample_at(
-            expected_planes_[0].samples, expected_planes_[0].info, trace.x, trace.y);
+            expected_planes_[0].samples, expected_planes_[0].info, expected_x, expected_y);
         const auto g = sample_at(
-            expected_planes_[1].samples, expected_planes_[1].info, trace.x, trace.y);
+            expected_planes_[1].samples, expected_planes_[1].info, expected_x, expected_y);
         const auto b = sample_at(
-            expected_planes_[2].samples, expected_planes_[2].info, trace.x, trace.y);
+            expected_planes_[2].samples, expected_planes_[2].info, expected_x, expected_y);
         const auto code = mffv1::syntax::forward_jpeg2000_rct(
             static_cast<std::uint16_t>(r),
             static_cast<std::uint16_t>(g),
@@ -3685,6 +3695,24 @@ private:
             return static_cast<std::uint32_t>(code.cb);
         }
         return static_cast<std::uint32_t>(code.cr);
+    }
+
+    std::uint32_t expected_x_for(
+        const mffv1::codec::GolombRiceSampleTrace& trace) const noexcept
+    {
+        const auto origin = trace.plane < plane_origin_x_.size()
+            ? plane_origin_x_[trace.plane]
+            : std::uint32_t{0};
+        return origin + trace.x;
+    }
+
+    std::uint32_t expected_y_for(
+        const mffv1::codec::GolombRiceSampleTrace& trace) const noexcept
+    {
+        const auto origin = trace.plane < plane_origin_y_.size()
+            ? plane_origin_y_[trace.plane]
+            : std::uint32_t{0};
+        return origin + trace.y;
     }
 
     void remember_trace(const mffv1::codec::GolombRiceSampleTrace& trace)
@@ -3701,6 +3729,8 @@ private:
     std::span<const mffv1::syntax::QuantTableSet> quant_table_sets_;
     std::span<const std::uint32_t> plane_quant_table_set_indexes_;
     const mffv1::syntax::StreamParameters& stream_;
+    std::vector<std::uint32_t> plane_origin_x_;
+    std::vector<std::uint32_t> plane_origin_y_;
     std::vector<std::string> recent_traces_;
     std::string description_;
     std::size_t matched_sample_count_ = 0;
@@ -3798,6 +3828,86 @@ std::string describe_golomb_rice_candidate_decode(
         }
     }
     return out.str();
+}
+
+std::vector<std::uint32_t> slice_plane_origin_x(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::syntax::SliceDescriptor& slice,
+    std::size_t plane_count)
+{
+    std::vector<std::uint32_t> origins;
+    origins.reserve(plane_count);
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        origins.push_back(mffv1::syntax::is_chroma_plane(stream, plane)
+            ? (slice.x >> stream.log2_h_chroma_subsample)
+            : slice.x);
+    }
+    return origins;
+}
+
+std::vector<std::uint32_t> slice_plane_origin_y(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::syntax::SliceDescriptor& slice,
+    std::size_t plane_count)
+{
+    std::vector<std::uint32_t> origins;
+    origins.reserve(plane_count);
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        origins.push_back(mffv1::syntax::is_chroma_plane(stream, plane)
+            ? (slice.y >> stream.log2_v_chroma_subsample)
+            : slice.y);
+    }
+    return origins;
+}
+
+std::vector<std::uint32_t> plane_quant_table_set_indexes_for_trace(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::syntax::SliceDescriptor& slice,
+    std::size_t plane_count)
+{
+    std::vector<std::uint32_t> indexes;
+    indexes.reserve(plane_count);
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        const auto index_slot = stream.version >= 3
+            ? mffv1::syntax::plane_quant_table_set_index_slot(stream, plane)
+            : plane;
+        if (index_slot >= slice.quant_table_set_indexes.size()) {
+            indexes.clear();
+            return indexes;
+        }
+        indexes.push_back(slice.quant_table_set_indexes[index_slot]);
+    }
+    return indexes;
+}
+
+bool can_try_golomb_rice_read_ahead_boundary_for_trace(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::syntax::SliceDescriptor& slice) noexcept
+{
+    if (stream.entropy_mode != mffv1::EntropyMode::GolombRice
+        || slice.content_byte_offset <= slice.payload_byte_offset) {
+        return false;
+    }
+    if ((slice.footer_byte_offset != 0 || slice.slice_size != 0)
+        && slice.footer_byte_offset <= slice.content_byte_offset - 1) {
+        return false;
+    }
+    return stream.version >= 3
+        || (stream.version <= 1 && slice.content_bit_offset == 0);
+}
+
+std::vector<mffv1::syntax::SliceDescriptor> golomb_rice_content_candidates_for_trace(
+    const mffv1::syntax::StreamParameters& stream,
+    const mffv1::syntax::SliceDescriptor& slice)
+{
+    std::vector<mffv1::syntax::SliceDescriptor> candidates;
+    candidates.push_back(slice);
+    if (can_try_golomb_rice_read_ahead_boundary_for_trace(stream, slice)) {
+        auto read_ahead = slice;
+        --read_ahead.content_byte_offset;
+        candidates.push_back(read_ahead);
+    }
+    return candidates;
 }
 
 struct GolombRiceBoundaryCandidateSummary {
@@ -4254,6 +4364,166 @@ std::string describe_golomb_rice_partial_decode(
     return out.str();
 }
 
+std::string describe_golomb_rice_stateful_frame_trace(
+    const mffv1_testvectors::DecodeVector& vector,
+    std::size_t target_frame_index)
+{
+    if (vector.configuration_record.empty()
+        || target_frame_index >= vector.frame_payloads.size()
+        || target_frame_index >= vector.expected_planes.size()) {
+        return {};
+    }
+
+    mffv1::syntax::StreamParameters stream;
+    const mffv1::codec::ConfigurationRecordParser config_parser;
+    auto status = config_parser.parse(vector.configuration_record, stream);
+    if (!status.ok() || stream.entropy_mode != mffv1::EntropyMode::GolombRice
+        || stream.version < 3) {
+        return {};
+    }
+    stream.width = vector.frame_width;
+    stream.height = vector.frame_height;
+
+    const mffv1::codec::FrameParser frame_parser(stream, true);
+    const mffv1::codec::SliceDecoder slice_decoder(stream, true);
+    std::vector<mffv1::codec::SliceState> reference_states;
+    std::ostringstream out;
+    out << "stateful-gr-trace";
+
+    for (std::size_t frame_index = 0;
+         frame_index <= target_frame_index;
+         ++frame_index) {
+        mffv1::codec::FrameDecodeContext frame;
+        status = frame_parser.parse_with_range_header(
+            vector.frame_payloads[frame_index], frame);
+        if (!status.ok()) {
+            out << " frame=" << frame_index
+                << " parse=" << describe_status(status);
+            return out.str();
+        }
+        if (frame_index == target_frame_index) {
+            out << "\nframe=" << frame_index
+                << " keyframe=" << frame.keyframe
+                << " slices=" << frame.slices.size();
+        }
+        if (frame.keyframe) {
+            reference_states.clear();
+            reference_states.resize(frame.slices.size());
+        } else if (reference_states.size() != frame.slices.size()) {
+            out << " frame=" << frame_index
+                << " state-count-mismatch ref=" << reference_states.size()
+                << " slices=" << frame.slices.size();
+            return out.str();
+        }
+
+        const auto& expected_planes = vector.expected_planes[frame_index];
+        std::vector<std::vector<std::byte>> plane_storage;
+        std::vector<mffv1::MutablePlaneView> output_planes;
+        plane_storage.reserve(expected_planes.size());
+        output_planes.reserve(expected_planes.size());
+        for (const auto& expected : expected_planes) {
+            std::size_t expected_size = 0;
+            if (!compute_plane_size(expected, expected_size)) {
+                out << " frame=" << frame_index
+                    << " plane-size=unrepresentable";
+                return out.str();
+            }
+            plane_storage.emplace_back(expected_size, std::byte{0xa5});
+            output_planes.push_back(
+                mffv1::MutablePlaneView{plane_storage.back().data(), expected.info});
+        }
+        mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
+
+        for (std::size_t slice_index = 0;
+             slice_index < frame.slices.size();
+             ++slice_index) {
+            const auto& slice = frame.slices[slice_index];
+            mffv1::codec::SliceOutputWindow window;
+            status = window.validate(stream, output, slice);
+            if (!status.ok()) {
+                out << " frame=" << frame_index
+                    << " slice=" << slice.index
+                    << " window=" << describe_status(status);
+                return out.str();
+            }
+            status = reference_states[slice_index].reset(stream, window);
+            if (!status.ok()) {
+                out << " frame=" << frame_index
+                    << " slice=" << slice.index
+                    << " state-reset=" << describe_status(status);
+                return out.str();
+            }
+
+            const auto candidates =
+                golomb_rice_content_candidates_for_trace(stream, slice);
+            bool decoded = false;
+            mffv1::Status first_status;
+            bool has_first_status = false;
+            for (std::size_t candidate_index = 0;
+                 candidate_index < candidates.size();
+                 ++candidate_index) {
+                const auto& candidate = candidates[candidate_index];
+                const auto content_offset =
+                    candidate.content_byte_offset - candidate.payload_byte_offset;
+                const auto content_payload =
+                    candidate.payload.subspan(content_offset);
+                const auto plane_quant_table_set_indexes =
+                    plane_quant_table_set_indexes_for_trace(
+                        stream, candidate, output_planes.size());
+                if (plane_quant_table_set_indexes.empty()) {
+                    out << " frame=" << frame_index
+                        << " slice=" << candidate.index
+                        << " quant-index=missing";
+                    return out.str();
+                }
+                const auto plane_origin_x =
+                    slice_plane_origin_x(stream, candidate, output_planes.size());
+                const auto plane_origin_y =
+                    slice_plane_origin_y(stream, candidate, output_planes.size());
+                FirstGolombRiceMismatchObserver observer(
+                    expected_planes,
+                    content_payload,
+                    stream.quant_table_sets,
+                    plane_quant_table_set_indexes,
+                    stream,
+                    plane_origin_x,
+                    plane_origin_y);
+                auto candidate_state = reference_states[slice_index];
+                status = slice_decoder.decode(
+                    candidate, window, candidate_state, &observer);
+                if (frame_index == target_frame_index) {
+                    out << "\nframe=" << frame_index
+                        << " slice=" << candidate.index
+                        << " candidate=" << candidate_index
+                        << " byte=" << candidate.content_byte_offset
+                        << " bit=" << static_cast<int>(candidate.content_bit_offset)
+                        << " matched_samples=" << observer.matched_sample_count()
+                        << " status=" << describe_status(status);
+                    if (!observer.description().empty()) {
+                        out << "\n" << observer.description();
+                    }
+                }
+                if (status.ok()) {
+                    reference_states[slice_index] = std::move(candidate_state);
+                    decoded = true;
+                    break;
+                }
+                if (!has_first_status) {
+                    first_status = status;
+                    has_first_status = true;
+                }
+            }
+            if (!decoded) {
+                if (has_first_status) {
+                    out << " first-status=" << describe_status(first_status);
+                }
+                return out.str();
+            }
+        }
+    }
+    return out.str();
+}
+
 bool compute_plane_size(const mffv1_testvectors::PlaneVector& plane,
                         std::size_t& out_size)
 {
@@ -4436,12 +4706,46 @@ void expect_decodes_frame(
         ASSERT_TRUE(compute_plane_size(expected, expected_size));
         const std::vector<std::byte> expected_bytes{
             expected.samples.begin(), expected.samples.begin() + expected_size};
-        expect_plane_matches(
-            plane_storage[index],
-            expected_bytes,
-            index,
-            expected.info,
-            frame_description);
+        ASSERT_EQ(plane_storage[index].size(), expected_bytes.size());
+        const auto bytes_per_sample =
+            expected.info.sample_format == mffv1::SampleFormat::UInt16
+            ? std::size_t{2}
+            : std::size_t{1};
+        const auto stride = static_cast<std::size_t>(expected.info.stride_bytes);
+        const auto active_row_bytes =
+            static_cast<std::size_t>(expected.info.width) * bytes_per_sample;
+        ASSERT_LE(active_row_bytes, stride);
+        for (std::uint32_t y = 0; y < expected.info.height; ++y) {
+            const auto row_offset = static_cast<std::size_t>(y) * stride;
+            const auto actual_row =
+                std::span<const std::byte>{plane_storage[index]}
+                    .subspan(row_offset, active_row_bytes);
+            const auto expected_row =
+                std::span<const std::byte>{expected_bytes}
+                    .subspan(row_offset, active_row_bytes);
+            const auto mismatch = std::mismatch(
+                actual_row.begin(), actual_row.end(), expected_row.begin());
+            if (mismatch.first == actual_row.end()) {
+                continue;
+            }
+            const auto byte_offset = row_offset
+                + static_cast<std::size_t>(mismatch.first - actual_row.begin());
+            auto augmented_description = frame_description;
+            const auto stateful_trace =
+                describe_golomb_rice_stateful_frame_trace(vector, frame_index);
+            if (!stateful_trace.empty()) {
+                augmented_description += "\n";
+                augmented_description += stateful_trace;
+            }
+            report_plane_mismatch(
+                plane_storage[index],
+                expected_bytes,
+                byte_offset,
+                index,
+                expected.info,
+                augmented_description);
+            return;
+        }
     }
 }
 

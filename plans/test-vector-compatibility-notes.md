@@ -35,22 +35,34 @@ version 3.4 controls plus MKV-derived legacy Golomb-Rice probes:
   `range_rgb_testsrc_320x240_1slice.mkv`, and
   `range_rgb_testsrc_320x240_2x2.mkv`.
 - Passing high-bit, alpha, CRC, and MKV legacy additions:
-  `gr_rgba_testsrc2_1slice.mkv`,
-  `gr_yuva_testsrc2_2x2.mkv`,
-  `gr_rgb10_mandelbrot_1slice.mkv`,
-  `gr_yuv420p10le_mandelbrot_2x2.mkv`,
-  `range_rgb10_testsrc2_1slice.mkv`,
-  `range_rgba10_testsrc2_2x2.mkv`,
-  `gr_yuv420p_mandelbrot_inter.mkv`,
-  `gr_rgb_mandelbrot_inter.mkv`,
-  `gr_rgb_testsrc_2x2_crc.mkv`,
-  `gr_yuv_testsrc_3x2_crc.mkv`,
-  `range_rgb_testsrc_2x2_crc.mkv`,
-  `range_yuv_testsrc_3x2_crc.mkv`,
-  `gr_rgb_testsrc_legacy0_1slice.mkv`,
-  `gr_yuv444p_testsrc_legacy0_1slicce.mkv`,
-  `gr_rgb_testsrc_legacy1_1slice.mkv`, and
-  `gr_yuv444p_testsrc_legacy1_1slicce.mkv`.
+  `gr_rgba_testsrc2_2x2.mkv`,
+  `gr_yuva_testsrc2_1slice.mkv`,
+  `gr_rgb10_mandelbrot_2x2.mkv`,
+  `gr_yuv420p10le_mandelbrot_1slice.mkv`,
+  `range_rgb10_testsrc2_2x2.mkv`,
+  `range_rgba10_testsrc2_1slice.mkv`,
+  `range_yuv420p_inter_64x48_21slice_frames.mkv`,
+  `gr_yuv420p_inter_64x48_1slice_2frames.mkv`,
+  `range_rgb_inter_64x48_1slice_2frames.mkv`,
+  `gr_rgb_inter_64x48_1slice_2frames.mkv`,
+  `range_rgb_mandelbrot_inter_64x48_2frames.mkv`,
+  `range_gray_v1_legacy_1slice.mkv`,
+  `range_yuv420p_v1_legacy_1slice.mkv`,
+  `gr_gray_v1_legacy_1slice.mkv`,
+  `gr_yuv420p_v1_legacy_1slice.mkv`,
+  `range_gray_v0_legacy_1slice_1x1.mkv`,
+  `range_gray_v0_legacy_1slice_4x1.mkv`,
+  `range_gray_v0_legacy_1slice_32x16.mkv`,
+  `range_gray_v0_legacy_1slice_16x1_nonzero.mkv`,
+  `gr_gray_v0_legacy_1slice_1x1.mkv`,
+  `gr_gray_v0_legacy_1slice_4x1.mkv`,
+  `gr_gray_v0_legacy_1slice_16x1.mkv`,
+  `gr_rgb10_testsrc_1slice.mkv`,
+  `gr_rgb10_testsrc_2x2.mkv`,
+  `gr_rgba10_testsrc_1slice.mkv`,
+  `gr_yuva10le_testsrc_1slice.mkv`,
+  `gr_yuv420p10_testsrc_1slice.mkv`, and
+  `gr_yuv420p10_testsrc_2x2.mkv`.
 
 This set now passes through the public generated-vector test. The earlier RGB
 Golomb-Rice testsrc failure was not plain size growth: RGB bars passed at
@@ -90,11 +102,12 @@ for those versions. The generated header exposes those entries with empty
 configuration records and keyframe payloads containing embedded parameters,
 which matches the intended public API flow through `bootstrap_legacy_frame()`.
 
-The current generated `*_inter.mkv` entries pass, but the header exposes one
-frame payload per vector. They therefore validate that the named source decodes
-but do not yet exercise reference-state continuity across multiple frame
-payloads. Future inter-frame vectors should expose at least two payloads and
-expected-plane sets in one `DecodeVector`.
+The current generated `*_inter*.mkv` entries now expose two frame payloads and
+two expected-plane sets per vector, so they exercise the public decoder's
+reference-state continuity across one non-keyframe. One filename,
+`range_yuv420p_inter_64x48_21slice_frames.mkv`, appears to have a typo where
+`1slice_2frames` was intended, but the generated header shape is correct and
+the vector decodes successfully.
 
 Several previously rejected probes remain useful guardrails:
 

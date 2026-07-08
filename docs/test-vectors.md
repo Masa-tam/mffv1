@@ -111,6 +111,15 @@ decoding across the compatibility cases that most recently drove fixes:
   range-coded checks for RGB compatibility transform and optional alpha output.
 - Error-correction multi-slice RGB and YUV controls for both range and
   Golomb-Rice. These exercise CRC/footer discovery with non-square slice grids.
+- True multi-frame version 3.4 range and Golomb-Rice controls for RGB and
+  YUV420p. These expose multiple `frame_payloads` and expected-plane sets in
+  one `DecodeVector`, so reference-state continuity is exercised by the public
+  generated-vector test.
+- Complementary slice-grid siblings for the high-bit and alpha controls,
+  including one-slice and 2x2 variants across the current local set.
+- Golomb-Rice 10-bit RGBA/YUVA controls where the generator can provide planar
+  expected data. These combine high-bit reconstruction, alpha, and adaptive
+  Golomb-Rice context evolution.
 
 Legacy version 0 AVI-derived vectors may be kept in a local generated header as
 investigation material. The current test harness decodes the generated
@@ -139,27 +148,22 @@ profile or ambiguous mismatch needs black-box confirmation.
 ## High-Value Local Vector Requests
 
 The current local vectors cover the most recent 8-bit RGB/YUV420p `testsrc`,
-RGB bar, high-bit, alpha, CRC, and MKV legacy Golomb-Rice cases. The next most
-useful local-only additions are:
+RGB bar, high-bit, alpha, CRC, MKV legacy Golomb-Rice, and true multi-frame
+reference-state cases. The next most useful local-only additions are:
 
-- Complementary slice-grid siblings for the current high-bit and alpha
-  controls: `gr_rgba_testsrc2_2x2`, `gr_yuva_testsrc2_1slice`,
-  `gr_rgb10_mandelbrot_2x2`, `gr_yuv420p10le_mandelbrot_1slice`,
-  `range_rgb10_testsrc2_2x2`, and `range_rgba10_testsrc2_1slice`.
-- True multi-frame version 3.4 vectors for range and Golomb-Rice in YUV420p
-  and RGB: two or three generated frame payloads per vector, small dimensions
-  such as 64x48, with a visible change between frames. These validate
-  reference-state continuity beyond intra-only payloads. A filename containing
-  `inter` is not enough; the generated header should expose at least two
-  `frame_payloads`.
-- Range-coded inter-frame siblings for the current Golomb-Rice Mandelbrot
-  inter probes, once multi-frame extraction is available.
+- Three-frame inter variants for range and Golomb-Rice in YUV420p and RGB,
+  especially with one keyframe followed by two non-keyframes. These extend the
+  current two-payload reference-state coverage.
+- 2x2 or 3x2 multi-frame variants, if FFmpeg and the generator can produce
+  compact files. These would combine slice state, reference state, CRC/footer
+  location, and non-square grids in one black-box check.
 - Legacy version 0/1 range-coded RGB or YUV444 MKV single-slice vectors, if
   FFmpeg can produce them without Codec Private data. These would complement
   the current legacy Golomb-Rice MKV controls.
-- 10-bit RGBA or YUVA Golomb-Rice controls if FFmpeg can generate planar
-  expected data. These would combine high-bit reconstruction, alpha, and
-  Golomb-Rice context evolution.
+- Range-coded 10-bit YUVA/RGBA controls if FFmpeg can generate planar expected
+  data for both alpha layouts. The current set already has range RGBA10 and
+  Golomb-Rice RGBA/YUVA10 coverage, but a YUVA10 range sibling would round out
+  the matrix.
 
 Keep these vectors local unless a separate provenance review promotes a
 specific minimized case into the repository.
@@ -191,6 +195,10 @@ Recommended naming pattern for local generated headers:
 - `gr_yuv420p_inter_64x48_2frames`
 - `range_rgb_inter_64x48_2frames`
 - `gr_rgb_inter_64x48_2frames`
+- `range_yuv420p_inter_64x48_3frames`
+- `gr_yuv420p_inter_64x48_3frames`
+- `range_rgb_inter_64x48_3frames`
+- `gr_rgb_inter_64x48_3frames`
 - `gr_intra_gray8_1slice_ygrad_small`
 - `gr_intra_gray8_1slice_xgrad_small`
 - `gr_intra_420p8_1slice_yflat_uvflat_small`

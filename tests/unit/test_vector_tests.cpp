@@ -3157,56 +3157,128 @@ std::string describe_legacy_range_rgb_row_probe(
     const auto sample_count = std::min<std::uint32_t>(width, 8);
     const auto coded_bits = static_cast<std::uint8_t>(stream.bits_per_raw_sample + 1);
     const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
-    std::array<mffv1::syntax::LineState, 3> lines;
-    for (auto& line : lines) {
-        status = line.reset(width);
-        if (!status.ok()) {
-            return std::string{" rgb_row_probe="} + describe_status(status);
+    const auto neutral = static_cast<std::int32_t>(std::uint32_t{1}
+        << stream.bits_per_raw_sample);
+
+    const auto decode_row = [&](bool neutral_chroma_border,
+                                bool reset_contexts_per_plane,
+                                bool reset_arithmetic_per_plane,
+                                std::array<std::vector<std::int32_t>, 3>& coded,
+                                mffv1::entropy::RangeCoder::ArithmeticState& after) {
+        mffv1::entropy::RangeCoder probe_reader;
+        std::uint64_t reader_base_offset = 0;
+        auto probe_status = probe_reader.reset_from_arithmetic_state(
+            vector.frame_payloads.front(),
+            context_counts,
+            {},
+            stream.state_transition,
+            bootstrap.range_state_after_parameters);
+        if (probe_status.ok() && stream.version == 0) {
+            probe_status = probe_reader.set_legacy_v0_arithmetic(true);
         }
-    }
+        if (!probe_status.ok()) {
+            return probe_status;
+        }
+
+        std::array<mffv1::syntax::LineState, 3> lines;
+        for (std::size_t plane = 0; plane < lines.size(); ++plane) {
+            const auto border = neutral_chroma_border && plane > 0
+                ? neutral
+                : std::int32_t{0};
+            probe_status = lines[plane].reset(width, border);
+            if (!probe_status.ok()) {
+                return probe_status;
+            }
+        }
+
+        for (auto& plane : coded) {
+            plane.assign(width, 0);
+        }
+
+        for (std::size_t plane = 0; plane < 3; ++plane) {
+            if (reset_contexts_per_plane && plane != 0) {
+                probe_status = probe_reader.reconfigure_contexts(context_counts);
+                if (probe_status.ok() && stream.version == 0) {
+                    probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+                }
+                if (!probe_status.ok()) {
+                    return probe_status;
+                }
+            }
+
+            auto& line = lines[plane];
+            for (std::uint32_t x = 0; x < width; ++x) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = mffv1::syntax::Predictor::median_predict(
+                    neighbors.left,
+                    neighbors.top,
+                    neighbors.top_left);
+                mffv1::syntax::ContextDecision context;
+                probe_status = context_model.derive_context(neighbors, context);
+                if (!probe_status.ok()) {
+                    return probe_status;
+                }
+                std::int64_t difference = 0;
+                probe_status = probe_reader.read_signed(0, context.context, difference);
+                if (!probe_status.ok()) {
+                    return probe_status;
+                }
+                if (context.invert_difference) {
+                    difference = -difference;
+                }
+                if (difference < std::numeric_limits<std::int32_t>::min()
+                    || difference > std::numeric_limits<std::int32_t>::max()) {
+                    return mffv1::make_error(
+                        mffv1::ErrorCode::SyntaxError,
+                        "difference-out-of-range");
+                }
+                const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                    prediction,
+                    static_cast<std::int32_t>(difference),
+                    coded_bits);
+                line.mutable_current()[x] = reconstructed;
+                coded[plane][x] = reconstructed;
+            }
+
+            if (reset_arithmetic_per_plane && plane + 1 < 3) {
+                reader_base_offset += probe_reader.byte_position();
+                if (reader_base_offset + 2 > vector.frame_payloads.front().size()) {
+                    return mffv1::make_error(
+                        mffv1::ErrorCode::SyntaxError,
+                        "plane arithmetic reset is outside payload");
+                }
+                probe_status = probe_reader.reset(
+                    vector.frame_payloads.front().subspan(
+                        static_cast<std::size_t>(reader_base_offset)),
+                    context_counts,
+                    {},
+                    stream.state_transition);
+                if (probe_status.ok() && stream.version == 0) {
+                    probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+                }
+                if (!probe_status.ok()) {
+                    return probe_status;
+                }
+            }
+        }
+        after = probe_reader.arithmetic_state();
+        after.byte_position += reader_base_offset;
+        return mffv1::ok_status();
+    };
 
     std::array<std::vector<std::int32_t>, 3> coded;
-    for (auto& plane : coded) {
-        plane.assign(width, 0);
+    mffv1::entropy::RangeCoder::ArithmeticState after;
+    status = decode_row(false, false, false, coded, after);
+    if (!status.ok()) {
+        return std::string{" rgb_row_probe="} + describe_status(status);
     }
 
-    for (std::size_t plane = 0; plane < 3; ++plane) {
-        auto& line = lines[plane];
-        for (std::uint32_t x = 0; x < width; ++x) {
-            const auto neighbors = line.neighbors(x);
-            const auto prediction = mffv1::syntax::Predictor::median_predict(
-                neighbors.left,
-                neighbors.top,
-                neighbors.top_left);
-            mffv1::syntax::ContextDecision context;
-            status = context_model.derive_context(neighbors, context);
-            if (!status.ok()) {
-                return std::string{" rgb_row_probe="} + describe_status(status);
-            }
-            std::int64_t difference = 0;
-            status = reader.read_signed(0, context.context, difference);
-            if (!status.ok()) {
-                return std::string{" rgb_row_probe="} + describe_status(status);
-            }
-            if (context.invert_difference) {
-                difference = -difference;
-            }
-            if (difference < std::numeric_limits<std::int32_t>::min()
-                || difference > std::numeric_limits<std::int32_t>::max()) {
-                return " rgb_row_probe=difference-out-of-range";
-            }
-            const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
-                prediction,
-                static_cast<std::int32_t>(difference),
-                coded_bits);
-            line.mutable_current()[x] = reconstructed;
-            coded[plane][x] = reconstructed;
-        }
-    }
-
-    std::ostringstream out;
-    out << " rgb_row_probe";
-    for (std::uint32_t x = 0; x < sample_count; ++x) {
+    const auto append_row_summary = [&](std::ostringstream& out,
+                                        std::string_view label,
+                                        const std::array<std::vector<std::int32_t>, 3>& row,
+                                        const mffv1::entropy::RangeCoder::ArithmeticState& state) {
+        out << " " << label;
+        for (std::uint32_t x = 0; x < sample_count; ++x) {
         const auto expected_code = mffv1::syntax::forward_jpeg2000_rct(
             static_cast<std::uint16_t>(
                 sample_at(expected_r.samples, expected_r.info, x, 0)),
@@ -3217,19 +3289,51 @@ std::string describe_legacy_range_rgb_row_probe(
             stream.bits_per_raw_sample,
             stream.extra_plane);
         const auto actual_rgb = mffv1::syntax::inverse_jpeg2000_rct(
-            coded[0][x],
-            coded[1][x],
-            coded[2][x],
+            row[0][x],
+            row[1][x],
+            row[2][x],
             stream.bits_per_raw_sample,
             stream.extra_plane);
         out << " #" << x
-            << " y=" << coded[0][x] << "/" << expected_code.y
-            << " cb=" << coded[1][x] << "/" << expected_code.cb
-            << " cr=" << coded[2][x] << "/" << expected_code.cr
+            << " y=" << row[0][x] << "/" << expected_code.y
+            << " cb=" << row[1][x] << "/" << expected_code.cb
+            << " cr=" << row[2][x] << "/" << expected_code.cr
             << " rgb=" << actual_rgb.r << ","
             << actual_rgb.g << "," << actual_rgb.b;
+        }
+        out << " after{" << describe_range_state(state) << "}";
+    };
+
+    std::ostringstream out;
+    out << " rgb_row_probe";
+    append_row_summary(out, "normal", coded, after);
+
+    std::array<std::vector<std::int32_t>, 3> variant_coded;
+    mffv1::entropy::RangeCoder::ArithmeticState variant_after;
+    status = decode_row(true, false, false, variant_coded, variant_after);
+    if (status.ok()) {
+        append_row_summary(out, "neutral_border", variant_coded, variant_after);
+    } else {
+        out << " neutral_border=err(" << describe_status(status) << ")";
     }
-    out << " after{" << describe_range_state(reader.arithmetic_state()) << "}";
+    status = decode_row(false, true, false, variant_coded, variant_after);
+    if (status.ok()) {
+        append_row_summary(out, "plane_context_reset", variant_coded, variant_after);
+    } else {
+        out << " plane_context_reset=err(" << describe_status(status) << ")";
+    }
+    status = decode_row(true, true, false, variant_coded, variant_after);
+    if (status.ok()) {
+        append_row_summary(out, "neutral_border_plane_context_reset", variant_coded, variant_after);
+    } else {
+        out << " neutral_border_plane_context_reset=err(" << describe_status(status) << ")";
+    }
+    status = decode_row(false, true, true, variant_coded, variant_after);
+    if (status.ok()) {
+        append_row_summary(out, "plane_context_arithmetic_reset", variant_coded, variant_after);
+    } else {
+        out << " plane_context_arithmetic_reset=err(" << describe_status(status) << ")";
+    }
     return out.str();
 }
 

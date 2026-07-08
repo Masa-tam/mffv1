@@ -1027,3 +1027,13 @@ flat gray value (`128`), but the following coded Cb/Cr lines decode as high
 narrows the compact RGB legacy issue to the boundary after the first coded
 line or to an old RGB/RCT plane layout difference; it is not explained by a
 failed embedded-parameter parse or by the first range symbol.
+
+The same probe now compares simple boundary variants. A neutral Cb/Cr border
+moves the decoded chroma values closer (`247` and `255`) but still misses the
+expected `256`. Resetting scalar contexts per plane reproduces the public
+decoder output (`Cb=256`, `Cr` near zero), which confirms that v0/v1 range
+decoding is already using plane-local scalar context banks. Resetting the
+arithmetic coder at byte boundaries between coded planes also misses badly.
+The remaining compact legacy range issue therefore needs either a more precise
+old RGB/RCT plane-layout rule or smaller black-box vectors that isolate the
+Cb-to-Cr boundary.

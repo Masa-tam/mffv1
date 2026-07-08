@@ -243,7 +243,7 @@ TEST(SliceExecutorTest, DecodesLegacyGolombRiceEmbeddedReadAheadBoundary)
     EXPECT_TRUE(executor.has_reference_state());
 }
 
-TEST(SliceExecutorTest, PrefersPrimaryGolombRiceBoundaryWithReadAheadByte)
+TEST(SliceExecutorTest, PrefersPrimaryGolombRiceBoundaryWithReadAheadFallback)
 {
     auto stream = make_stream();
     stream.version = 3;
@@ -300,7 +300,7 @@ TEST(SliceExecutorTest, ReportsGolombRiceReadAheadCandidateOnFailure)
 
     EXPECT_FALSE(status.ok());
     EXPECT_NE(status.message.find(
-                  "while decoding Golomb-Rice content candidate at byte offset 0"),
+                  "while decoding Golomb-Rice content candidate at byte offset 1"),
               std::string::npos);
     EXPECT_EQ(storage[0], 0xee);
     EXPECT_FALSE(executor.has_reference_state());

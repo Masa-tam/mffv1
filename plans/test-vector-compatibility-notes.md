@@ -992,9 +992,13 @@ control. The compact range-coded YUVA10/RGBA10 controls also pass.
 The new vectors leave three focused known gaps:
 
 - `gr_yuv420p_inter_64x48_2x2_2frames.mkv` fails on the second frame at the
-  bottom-right slice origin. That narrows the next non-RGBA investigation to
-  Golomb-Rice multi-slice inter-frame reference-state handling rather than
-  single-slice inter prediction.
+  bottom-right slice origin. An experiment that preferred readable
+  Golomb-Rice read-ahead candidates before the primary descriptor made this
+  FFmpeg-generated vector pass, but it broke mffv1's own Golomb-Rice encoder
+  round-trips. That points to a deeper slice-header/read-ahead boundary model
+  mismatch between the decoder and encoder, so the production decoder keeps
+  primary-first candidate selection until the encoder-side boundary contract is
+  corrected too.
 - `range_rgb_v1_legacy_1slice.mkv` and `range_yuv444p_v1_legacy_1slice.mkv`
   still fail under `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1`, so the generated
   harness now treats compact version 1 no-Codec-Private legacy probes as a

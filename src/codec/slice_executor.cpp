@@ -45,6 +45,10 @@ bool can_try_golomb_rice_read_ahead_boundary(
         || slice.content_byte_offset <= slice.payload_byte_offset) {
         return false;
     }
+    if ((slice.footer_byte_offset != 0 || slice.slice_size != 0)
+        && slice.footer_byte_offset <= slice.content_byte_offset - 1) {
+        return false;
+    }
     if (stream.version >= 3) {
         return true;
     }
@@ -65,11 +69,9 @@ std::vector<syntax::SliceDescriptor> make_golomb_rice_content_candidates(
 {
     std::vector<syntax::SliceDescriptor> candidates;
     candidates.push_back(slice);
-    if (!can_try_golomb_rice_read_ahead_boundary(stream, slice)) {
-        return candidates;
+    if (can_try_golomb_rice_read_ahead_boundary(stream, slice)) {
+        candidates.push_back(make_golomb_rice_read_ahead_boundary(slice));
     }
-
-    candidates.push_back(make_golomb_rice_read_ahead_boundary(slice));
     return candidates;
 }
 
@@ -292,7 +294,7 @@ Status SliceExecutor::validate_slices(MutableFrameView output,
             const auto candidates =
                 make_golomb_rice_content_candidates(stream_, slice);
             bool accepted_candidate = false;
-            for (std::size_t i = 1; i < candidates.size(); ++i) {
+            for (std::size_t i = 0; i < candidates.size(); ++i) {
                 const auto& candidate = candidates[i];
                 SliceOutputWindow candidate_window;
                 Status candidate_status =
@@ -401,6 +403,8 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
     const auto candidates = make_golomb_rice_content_candidates(stream_, slice);
     const SliceDecoder read_ahead_decoder(
         stream_, kernels_, true);
+    bool has_first_status = false;
+    Status first_status;
     Status last_status;
     for (std::size_t i = 0; i < candidates.size(); ++i) {
         const auto& candidate = candidates[i];
@@ -409,6 +413,10 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
         status = candidate_window.validate(stream_, temporary_frame, candidate);
         if (!status.ok()) {
             append_golomb_rice_candidate_context(status, candidate);
+            if (!has_first_status) {
+                first_status = status;
+                has_first_status = true;
+            }
             last_status = std::move(status);
             continue;
         }
@@ -416,6 +424,10 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
         status = candidate_decoder.decode(candidate, candidate_window, candidate_state);
         if (!status.ok()) {
             append_golomb_rice_candidate_context(status, candidate);
+            if (!has_first_status) {
+                first_status = status;
+                has_first_status = true;
+            }
             last_status = std::move(status);
             continue;
         }
@@ -428,6 +440,9 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
         return ok_status();
     }
 
+    if (has_first_status) {
+        return first_status;
+    }
     return last_status;
 }
 

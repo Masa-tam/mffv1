@@ -7,7 +7,7 @@ repository test data.
 
 ## Current Local Vector Status
 
-The local `testvectors/test_vector_data.hpp` set currently contains 14 RGB
+The local `testvectors/test_vector_data.hpp` set currently contains 20
 version 3.4 controls:
 
 - Passing Golomb-Rice vertical bars:
@@ -15,33 +15,40 @@ version 3.4 controls:
   `gr_rgb_bars_128x96_2x2.mkv`,
   `gr_rgb_bars_320x240_1slice.mkv`, and
   `gr_rgb_bars_320x240_2x2.mkv`.
-- Failing Golomb-Rice testsrc probes:
+- Passing Golomb-Rice RGB testsrc probes:
   `gr_rgb_testsrc_64x48_1slice.mkv`,
   `gr_rgb_testsrc_64x48_2x2.mkv`,
   `gr_rgb_testsrc_128x96_1slice.mkv`,
   `gr_rgb_testsrc_128x96_2x2.mkv`,
   `gr_rgb_testsrc_320x240_1slice.mkv`, and
   `gr_rgb_testsrc_320x240_2x2.mkv`.
+- Passing Golomb-Rice YUV420p testsrc controls:
+  `gr_yuv420p_testsrc_64x48_1slice.mkv`,
+  `gr_yuv420p_testsrc_64x48_2x2.mkv`,
+  `gr_yuv420p_testsrc_128x96_1slice.mkv`,
+  `gr_yuv420p_testsrc_128x96_2x2.mkv`,
+  `gr_yuv420p_testsrc_320x240_1slice.mkv`, and
+  `gr_yuv420p_testsrc_320x240_2x2.mkv`.
 - Passing range-coded testsrc controls:
   `range_rgb_testsrc_128x96_1slice.mkv`,
   `range_rgb_testsrc_128x96_2x2.mkv`,
   `range_rgb_testsrc_320x240_1slice.mkv`, and
   `range_rgb_testsrc_320x240_2x2.mkv`.
 
-This separates the active gap from plain size growth. RGB Golomb-Rice vertical
-bars pass even at 320x240 and with a 2x2 slice grid, while RGB Golomb-Rice
-testsrc fails already at 64x48. The matching range-coded testsrc vectors pass
-at 128x96 and 320x240, so RGB RCT transform, planar R/G/B output mapping,
-version 3 Slice Header/Footer handling, and slice-grid handling are not the
-primary suspect. The remaining issue is specific to Golomb-Rice decoding of
-more complex RGB/RCT residual patterns.
+This set now passes through the public generated-vector test. The earlier RGB
+Golomb-Rice testsrc failure was not plain size growth: RGB bars passed at
+320x240 and 2x2 slices, matching range-coded RGB testsrc controls passed, and
+YUV420p Golomb-Rice testsrc controls also passed. The active issue was
+therefore isolated to RGB/RCT Golomb-Rice run interruption context selection
+inside more complex residual patterns.
 
-The 64x48 one-slice testsrc vector reports the same class of first traced
-coded-chroma divergence as the earlier 320x240 probe, but at a smaller
-coordinate: plane 1, `x=17,y=1`, expected internal chroma `511`, reconstructed
-`393`, around a magenta RGB region. The 320x240 one-slice vector still decodes
-to `ok` and first mismatches publicly at `x=87,y=1`, where the expected RGB
-sample is `255/0/255` and mffv1 produces `158/157/38`.
+Before the fix, the 64x48 one-slice testsrc vector reported a first traced
+coded-chroma divergence at plane 1, `x=17,y=1`: expected internal chroma
+`511`, reconstructed `393`, around a magenta RGB region. The run started in
+context 0, but the interruption sample's current neighbors derived context
+242. Decoding the interruption with context 242's adaptive VLC state produced
+the expected small residual; reusing the old context 0 state drove `k` too
+high and produced a large chroma residual.
 
 Three local probes were rejected while checking the larger RGB GR vectors:
 
@@ -54,21 +61,11 @@ Three local probes were rejected while checking the larger RGB GR vectors:
   the first coded-chroma sample. This reinforces the current zero-border model
   for RGB/RGBA RCT planes.
 
-The next useful RGB Golomb-Rice vectors should isolate the 64x48 testsrc
-failure region rather than scale size further. Good candidates are cropped or
-synthetic RGB patterns that contain the first failing magenta transition around
-`x=17,y=1`, plus a sibling range-coded version for each generated GR probe.
-
-Follow-up decoding showed that the failing RGB Golomb-Rice testsrc vectors
-depend on deriving the run-interruption context at the interruption sample,
-not reusing context 0 from the position where run mode started. At
-`gr_rgb_testsrc_64x48_1slice.mkv` plane 1 `x=17,y=1`, the run started in
-context 0, but the interruption sample's current neighbors derive context 242.
-The bit sequence at that point decodes to the expected small residual when it
-uses the interruption context's adaptive VLC state; reusing the old context 0
-state drives `k` too high and produces a large chroma residual. Encoder and
-decoder now mirror this rule, including context inversion for the derived
-interruption context.
+Encoder and decoder now mirror the derived-interruption-context rule,
+including context inversion for the derived interruption context. Future RGB
+Golomb-Rice vectors should stress new shapes instead of repeating the same
+testsrc failure: alpha, high bit depth, non-keyframes, and nontrivial slice
+grids are now more valuable than additional RGB 8-bit testsrc sizes.
 
 Several previously rejected probes remain useful guardrails:
 

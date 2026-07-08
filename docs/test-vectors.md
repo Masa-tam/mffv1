@@ -123,6 +123,35 @@ Keep the existing local set available while working on entropy, prediction,
 slice, or frame-state changes. Ask for new vectors only when a new unsupported
 profile or ambiguous mismatch needs black-box confirmation.
 
+## High-Value Local Vector Requests
+
+The current local vectors already cover 8-bit RGB/YUV420p `testsrc` and RGB
+bar controls for version 3.4 range and Golomb-Rice decoding. The next most
+useful local-only additions are:
+
+- Golomb-Rice 8-bit RGBA/YUVA, one slice and 2x2 slices. These should include
+  non-flat alpha so the extra-plane slot is exercised together with RGB/RCT or
+  chroma run/interruption state.
+- Golomb-Rice 10-bit RGB and YUV420p, one slice and 2x2 slices. Prefer
+  synthetic gradients or `testsrc`-like material rather than flat fields, so
+  high-bit reconstruction and context evolution are both exercised.
+- Range-coded 10-bit RGB and RGBA, one slice and 2x2 slices. These provide
+  high-bit controls for the compatibility RGB transform and optional alpha
+  path.
+- Inter-frame version 3.4 pairs for range and Golomb-Rice in YUV420p and RGB:
+  two or three frames, small dimensions such as 64x48, with a visible change
+  between frames. These validate reference-state continuity beyond intra-only
+  payloads.
+- Error-correction multi-slice variants for RGB and YUV420p, especially 2x2
+  and 3x2 grids. These exercise slice footer location, CRC, and non-square
+  raster partitioning together.
+- Legacy version 0/1 RGB or YUV444 single-slice AVI-derived vectors, if FFmpeg
+  can produce them. These would broaden legacy bootstrap coverage beyond gray
+  and nominal YUV420p.
+
+Keep these vectors local unless a separate provenance review promotes a
+specific minimized case into the repository.
+
 Recommended naming pattern for local generated headers:
 
 - `range_intra_420p8_1slice_chroma_grad`
@@ -130,10 +159,26 @@ Recommended naming pattern for local generated headers:
 - `range_intra_yuva8_1slice`
 - `range_intra_rgba8_1slice`, only if planar data is generated
 - `range_intra_420p8_1slice_qidx`
+- `range_rgb10_testsrc_1slice`
+- `range_rgb10_testsrc_2x2`
+- `range_rgba10_testsrc_1slice`, only if planar data is generated
+- `range_rgba10_testsrc_2x2`, only if planar data is generated
 - `rgb_black_1slice`
 - `rgb_red_1slice`
 - `rgb_green_1slice`
 - `rgb_blue_1slice`
+- `gr_rgba8_testsrc_1slice`, only if planar data is generated
+- `gr_rgba8_testsrc_2x2`, only if planar data is generated
+- `gr_yuva8_testsrc_1slice`
+- `gr_yuva8_testsrc_2x2`
+- `gr_rgb10_testsrc_1slice`
+- `gr_rgb10_testsrc_2x2`
+- `gr_yuv420p10_testsrc_1slice`
+- `gr_yuv420p10_testsrc_2x2`
+- `range_yuv420p_inter_64x48_2frames`
+- `gr_yuv420p_inter_64x48_2frames`
+- `range_rgb_inter_64x48_2frames`
+- `gr_rgb_inter_64x48_2frames`
 - `gr_intra_gray8_1slice_ygrad_small`
 - `gr_intra_gray8_1slice_xgrad_small`
 - `gr_intra_420p8_1slice_yflat_uvflat_small`

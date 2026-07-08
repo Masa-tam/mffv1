@@ -950,7 +950,7 @@ site, which is an in-row interruption, not a pending-row-boundary case.
 
 The later refreshed vector set reintroduced targeted known gaps under the
 generated-vector harness instead of treating every local probe as a release
-blocker. The current known generated-vector gap list includes:
+blocker. At that point, the known generated-vector gap list included:
 
 - `gr_rgba_testsrc2_2x2.mkv`
 - compact legacy version 1 YUV420p no-Codec-Private controls
@@ -989,28 +989,32 @@ multi-frame controls. The 1-slice range and Golomb-Rice YUV420p/RGB
 three-frame controls pass, as does the range-coded 3x2 RGB inter-frame
 control. The compact range-coded YUVA10/RGBA10 controls also pass.
 
-The new vectors leave three focused known gaps:
+Subsequent fixes removed the Golomb-Rice YUV420p inter-frame and Golomb-Rice
+RGBA known gaps:
 
-- `gr_yuv420p_inter_64x48_2x2_2frames.mkv` fails on the second frame at the
-  bottom-right slice origin. An experiment that preferred readable
-  Golomb-Rice read-ahead candidates before the primary descriptor made this
-  FFmpeg-generated vector pass, but it broke mffv1's own Golomb-Rice encoder
-  round-trips. That points to a deeper slice-header/read-ahead boundary model
-  mismatch between the decoder and encoder, so the production decoder keeps
-  primary-first candidate selection until the encoder-side boundary contract is
-  corrected too.
-  A direct `FrameParser` experiment that changed v3 Golomb-Rice slice content
-  offsets from `RangeCoder::byte_position()` to `byte_position() - 1` was also
-  rejected: it moved the parser toward this FFmpeg vector, but it broke the
-  complete mffv1 Golomb-Rice encoder round-trip matrix, including 1-bit,
-  7-bit, 16-bit, RGB/RGBA, YCbCr+extra-plane, multi-slice, and non-keyframe
-  cases. The remaining fix should therefore be based on a more precise
-  distinction than a global one-byte offset shift.
+- Golomb-Rice v3 slice content offsets now account for the RangeCoder low-byte
+  holdover at the boundary between the range-coded slice header and
+  Golomb-Rice body.
+- Golomb-Rice RGBA now reconstructs the alpha plane in the same `bits+1`
+  internal domain used by the RGB/RCT planes and truncates the stored alpha
+  output back to the raw sample width.
+
+The remaining known generated-vector gap is now focused on compact
+range-coded legacy no-Codec-Private controls:
+
 - `range_rgb_v1_legacy_1slice.mkv` and `range_yuv444p_v1_legacy_1slice.mkv`
   still fail under `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1`, so the generated
   harness now treats compact version 1 no-Codec-Private legacy probes as a
   named gap rather than only the earlier YUV420p variants.
-- The compact `gr_rgba8_*` opaque-alpha and half-alpha bar probes fail in the
-  same broad class as `gr_rgba_testsrc2_2x2.mkv`. This confirms that the RGBA
-  issue is not specific to `testsrc2` complexity and remains a clean
-  alpha/RCT Golomb-Rice compatibility target.
+- `range_rgb_v0_legacy_1slice.mkv` and `range_yuv444p_v0_legacy_1slice.mkv`
+  are the matching version 0 siblings and remain grouped with the same compact
+  range-state boundary investigation.
+
+With `MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP=1`, known-gap legacy entries now emit
+the same bootstrap/range-state probes used for unsupported-entry diagnostics.
+For the compact v1 RGB probe, the first range residual can be decoded from the
+post-parameter arithmetic state, but public output diverges immediately after
+RGB reconstruction. For the compact v1 YUV444p probe, the luma plane begins
+correctly and the first visible mismatch appears on the second chroma plane.
+That points to a compact legacy range-state or plane-boundary rule rather than
+a failed bootstrap parse.

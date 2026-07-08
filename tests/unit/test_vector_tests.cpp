@@ -4933,11 +4933,13 @@ std::size_t expected_frame_count_from_name(std::string_view name) noexcept
 
 std::string known_decode_gap_reason(std::string_view name)
 {
-    if (name.find("_v0_legacy_") != std::string_view::npos) {
-        return "pending legacy version 0 no-Codec-Private compatibility investigation";
-    }
-    if (name.find("_v1_legacy_") != std::string_view::npos) {
-        return "pending legacy version 1 no-Codec-Private compatibility investigation";
+    const bool compact_range_legacy =
+        name.find("range_rgb_v0_legacy_") != std::string_view::npos
+        || name.find("range_rgb_v1_legacy_") != std::string_view::npos
+        || name.find("range_yuv444p_v0_legacy_") != std::string_view::npos
+        || name.find("range_yuv444p_v1_legacy_") != std::string_view::npos;
+    if (compact_range_legacy) {
+        return "pending compact range-coded no-Codec-Private legacy compatibility investigation";
     }
     return {};
 }
@@ -5003,6 +5005,9 @@ TEST(TestVectorTest, GeneratedVectorsDecodeThroughPublicApi)
         if (!known_gap_reason.empty() && !try_unsupported) {
             std::ostringstream entry;
             entry << vector.name << ": " << known_gap_reason;
+            if (trace_bootstrap && vector.configuration_record.empty()) {
+                entry << describe_legacy_bootstrap_state(vector);
+            }
             known_gap_vectors.push_back(entry.str());
             continue;
         }

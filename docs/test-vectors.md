@@ -127,9 +127,8 @@ no-Codec-Private vectors as known compatibility gaps by default; set
 `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` with a narrow
 `MFFV1_TEST_VECTOR_FILTER` when diagnosing those streams directly.
 
-The same known-gap handling currently applies to compact legacy version 1
-no-Codec-Private controls, 8-bit Golomb-Rice RGBA controls, and the compact
-Golomb-Rice YUV420p multi-slice inter-frame control. These vectors are useful
+The same known-gap handling currently applies to compact range-coded legacy
+version 0/1 RGB and YUV444p no-Codec-Private controls. These vectors are useful
 local probes, but they should not make the normal generated-vector run fail
 while the implementation work is still in progress.
 
@@ -172,11 +171,10 @@ reference-state cases. The next most useful local-only additions are:
   data for both alpha layouts. The current set already has range RGBA10 and
   Golomb-Rice RGBA/YUVA10 coverage, but a YUVA10 range sibling would round out
   the matrix.
-- Minimal Golomb-Rice 8-bit RGBA controls, ideally 16x16 or 32x16, with:
-  constant opaque alpha, constant non-opaque alpha, and simple RGB bars. Generate
-  both 1-slice and 2x2 variants if possible. These isolate the current
-  `gr_rgba_testsrc2_2x2` gap from `testsrc2` complexity, alpha-plane
-  prediction, and multi-slice state.
+- Additional compact range-coded legacy RGB/YUV444p controls with simple
+  flat, bar, and gradient content. These should keep version 0 and version 1
+  siblings paired so the no-Codec-Private range-state boundary can be compared
+  without changing the generator contract.
 
 Keep these vectors local unless a separate provenance review promotes a
 specific minimized case into the repository.
@@ -196,14 +194,10 @@ Recommended naming pattern for local generated headers:
 - `rgb_red_1slice`
 - `rgb_green_1slice`
 - `rgb_blue_1slice`
-- `gr_rgba8_testsrc_1slice`, only if planar data is generated
-- `gr_rgba8_testsrc_2x2`, only if planar data is generated
-- `gr_rgba8_flat_opaque_alpha_1slice`
-- `gr_rgba8_flat_opaque_alpha_2x2`
-- `gr_rgba8_flat_mid_alpha_1slice`
-- `gr_rgba8_flat_mid_alpha_2x2`
-- `gr_rgba8_bars_opaque_alpha_1slice`
-- `gr_rgba8_bars_opaque_alpha_2x2`
+- `range_rgb_v0_legacy_1slice_flat`
+- `range_rgb_v1_legacy_1slice_flat`
+- `range_yuv444p_v0_legacy_1slice_flat`
+- `range_yuv444p_v1_legacy_1slice_flat`
 - `gr_yuva8_testsrc_1slice`
 - `gr_yuva8_testsrc_2x2`
 - `gr_rgb10_testsrc_1slice`

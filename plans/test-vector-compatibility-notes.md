@@ -999,6 +999,13 @@ The new vectors leave three focused known gaps:
   mismatch between the decoder and encoder, so the production decoder keeps
   primary-first candidate selection until the encoder-side boundary contract is
   corrected too.
+  A direct `FrameParser` experiment that changed v3 Golomb-Rice slice content
+  offsets from `RangeCoder::byte_position()` to `byte_position() - 1` was also
+  rejected: it moved the parser toward this FFmpeg vector, but it broke the
+  complete mffv1 Golomb-Rice encoder round-trip matrix, including 1-bit,
+  7-bit, 16-bit, RGB/RGBA, YCbCr+extra-plane, multi-slice, and non-keyframe
+  cases. The remaining fix should therefore be based on a more precise
+  distinction than a global one-byte offset shift.
 - `range_rgb_v1_legacy_1slice.mkv` and `range_yuv444p_v1_legacy_1slice.mkv`
   still fail under `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1`, so the generated
   harness now treats compact version 1 no-Codec-Private legacy probes as a

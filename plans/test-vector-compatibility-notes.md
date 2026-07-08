@@ -1090,3 +1090,20 @@ the parsed quantization tables. The next useful compact legacy range probe
 should compare the arithmetic state after row 14 against a reference decoder
 or isolate a still smaller v1 YUV444p range vector whose last row crosses the
 same low-range boundary.
+
+One more trace corrected the ordering of the remaining failure: under the
+row-major `Y, Cb, Cr` hypothesis, the first mismatch in decode order is not
+the final luma row but `p2@16,13`. The preceding `Cr` samples still decode as
+zero residuals:
+
+- `p2@14,13`: `range=0x235 low=0x14 byte=180`, `s0=252`, residual `0`.
+- `p2@15,13`: `range=0x22c low=0xb byte=180`, `s0=252`, residual `0`.
+- `p2@16,13`: `range=0x223 low=0x2 byte=180`, `s0=246`, residual `-1`
+  instead of the expected zero.
+
+Forcing the later `p0@0,15` luma symbol to the zero branch does not repair the
+frame; it moves the first luma mismatch only to `p0@1,15`. Forcing the version
+0 arithmetic variant on the version 1 vector fails immediately at `p0@0,0`.
+This refocuses the compact legacy YUV444p range gap on the arithmetic
+renormalization/low-carry behavior around repeated high-probability zero
+symbols at low `range`, rather than on the final luma context alone.

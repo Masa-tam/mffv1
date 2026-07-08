@@ -66,10 +66,11 @@ and the license review is complete. When possible, reproduce issues with
 synthetic or minimized media that preserves the codec behavior without exposing
 the original content.
 
-## Current Local Compatibility Coverage
+## Optional Local Compatibility Scope
 
-The current optional local vector set validates v3 range and Golomb-Rice
-decoding across the compatibility cases that most recently drove fixes:
+When a local generated header is supplied, the generated-vector test can cover
+the following FFV1 option ranges. This section describes the supported local
+test shape; it is not a list of files committed to the repository.
 
 - Range-coded 8-bit 4:2:0, one slice, with nonzero chroma gradients. This
   probes Cb/Cr prediction and shared chroma-slot range contexts beyond neutral
@@ -131,106 +132,15 @@ investigation headers that contain entries outside the current decoder
 coverage. Use it together with a narrow `MFFV1_TEST_VECTOR_FILTER` when
 diagnosing a newly added unsupported stream directly.
 
-If version 0 compatibility needs more evidence, prefer tiny diagnostic vectors
-over broad coverage expansion:
-
-- Range-coded 8-bit gray v0, 1 slice, all-zero frames at 1x1, 2x1, 3x1, 4x1,
-  8x1, 16x1, and 32x16. These separate first-symbol behavior from later scalar
-  context evolution.
-- Range-coded 8-bit gray v0, 1 slice, exactly one nonzero luma sample at the
-  first, fourth, and last position. These isolate the first zero/non-zero range
-  decision and reconstruction path.
-- Golomb-Rice 8-bit gray v0, 1 slice, all-zero frames at 1x1, 2x1, 4x1, 8x1,
-  and 16x1. These distinguish keyframe-bit-only payloads from keyframe plus
-  embedded-parameter payloads.
-- Matching v1 siblings for each legacy v0 diagnostic vector whenever FFmpeg can
-  generate them. The test harness already compares v0 failures against passing
-  v1 siblings when the names match.
-
-Keep the existing local set available while working on entropy, prediction,
-slice, or frame-state changes. Ask for new vectors only when a new unsupported
-profile or ambiguous mismatch needs black-box confirmation.
-
-## High-Value Local Vector Requests
-
-The current local vectors cover the most recent 8-bit RGB/YUV420p `testsrc`,
-RGB bar, high-bit, alpha, CRC, MKV legacy Golomb-Rice, and true multi-frame
-reference-state cases. The next most useful local-only additions are:
-
-- Three-frame inter variants for range and Golomb-Rice in YUV420p and RGB,
-  especially with one keyframe followed by two non-keyframes. These extend the
-  current two-payload reference-state coverage.
-- 2x2 or 3x2 multi-frame variants, if FFmpeg and the generator can produce
-  compact files. These would combine slice state, reference state, CRC/footer
-  location, and non-square grids in one black-box check.
-- Additional legacy version 0/1 range-coded RGB or YUV444 MKV vectors without
-  Codec Private data, especially non-flat bars or gradients. The current local
-  set already covers compact single-slice flat controls, so new additions
-  should expand sample variation rather than duplicate that baseline. Keep
-  version 0 and version 1 siblings paired so no-Codec-Private range-state
-  boundaries can be compared without changing the generator contract.
-- Range-coded 10-bit YUVA/RGBA controls if FFmpeg can generate planar expected
-  data for both alpha layouts. The current set already has range RGBA10 and
-  Golomb-Rice RGBA/YUVA10 coverage, but a YUVA10 range sibling would round out
-  the matrix.
-
-Keep these vectors local unless a separate provenance review promotes a
-specific minimized case into the repository.
-
-Recommended naming pattern for local generated headers:
-
-- `range_intra_420p8_1slice_chroma_grad`
-- `range_intra_420p10_2x2_chroma_grad`
-- `range_intra_yuva8_1slice`
-- `range_intra_rgba8_1slice`, only if planar data is generated
-- `range_intra_420p8_1slice_qidx`
-- `range_rgb10_testsrc_1slice`
-- `range_rgb10_testsrc_2x2`
-- `range_rgba10_testsrc_1slice`, only if planar data is generated
-- `range_rgba10_testsrc_2x2`, only if planar data is generated
-- `rgb_black_1slice`
-- `rgb_red_1slice`
-- `rgb_green_1slice`
-- `rgb_blue_1slice`
-- `range_rgb_v0_legacy_1slice_flat`
-- `range_rgb_v1_legacy_1slice_flat`
-- `range_yuv444p_v0_legacy_1slice_flat`
-- `range_yuv444p_v1_legacy_1slice_flat`
-- `gr_yuva8_testsrc_1slice`
-- `gr_yuva8_testsrc_2x2`
-- `gr_rgb10_testsrc_1slice`
-- `gr_rgb10_testsrc_2x2`
-- `gr_yuv420p10_testsrc_1slice`
-- `gr_yuv420p10_testsrc_2x2`
-- `range_yuv420p_inter_64x48_2frames`
-- `gr_yuv420p_inter_64x48_2frames`
-- `range_rgb_inter_64x48_2frames`
-- `gr_rgb_inter_64x48_2frames`
-- `range_yuv420p_inter_64x48_3frames`
-- `gr_yuv420p_inter_64x48_3frames`
-- `range_rgb_inter_64x48_3frames`
-- `gr_rgb_inter_64x48_3frames`
-- `gr_intra_gray8_1slice_ygrad_small`
-- `gr_intra_gray8_1slice_xgrad_small`
-- `gr_intra_420p8_1slice_yflat_uvflat_small`
-- `gr_intra_420p8_1slice_yflat_uvstep_small`
-- `range_gray_v1_legacy_1slice`
-- `range_yuv420p_v1_legacy_1slice`
-- `gr_gray_v1_legacy_1slice`
-- `gr_yuv420p_v1_legacy_1slice`
-- `range_gray_v0_legacy_1slice_1x1`
-- `range_gray_v0_legacy_1slice_4x1`
-- `range_gray_v0_legacy_1slice_32x16`
-- `range_gray_v0_legacy_1slice_16x1_nonzero`
-- `gr_gray_v0_legacy_1slice_1x1`
-- `gr_gray_v0_legacy_1slice_4x1`
-- `gr_gray_v0_legacy_1slice_16x1`
-
 When possible, keep the frame size modest, for example 32x24 or 64x48. Smaller
 vectors keep diagnostics and generated headers easier to inspect, while still
 covering the syntax and context-state behavior under test.
 
-## Entry Template
+## Committed Vector Entry Template
+
+Use this template only when an external vector is intentionally promoted from a
+local-only artifact into a committed repository file. It is the registry entry
+that justifies why the vector can be redistributed with mffv1.
 
 ```markdown
 ## Vector: <name>

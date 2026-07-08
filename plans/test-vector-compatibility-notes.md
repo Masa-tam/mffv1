@@ -872,3 +872,26 @@ public decoder pass the v0 flat, single-nonzero, checker, and gradient legacy
 Golomb-Rice vectors. The same correction also removes the generated-vector
 skip for v0 range-coded nonzero controls, so the current local single-slice
 legacy v0/v1 vector set has no known unsupported entries.
+
+The refreshed RGB external set separates a Golomb-Rice-specific RGB gap from
+general RGB reconstruction. `gr_rgb_bars_*` vectors pass, and
+`range_rgb_testsrc_*` vectors pass, but `gr_rgb_testsrc_*` fails from the
+small `64x48` controls upward. The first stable failure in
+`gr_rgb_testsrc_64x48_1slice` occurs in the coded chroma line at
+plane 1, `y=1`, `x=17`: the run mode reaches an interruption after a 17-sample
+run, the current context-0 VLC state derives `k=8`, and the bit sequence
+decodes to a large negative residual where the expected RGB output implies a
+small `-2` coded-chroma residual. This rules out simple size dependence and
+points at RGB Golomb-Rice context/run-state evolution before that sample.
+
+Several local experiments were deliberately not kept. Making RGB Golomb-Rice
+VLC banks plane-local broke the already-passing bars vectors, so FFmpeg-style
+RGB Golomb-Rice streams appear to share at least the chroma VLC bank. Making
+RGB run state plane-local also broke the passing bars vectors, which supports
+the current shared RGB run-state behavior despite the generic RFC wording about
+planes. Clearing only pending run counts at RGB coded-line boundaries did not
+move the primary `testsrc` mismatch. Suppressing VLC-state updates for run
+interruptions broke bars and the local Golomb-Rice context contract tests.
+Carrying an explicit "pending interruption" bit across row boundaries exposed
+interesting writer/decoder ambiguity but did not affect the `testsrc` failure
+site, which is an in-row interruption, not a pending-row-boundary case.

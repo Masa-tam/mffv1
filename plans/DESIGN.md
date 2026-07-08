@@ -566,6 +566,9 @@ Fuzz builds should enable sanitizers where available.
 ### Phase 5: Encoder
 
 - Implement scalar version 3 encoder.
+- Treat FFV1 versions 0 and 1 as decoder compatibility targets only. Do not
+  implement legacy encoder output unless a future downstream integration proves
+  that new legacy streams are required.
 - Share predictor, contexts, entropy, and CRC modules.
 - Add round-trip tests.
 - Add interoperability black-box tests.

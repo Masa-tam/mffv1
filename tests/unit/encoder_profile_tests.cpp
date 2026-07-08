@@ -1,6 +1,7 @@
 #include "codec/encoder_profile.hpp"
 
 #include <cstddef>
+#include <cstdint>
 
 #include <gtest/gtest.h>
 
@@ -87,6 +88,26 @@ TEST(EncoderProfileTest, RejectsLargeVersionThreeFrameWithTooFewSlices)
 
     EXPECT_FALSE(status.ok());
     EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidArgument);
+}
+
+TEST(EncoderProfileTest, RejectsLegacyEncoderVersions)
+{
+    for (const std::uint8_t version : {std::uint8_t{0}, std::uint8_t{1}}) {
+        mffv1::EncoderOptions options;
+        options.version = version;
+        auto info = make_stream_info();
+        info.version = version;
+        mffv1::syntax::StreamParameters stream;
+
+        const auto status =
+            mffv1::codec::normalize_encoder_profile(options, info, stream);
+
+        EXPECT_FALSE(status.ok()) << "version=" << version;
+        EXPECT_EQ(status.code, mffv1::ErrorCode::UnsupportedFeature)
+            << "version=" << version;
+        EXPECT_EQ(status.message, "encoder supports only FFV1 version 3")
+            << "version=" << version;
+    }
 }
 
 TEST(EncoderProfileTest, RejectsSliceGridWithEmptySubsampledPlaneRegion)

@@ -80,7 +80,7 @@ On success, `status.ok()` is true and `encoder` is non-null. A negative
 | Field | Meaning |
 | --- | --- |
 | `thread_count` | `0` selects hardware concurrency, `1` forces serial slice encoding, and a positive value sets the maximum slice workers. |
-| `version` | Requested FFV1 version. The current encoder accepts only version 3. |
+| `version` | Requested FFV1 version. The current encoder accepts only version 3. Version 0 and 1 are decoder compatibility targets, not encoder output targets. |
 | `entropy_mode` | Selects `EntropyMode::Range` or `EntropyMode::GolombRice`. |
 | `keyframe_interval` | Number of frames between generated keyframes. The default `1` makes every frame a keyframe. Values greater than `1` enable non-keyframe continuation. `0` is rejected. |
 | `cpu` | Controls runtime CPU feature selection. Dispatch is resolved once when the encoder is created. |
@@ -409,6 +409,9 @@ before reading `slice_index`.
 ## Current Limitations
 
 - Versions 0, 1, and 2 are not encoded.
+  Versions 0 and 1 remain decode-only compatibility targets because their
+  historical range-state and no-Codec-Private behavior is container- and
+  implementation-sensitive. New encoder output should use version 3.
 - Custom quantization tables are absent from the public encoder profile.
 - Generated error-status values are always `0`; the encoder does not report
   correctable or uncorrectable slice errors in its own output.

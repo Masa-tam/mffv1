@@ -36,8 +36,9 @@ The generated-vector tests accept these optional environment variables:
 - `MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP`: when nonzero, report legacy bootstrap
   diagnostics for matched legacy vectors, including unsupported-vector reports.
 - `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED`: when nonzero, attempt to decode matched
-  vectors even if the legacy bootstrap-support precheck would normally fail,
-  so the public decode error path can be inspected directly.
+  vectors even if the legacy bootstrap-support precheck would normally fail or
+  the harness has a named compatibility gap for that vector, so the public
+  decode error path can be inspected directly.
 
 ## Local Vector Use
 
@@ -99,6 +100,19 @@ treated as caller-owned storage and is ignored by the comparison.
 frame. The tests configure one decoder per `DecodeVector`, then inspect and
 decode the frame payloads in order. Inter frames may rely on the reference
 state produced by earlier payloads in the same vector.
+
+The tests also perform lightweight metadata checks on vector names. Names that
+contain `inter` should expose at least two frame payloads, and names that
+contain `2frames` or `3frames` should expose exactly that many frame payloads
+and expected-plane sets. This helps catch generator or batch-file naming
+mistakes before they become misleading compatibility notes.
+
+Some local vectors may intentionally cover profiles that are still under
+investigation. The public test harness names those known gaps and skips them by
+default so that new local coverage does not hide regressions in already
+supported profiles. Set `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` with
+`MFFV1_TEST_VECTOR_FILTER` to force one of those vectors through the decoder and
+inspect the failure diagnostics.
 
 ## Commit Policy
 

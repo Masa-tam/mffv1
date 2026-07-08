@@ -1018,3 +1018,12 @@ RGB reconstruction. For the compact v1 YUV444p probe, the luma plane begins
 correctly and the first visible mismatch appears on the second chroma plane.
 That points to a compact legacy range-state or plane-boundary rule rather than
 a failed bootstrap parse.
+
+A focused RGB row probe now decodes the first legacy RGB range-coded row as
+internal RCT samples before the inverse color transform. For
+`range_rgb_v1_legacy_1slice.mkv`, the first coded Y line matches the expected
+flat gray value (`128`), but the following coded Cb/Cr lines decode as high
+9-bit values (`503` and `511`) instead of the expected neutral `256`. This
+narrows the compact RGB legacy issue to the boundary after the first coded
+line or to an old RGB/RCT plane layout difference; it is not explained by a
+failed embedded-parameter parse or by the first range symbol.

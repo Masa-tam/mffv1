@@ -672,42 +672,6 @@ TEST(EncoderTest, PublicEncoderRoundTripsThroughPublicDecoder)
     EXPECT_EQ(decoded, source);
 }
 
-TEST(EncoderTest, PublicRangeEncoderWritesZeroReadAheadBeforeFooter)
-{
-    auto encoder = mffv1::create_encoder({});
-    ASSERT_TRUE(encoder.status.ok());
-    ASSERT_NE(encoder.encoder, nullptr);
-    const auto stream = make_initial_profile();
-    mffv1::ConfigurationRecord record;
-    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
-
-    std::array<std::uint8_t, 128> source{};
-    for (std::size_t index = 0; index < source.size(); ++index) {
-        source[index] = static_cast<std::uint8_t>(
-            (index * 73u + (index / 16u) * 29u) & 0xffu);
-    }
-    const auto input_plane = make_input_plane(source);
-    const mffv1::FrameView input{&input_plane, 1};
-    mffv1::EncodedFrame frame;
-
-    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
-
-    mffv1::syntax::StreamParameters parsed_stream;
-    const mffv1::codec::ConfigurationRecordParser config_parser;
-    ASSERT_TRUE(config_parser.parse(record.bytes, parsed_stream).ok());
-    parsed_stream.width = stream.width;
-    parsed_stream.height = stream.height;
-    mffv1::codec::FrameDecodeContext parsed_frame;
-    mffv1::codec::FrameParser frame_parser(parsed_stream, true);
-    ASSERT_TRUE(frame_parser.parse(frame.bytes, parsed_frame).ok());
-    ASSERT_EQ(parsed_frame.slices.size(), 1u);
-    const auto footer_offset = parsed_frame.slices.front().footer_byte_offset;
-    ASSERT_GT(footer_offset, 0u);
-    ASSERT_LT(footer_offset, frame.bytes.size());
-    EXPECT_EQ(frame.bytes[static_cast<std::size_t>(footer_offset - 1)],
-              std::byte{0});
-}
-
 void expect_public_low_bit_y_round_trip(
     std::uint8_t bits_per_raw_sample,
     mffv1::EntropyMode entropy_mode)

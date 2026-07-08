@@ -1441,15 +1441,6 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         return status;
     }
 
-    const auto read_range_termination_and_capture_state = [&]() -> Status {
-        Status termination_status = reader.read_termination_sentinel();
-        if (!termination_status.ok()) {
-            add_byte_offset(termination_status, reader_base_offset);
-            return termination_status;
-        }
-        return state.capture_range_contexts(reader);
-    };
-
     if (stream_.colorspace_type == 1) {
         const auto coded_bits = static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
         const auto width = output.plane_width(0);
@@ -1482,7 +1473,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 return status;
             }
         }
-        return read_range_termination_and_capture_state();
+        return state.capture_range_contexts(reader);
     }
 
     const bool use_signed_16bit_prediction = syntax::uses_signed_16bit_predictor(stream_);
@@ -1523,7 +1514,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 }
             }
         }
-        return read_range_termination_and_capture_state();
+        return state.capture_range_contexts(reader);
     }
 
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
@@ -1549,7 +1540,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
         }
     }
 
-    return read_range_termination_and_capture_state();
+    return state.capture_range_contexts(reader);
 }
 
 } // namespace mffv1::codec

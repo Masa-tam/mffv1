@@ -7,35 +7,41 @@ repository test data.
 
 ## Current Local Vector Status
 
-The local `testvectors/test_vector_data.hpp` set currently contains the
-focused RGB controls:
+The local `testvectors/test_vector_data.hpp` set currently contains 14 RGB
+version 3.4 controls:
 
-- `gr_rgb_black_16x16_1slice.mkv`
-- `range_rgb_black_16x16_1slice.mkv`
-- `gr_rgb_magenta_16x16_1slice.mkv`
-- `range_rgb_magenta_16x16_1slice.mkv`
-- `gr_rgb_bars_64x48_1slice.mkv`
-- `range_rgb_bars_64x48_1slice.mkv`
-- `gr_rgb_bars_64x48_2x2.mkv`
-- `range_rgb_bars_64x48_2x2.mkv`
+- Passing Golomb-Rice vertical bars:
+  `gr_rgb_bars_128x96_1slice.mkv`,
+  `gr_rgb_bars_128x96_2x2.mkv`,
+  `gr_rgb_bars_320x240_1slice.mkv`, and
+  `gr_rgb_bars_320x240_2x2.mkv`.
+- Failing Golomb-Rice testsrc probes:
+  `gr_rgb_testsrc_64x48_1slice.mkv`,
+  `gr_rgb_testsrc_64x48_2x2.mkv`,
+  `gr_rgb_testsrc_128x96_1slice.mkv`,
+  `gr_rgb_testsrc_128x96_2x2.mkv`,
+  `gr_rgb_testsrc_320x240_1slice.mkv`, and
+  `gr_rgb_testsrc_320x240_2x2.mkv`.
+- Passing range-coded testsrc controls:
+  `range_rgb_testsrc_128x96_1slice.mkv`,
+  `range_rgb_testsrc_128x96_2x2.mkv`,
+  `range_rgb_testsrc_320x240_1slice.mkv`, and
+  `range_rgb_testsrc_320x240_2x2.mkv`.
 
-All eight vectors are detected by the generated-vector test harness, decode
-through the public API, and match their generated R/G/B expected planes. These
-controls confirm that the RGB RCT transform, planar R/G/B output mapping,
-version 3 Slice Header/Footer handling, range-coded RGB content, and
-Golomb-Rice RGB content all work for compact flat and vertical-bar patterns,
-including a 2x2 RGB Golomb-Rice slice grid.
+This separates the active gap from plain size growth. RGB Golomb-Rice vertical
+bars pass even at 320x240 and with a 2x2 slice grid, while RGB Golomb-Rice
+testsrc fails already at 64x48. The matching range-coded testsrc vectors pass
+at 128x96 and 320x240, so RGB RCT transform, planar R/G/B output mapping,
+version 3 Slice Header/Footer handling, and slice-grid handling are not the
+primary suspect. The remaining issue is specific to Golomb-Rice decoding of
+more complex RGB/RCT residual patterns.
 
-The previous larger `gr_intra_rgb_v3_1slice.mkv` and
-`gr_intra_rgb_v3_2x2.mkv` testsrc-derived probes remain useful historical
-signals because they exposed a mismatch that the compact controls do not. The
-one-slice probe decoded to `ok` but first mismatched at `x=87,y=1`, where the
-expected RGB sample was `255/0/255` and mffv1 produced `158/157/38`; the
-diagnostic mapped that to a coded RGB/RCT plane-1 mismatch with expected
-internal chroma `511` and reconstructed chroma `393`. The 2x2 probe entered
-Golomb-Rice RGB Slice Content and then failed before its output planes were
-fully written. Keep that as a candidate for a later high-complexity RGB GR
-state-evolution investigation rather than as a basic RGB GR failure.
+The 64x48 one-slice testsrc vector reports the same class of first traced
+coded-chroma divergence as the earlier 320x240 probe, but at a smaller
+coordinate: plane 1, `x=17,y=1`, expected internal chroma `511`, reconstructed
+`393`, around a magenta RGB region. The 320x240 one-slice vector still decodes
+to `ok` and first mismatches publicly at `x=87,y=1`, where the expected RGB
+sample is `255/0/255` and mffv1 produces `158/157/38`.
 
 Three local probes were rejected while checking the larger RGB GR vectors:
 
@@ -48,10 +54,10 @@ Three local probes were rejected while checking the larger RGB GR vectors:
   the first coded-chroma sample. This reinforces the current zero-border model
   for RGB/RGBA RCT planes.
 
-No new local vector request is active as of this note. The next useful RGB
-Golomb-Rice vector should be driven by a specific recurrence of the larger
-testsrc mismatch or by a smaller pattern that reproduces the same `x=87,y=1`
-state divergence.
+The next useful RGB Golomb-Rice vectors should isolate the 64x48 testsrc
+failure region rather than scale size further. Good candidates are cropped or
+synthetic RGB patterns that contain the first failing magenta transition around
+`x=17,y=1`, plus a sibling range-coded version for each generated GR probe.
 
 Several previously rejected probes remain useful guardrails:
 

@@ -197,6 +197,10 @@ Status SliceEncoder::encode_content(
     if (!status.ok()) {
         return status;
     }
+    status = writer.write_termination_sentinel();
+    if (!status.ok()) {
+        return status;
+    }
 
     std::vector<std::byte> payload;
     status = writer.finalize(payload);
@@ -400,6 +404,10 @@ Status SliceEncoder::encode_slice(
         return status;
     }
     status = working_state.capture_range_contexts(writer);
+    if (!status.ok()) {
+        return status;
+    }
+    status = writer.write_termination_sentinel();
     if (!status.ok()) {
         return status;
     }

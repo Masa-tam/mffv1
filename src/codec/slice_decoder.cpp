@@ -1184,6 +1184,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (!status.ok()) {
         return status;
     }
+    const bool continue_from_legacy_frame_header = slice.continues_frame_range_state;
     std::vector<syntax::ContextModel> context_models;
     std::vector<std::size_t> context_counts;
     std::vector<std::size_t> golomb_rice_context_bank_indexes;
@@ -1255,7 +1256,12 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             range_context_counts = context_counts;
             range_initial_state_banks = initial_state_banks;
             for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
-                range_context_bank_indexes[plane_index] = plane_index;
+                range_context_bank_indexes[plane_index] =
+                    continue_from_legacy_frame_header
+                        && stream_.colorspace_type == 1
+                        && plane_index == 2
+                    ? std::size_t{1}
+                    : plane_index;
             }
         }
     }
@@ -1294,7 +1300,6 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     entropy::RangeCoder reader;
     std::uint64_t reader_base_offset = slice.content_byte_offset;
     const bool continue_from_slice_header = stream_.version >= 3 && slice.slice_size != 0;
-    const bool continue_from_legacy_frame_header = slice.continues_frame_range_state;
     if (continue_from_slice_header) {
         const auto local_footer_offset = slice.footer_byte_offset - slice.payload_byte_offset;
         const auto entropy_payload = slice.payload.first(static_cast<std::size_t>(local_footer_offset));

@@ -1035,7 +1035,10 @@ compact range-coded legacy no-Codec-Private controls:
   no-Codec-Private Slice Content uses the normal range arithmetic split plus
   the compact RGB shared-chroma context-bank mapping.
 
-With `MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP=1`, known-gap legacy entries now emit
+Historical diagnostic sequence before the fixes:
+
+With `MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP=1`, then-known-gap legacy entries
+emitted
 the same bootstrap/range-state probes used for unsupported-entry diagnostics.
 For the compact v1 RGB probe, the first range residual can be decoded from the
 post-parameter arithmetic state, but public output diverges immediately after
@@ -1059,7 +1062,7 @@ expected `256`. Resetting scalar contexts per plane reproduces the public
 decoder output (`Cb=256`, `Cr` near zero), which confirms that v0/v1 range
 decoding is already using plane-local scalar context banks. Resetting the
 arithmetic coder at byte boundaries between coded planes also misses badly.
-The remaining compact legacy range issue therefore needs either a more precise
+The then-remaining compact legacy range issue therefore needed either a more precise
 old RGB/RCT plane-layout rule or smaller black-box vectors that isolate the
 Cb-to-Cr boundary.
 

@@ -166,15 +166,13 @@ reference-state cases. The next most useful local-only additions are:
 - Additional legacy version 0/1 range-coded RGB or YUV444 MKV vectors without
   Codec Private data, especially non-flat bars or gradients. The current local
   set already covers compact single-slice flat controls, so new additions
-  should expand sample variation rather than duplicate that baseline.
+  should expand sample variation rather than duplicate that baseline. Keep
+  version 0 and version 1 siblings paired so no-Codec-Private range-state
+  boundaries can be compared without changing the generator contract.
 - Range-coded 10-bit YUVA/RGBA controls if FFmpeg can generate planar expected
   data for both alpha layouts. The current set already has range RGBA10 and
   Golomb-Rice RGBA/YUVA10 coverage, but a YUVA10 range sibling would round out
   the matrix.
-- Additional compact range-coded legacy RGB/YUV444p controls with simple
-  flat, bar, and gradient content. These should keep version 0 and version 1
-  siblings paired so the no-Codec-Private range-state boundary can be compared
-  without changing the generator contract.
 
 Keep these vectors local unless a separate provenance review promotes a
 specific minimized case into the repository.

@@ -883,6 +883,11 @@ run, the current context-0 VLC state derives `k=8`, and the bit sequence
 decodes to a large negative residual where the expected RGB output implies a
 small `-2` coded-chroma residual. This rules out simple size dependence and
 points at RGB Golomb-Rice context/run-state evolution before that sample.
+The follow-up `gr_yuv420p_testsrc_*` controls all pass for `64x48`,
+`128x96`, and `320x240` in both 1-slice and 2x2-slice layouts. That result
+rules out a general Golomb-Rice `testsrc` complexity failure and makes the
+remaining issue specific to the RGB/RCT Golomb-Rice path, especially the
+shared coded-chroma context-0 state before an in-row run interruption.
 
 Several local experiments were deliberately not kept. Making RGB Golomb-Rice
 VLC banks plane-local broke the already-passing bars vectors, so FFmpeg-style

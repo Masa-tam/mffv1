@@ -172,6 +172,11 @@ reference-state cases. The next most useful local-only additions are:
   data for both alpha layouts. The current set already has range RGBA10 and
   Golomb-Rice RGBA/YUVA10 coverage, but a YUVA10 range sibling would round out
   the matrix.
+- Minimal Golomb-Rice 8-bit RGBA controls, ideally 16x16 or 32x16, with:
+  constant opaque alpha, constant non-opaque alpha, and simple RGB bars. Generate
+  both 1-slice and 2x2 variants if possible. These isolate the current
+  `gr_rgba_testsrc2_2x2` gap from `testsrc2` complexity, alpha-plane
+  prediction, and multi-slice state.
 
 Keep these vectors local unless a separate provenance review promotes a
 specific minimized case into the repository.
@@ -193,6 +198,12 @@ Recommended naming pattern for local generated headers:
 - `rgb_blue_1slice`
 - `gr_rgba8_testsrc_1slice`, only if planar data is generated
 - `gr_rgba8_testsrc_2x2`, only if planar data is generated
+- `gr_rgba8_flat_opaque_alpha_1slice`
+- `gr_rgba8_flat_opaque_alpha_2x2`
+- `gr_rgba8_flat_mid_alpha_1slice`
+- `gr_rgba8_flat_mid_alpha_2x2`
+- `gr_rgba8_bars_opaque_alpha_1slice`
+- `gr_rgba8_bars_opaque_alpha_2x2`
 - `gr_yuva8_testsrc_1slice`
 - `gr_yuva8_testsrc_2x2`
 - `gr_rgb10_testsrc_1slice`

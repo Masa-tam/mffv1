@@ -947,3 +947,39 @@ interruptions broke bars and the local Golomb-Rice context contract tests.
 Carrying an explicit "pending interruption" bit across row boundaries exposed
 interesting writer/decoder ambiguity but did not affect the `testsrc` failure
 site, which is an in-row interruption, not a pending-row-boundary case.
+
+The later refreshed vector set reintroduced targeted known gaps under the
+generated-vector harness instead of treating every local probe as a release
+blocker. The current known generated-vector gap list includes:
+
+- `gr_rgba_testsrc2_2x2.mkv`
+- compact legacy version 1 YUV420p no-Codec-Private controls
+- compact legacy version 0 no-Codec-Private controls
+
+For `gr_rgba_testsrc2_2x2.mkv`, forcing decode with
+`MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` shows that the read-ahead content
+candidate still reaches the same RGB/RCT region before failing. The first
+stable mismatch appears immediately after the coded row-0 RGB/RCT data, either
+as the first alpha sample under the normal row-interleaved interpretation or
+as row-1 coded Y when alpha is experimentally moved to a trailing planar pass.
+This means the failure is not explained by a simple packed/planar expected
+output mismatch.
+
+Temporary experiments deliberately not kept:
+
+- Decoding RGBA Golomb-Rice alpha after all RGB/RCT rows moved the first
+  mismatch to coded plane 0, row 1, so the stream is not simply RGB rows
+  followed by a trailing alpha plane.
+- Giving alpha its own Golomb-Rice run-state bank changed the first alpha
+  sample but did not make the vector decode.
+- Mapping alpha to the RGB luma or chroma VLC bank did not make the vector
+  decode.
+- Making all RGBA Golomb-Rice run state plane-local for streams with an extra
+  plane did not make the vector decode.
+- Resetting the shared RGB/RGBA Golomb-Rice run state at each row did not make
+  the vector decode.
+
+The remaining `gr_rgba_testsrc2_2x2` ambiguity needs smaller RGBA-specific
+black-box controls before another implementation change is justified. The most
+useful next probes are tiny 8-bit GR RGBA vectors with constant opaque alpha,
+constant non-opaque alpha, and simple RGB bars in both 1-slice and 2x2 layouts.

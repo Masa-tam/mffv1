@@ -2,7 +2,9 @@
 
 This registry records external FFV1 test vectors that are committed to the
 mffv1 repository. It also defines the provenance fields required before adding
-new vectors.
+new vectors. Installed packages include this registry for policy reference; the
+local `testvectors/` workspace itself is a source-tree testing aid and is not
+installed.
 
 The optional local workspace under `testvectors/` is not itself a registry.
 Local FFmpeg binaries, FFmpeg headers, MKV samples, generated C++ headers, and
@@ -46,7 +48,7 @@ Each committed external vector must have an entry with:
   decoded expected samples.
 
 Generated C++ headers used by the unit tests must follow the local test-only
-schema documented in `testvectors/README.md`.
+schema documented by `testvectors/README.md` in the source tree.
 
 ## Local-Only Vector Use
 

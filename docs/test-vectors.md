@@ -122,15 +122,14 @@ decoding across the compatibility cases that most recently drove fixes:
   Golomb-Rice context evolution.
 
 Legacy version 0 AVI-derived vectors may be kept in a local generated header as
-investigation material. The current test harness recognizes legacy version 0
-no-Codec-Private vectors as known compatibility gaps by default; set
-`MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` with a narrow
-`MFFV1_TEST_VECTOR_FILTER` when diagnosing those streams directly.
+investigation material. Compact no-Codec-Private range-coded legacy MKV
+controls for version 0 and version 1 RGB/YUV444p are part of the active local
+compatibility set and should decode during the normal generated-vector run.
 
-The same known-gap handling currently applies to compact range-coded legacy
-version 0/1 RGB and YUV444p no-Codec-Private controls. These vectors are useful
-local probes, but they should not make the normal generated-vector run fail
-while the implementation work is still in progress.
+`MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` remains available for future
+investigation headers that contain entries outside the current decoder
+coverage. Use it together with a narrow `MFFV1_TEST_VECTOR_FILTER` when
+diagnosing a newly added unsupported stream directly.
 
 If version 0 compatibility needs more evidence, prefer tiny diagnostic vectors
 over broad coverage expansion:
@@ -164,9 +163,10 @@ reference-state cases. The next most useful local-only additions are:
 - 2x2 or 3x2 multi-frame variants, if FFmpeg and the generator can produce
   compact files. These would combine slice state, reference state, CRC/footer
   location, and non-square grids in one black-box check.
-- Legacy version 0/1 range-coded RGB or YUV444 MKV single-slice vectors, if
-  FFmpeg can produce them without Codec Private data. These would complement
-  the current legacy Golomb-Rice MKV controls.
+- Additional legacy version 0/1 range-coded RGB or YUV444 MKV vectors without
+  Codec Private data, especially non-flat bars or gradients. The current local
+  set already covers compact single-slice flat controls, so new additions
+  should expand sample variation rather than duplicate that baseline.
 - Range-coded 10-bit YUVA/RGBA controls if FFmpeg can generate planar expected
   data for both alpha layouts. The current set already has range RGBA10 and
   Golomb-Rice RGBA/YUVA10 coverage, but a YUVA10 range sibling would round out

@@ -3220,6 +3220,12 @@ std::string describe_frame_parse(
         for (const auto index : slice.quant_table_set_indexes) {
             out << index << ",";
         }
+        if (stream.entropy_mode == mffv1::EntropyMode::GolombRice) {
+            const auto local_content_offset =
+                slice.content_byte_offset - slice.payload_byte_offset;
+            out << describe_payload_bytes(
+                slice.payload, local_content_offset, 2, 6, "gr_content");
+        }
         out << "]";
     }
     return out.str();
@@ -4411,7 +4417,11 @@ void expect_decodes_frame(
             const std::vector<std::byte> expected_bytes{
                 expected.samples.begin(), expected.samples.begin() + expected_size};
             expect_plane_matches(
-                plane_storage[index], expected_bytes, index, expected.info, frame_description);
+                plane_storage[index],
+                expected_bytes,
+                index,
+                expected.info,
+                frame_description);
         }
     }
     ASSERT_TRUE(status.ok()) << describe_status(status) << "\n"
@@ -4427,7 +4437,11 @@ void expect_decodes_frame(
         const std::vector<std::byte> expected_bytes{
             expected.samples.begin(), expected.samples.begin() + expected_size};
         expect_plane_matches(
-            plane_storage[index], expected_bytes, index, expected.info, frame_description);
+            plane_storage[index],
+            expected_bytes,
+            index,
+            expected.info,
+            frame_description);
     }
 }
 

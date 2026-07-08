@@ -7,8 +7,8 @@ repository test data.
 
 ## Current Local Vector Status
 
-The local `testvectors/test_vector_data.hpp` set currently contains 20
-version 3.4 controls:
+The local `testvectors/test_vector_data.hpp` set currently contains the latest
+version 3.4 controls plus MKV-derived legacy Golomb-Rice probes:
 
 - Passing Golomb-Rice vertical bars:
   `gr_rgb_bars_128x96_1slice.mkv`,
@@ -34,6 +34,23 @@ version 3.4 controls:
   `range_rgb_testsrc_128x96_2x2.mkv`,
   `range_rgb_testsrc_320x240_1slice.mkv`, and
   `range_rgb_testsrc_320x240_2x2.mkv`.
+- Passing high-bit, alpha, CRC, and MKV legacy additions:
+  `gr_rgba_testsrc2_1slice.mkv`,
+  `gr_yuva_testsrc2_2x2.mkv`,
+  `gr_rgb10_mandelbrot_1slice.mkv`,
+  `gr_yuv420p10le_mandelbrot_2x2.mkv`,
+  `range_rgb10_testsrc2_1slice.mkv`,
+  `range_rgba10_testsrc2_2x2.mkv`,
+  `gr_yuv420p_mandelbrot_inter.mkv`,
+  `gr_rgb_mandelbrot_inter.mkv`,
+  `gr_rgb_testsrc_2x2_crc.mkv`,
+  `gr_yuv_testsrc_3x2_crc.mkv`,
+  `range_rgb_testsrc_2x2_crc.mkv`,
+  `range_yuv_testsrc_3x2_crc.mkv`,
+  `gr_rgb_testsrc_legacy0_1slice.mkv`,
+  `gr_yuv444p_testsrc_legacy0_1slicce.mkv`,
+  `gr_rgb_testsrc_legacy1_1slice.mkv`, and
+  `gr_yuv444p_testsrc_legacy1_1slicce.mkv`.
 
 This set now passes through the public generated-vector test. The earlier RGB
 Golomb-Rice testsrc failure was not plain size growth: RGB bars passed at
@@ -66,6 +83,18 @@ including context inversion for the derived interruption context. Future RGB
 Golomb-Rice vectors should stress new shapes instead of repeating the same
 testsrc failure: alpha, high bit depth, non-keyframes, and nontrivial slice
 grids are now more valuable than additional RGB 8-bit testsrc sizes.
+
+The MKV-derived legacy v0/v1 Golomb-Rice RGB and YUV444 vectors confirm that
+the legacy bootstrap path also handles containers that omit Codec Private data
+for those versions. The generated header exposes those entries with empty
+configuration records and keyframe payloads containing embedded parameters,
+which matches the intended public API flow through `bootstrap_legacy_frame()`.
+
+The current generated `*_inter.mkv` entries pass, but the header exposes one
+frame payload per vector. They therefore validate that the named source decodes
+but do not yet exercise reference-state continuity across multiple frame
+payloads. Future inter-frame vectors should expose at least two payloads and
+expected-plane sets in one `DecodeVector`.
 
 Several previously rejected probes remain useful guardrails:
 

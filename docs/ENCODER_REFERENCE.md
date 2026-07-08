@@ -3,9 +3,9 @@
 ## Status
 
 The mffv1 encoder has a complete scalar baseline suitable for technical-preview
-and internal integration use. It produces FFV1 version 3 frames with a
-configurable keyframe cadence and supports the principal planar YCbCr and RGB
-profiles described below.
+evaluation and pre-release integration testing. It produces FFV1 version 3
+frames with a configurable keyframe cadence and supports the principal planar
+YCbCr and RGB profiles described below.
 
 A stable general release still requires external interoperability testing,
 licensed conformance vectors, fuzzing, sanitizer coverage, and packaging.

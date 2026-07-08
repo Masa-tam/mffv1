@@ -2,10 +2,10 @@
 
 ## Status
 
-The mffv1 decoder is currently suitable for technical-preview and internal
-integration use. Its public API is small and stable enough to integrate, but a
-general stable release still requires external conformance testing, fuzzing,
-sanitizer coverage, and packaging.
+The mffv1 decoder is currently suitable for technical-preview evaluation and
+pre-release integration testing. Its public API is small and stable enough to
+integrate, but a general stable release still requires external conformance
+testing, fuzzing, sanitizer coverage, and packaging.
 
 This reference describes the implemented behavior of the current decoder. It
 does not describe the encoder; see the

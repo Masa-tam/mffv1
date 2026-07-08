@@ -403,7 +403,7 @@ Status SliceEncoder::encode_slice(
         return status;
     }
     std::vector<std::byte> payload;
-    status = writer.finalize(payload);
+    status = writer.finalize_closed(payload);
     if (!status.ok()) {
         return status;
     }

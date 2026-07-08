@@ -55,6 +55,9 @@ public:
     Status end_independent_scalar_contexts() override;
 
     Status finalize(std::vector<std::byte>& out_bytes);
+    // Closed-mode FFV1 ranges have a known byte boundary; choose a value
+    // inside the final interval instead of the lower bound.
+    Status finalize_closed(std::vector<std::byte>& out_bytes);
 
     [[nodiscard]] bool initialized() const noexcept;
     [[nodiscard]] bool finalized() const noexcept;
@@ -82,6 +85,8 @@ private:
                         bool is_signed,
                         std::uint64_t magnitude,
                         bool negative);
+    Status finalize_impl(std::vector<std::byte>& out_bytes,
+                         bool close_interval);
     Status add_to_low(std::uint32_t value) noexcept;
 
     std::vector<std::byte> low_bytes_;

@@ -61,6 +61,43 @@ TEST(RangeEncoderTest, EncodesRfcInitialBinarySubranges)
     EXPECT_EQ(true_payload, expected_true);
 }
 
+TEST(RangeEncoderTest, ClosedFinalizeChoosesInteriorInitialCode)
+{
+    mffv1::entropy::RangeEncoder false_encoder;
+    ASSERT_TRUE(false_encoder.reset().ok());
+    ASSERT_TRUE(false_encoder.write_bool(false).ok());
+    std::vector<std::byte> false_payload;
+    ASSERT_TRUE(false_encoder.finalize_closed(false_payload).ok());
+    const std::vector<std::byte> expected_false{
+        std::byte{0x3f},
+        std::byte{0xc0},
+    };
+    EXPECT_EQ(false_payload, expected_false);
+
+    mffv1::entropy::RangeCoder false_decoder;
+    ASSERT_TRUE(false_decoder.reset(false_payload).ok());
+    bool decoded_false = true;
+    ASSERT_TRUE(false_decoder.read_bool(decoded_false).ok());
+    EXPECT_FALSE(decoded_false);
+
+    mffv1::entropy::RangeEncoder true_encoder;
+    ASSERT_TRUE(true_encoder.reset().ok());
+    ASSERT_TRUE(true_encoder.write_bool(true).ok());
+    std::vector<std::byte> true_payload;
+    ASSERT_TRUE(true_encoder.finalize_closed(true_payload).ok());
+    const std::vector<std::byte> expected_true{
+        std::byte{0xbf},
+        std::byte{0x40},
+    };
+    EXPECT_EQ(true_payload, expected_true);
+
+    mffv1::entropy::RangeCoder true_decoder;
+    ASSERT_TRUE(true_decoder.reset(true_payload).ok());
+    bool decoded_true = false;
+    ASSERT_TRUE(true_decoder.read_bool(decoded_true).ok());
+    EXPECT_TRUE(decoded_true);
+}
+
 TEST(RangeEncoderTest, RoundTripsEveryBinarySequenceThroughTwelveBits)
 {
     for (std::size_t bit_count = 0; bit_count <= 12; ++bit_count) {

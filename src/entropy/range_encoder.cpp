@@ -436,6 +436,17 @@ Status RangeEncoder::write_symbol(std::size_t context_bank,
 
 Status RangeEncoder::finalize(std::vector<std::byte>& out_bytes)
 {
+    return finalize_impl(out_bytes, false);
+}
+
+Status RangeEncoder::finalize_closed(std::vector<std::byte>& out_bytes)
+{
+    return finalize_impl(out_bytes, true);
+}
+
+Status RangeEncoder::finalize_impl(std::vector<std::byte>& out_bytes,
+                                   bool close_interval)
+{
     if (!initialized_) {
         return make_error(ErrorCode::InvalidState, "range encoder is not initialized");
     }
@@ -443,8 +454,15 @@ Status RangeEncoder::finalize(std::vector<std::byte>& out_bytes)
         return make_error(ErrorCode::InvalidState, "range encoder is already finalized");
     }
 
-    auto completed = low_bytes_;
-    out_bytes = std::move(completed);
+    auto completed = *this;
+    if (close_interval) {
+        Status status = completed.add_to_low(completed.range_ / 2u);
+        if (!status.ok()) {
+            return status;
+        }
+    }
+    auto bytes = completed.low_bytes_;
+    out_bytes = std::move(bytes);
     finalized_ = true;
     return ok_status();
 }

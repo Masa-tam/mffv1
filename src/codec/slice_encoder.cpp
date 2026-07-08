@@ -417,6 +417,14 @@ Status SliceEncoder::encode_slice(
     if (!status.ok()) {
         return status;
     }
+    if (payload.size() == payload.max_size()) {
+        return make_error(
+            ErrorCode::ResourceExhausted,
+            "range slice payload exceeds vector capacity");
+    }
+    // FFV1 range-coded slices terminate before the footer; keep one
+    // explicit zero byte available for decoder read-ahead at that boundary.
+    payload.push_back(std::byte{0});
     const SliceFooterWriter footer_writer;
     status = footer_writer.append(stream_, 0, payload);
     if (!status.ok()) {

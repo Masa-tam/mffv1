@@ -456,12 +456,28 @@ Status RangeEncoder::finalize_impl(std::vector<std::byte>& out_bytes,
 
     auto completed = *this;
     if (close_interval) {
-        Status status = completed.add_to_low(completed.range_ / 2u);
+        const auto last_byte = completed.low_bytes_.empty()
+            ? std::uint32_t{0}
+            : static_cast<std::uint32_t>(
+                static_cast<std::uint8_t>(completed.low_bytes_.back()));
+        auto delta_to_zero_low_byte = (256u - last_byte) & 0xffu;
+        if (delta_to_zero_low_byte == 0 && completed.range_ > 256u) {
+            delta_to_zero_low_byte = 256u;
+        }
+        const auto closing_delta = delta_to_zero_low_byte < completed.range_
+            ? delta_to_zero_low_byte
+            : completed.range_ / 2u;
+        Status status = completed.add_to_low(closing_delta);
         if (!status.ok()) {
             return status;
         }
     }
     auto bytes = completed.low_bytes_;
+    if (close_interval
+        && bytes.size() > 2
+        && static_cast<std::uint8_t>(bytes.back()) == 0) {
+        bytes.pop_back();
+    }
     out_bytes = std::move(bytes);
     finalized_ = true;
     return ok_status();

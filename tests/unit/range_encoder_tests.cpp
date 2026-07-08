@@ -69,8 +69,8 @@ TEST(RangeEncoderTest, ClosedFinalizeChoosesInteriorInitialCode)
     std::vector<std::byte> false_payload;
     ASSERT_TRUE(false_encoder.finalize_closed(false_payload).ok());
     const std::vector<std::byte> expected_false{
-        std::byte{0x3f},
-        std::byte{0xc0},
+        std::byte{0x01},
+        std::byte{0x00},
     };
     EXPECT_EQ(false_payload, expected_false);
 
@@ -86,8 +86,8 @@ TEST(RangeEncoderTest, ClosedFinalizeChoosesInteriorInitialCode)
     std::vector<std::byte> true_payload;
     ASSERT_TRUE(true_encoder.finalize_closed(true_payload).ok());
     const std::vector<std::byte> expected_true{
-        std::byte{0xbf},
-        std::byte{0x40},
+        std::byte{0x80},
+        std::byte{0x00},
     };
     EXPECT_EQ(true_payload, expected_true);
 

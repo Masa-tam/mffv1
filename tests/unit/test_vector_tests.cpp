@@ -346,6 +346,9 @@ std::string describe_legacy_range_reset_boundary_probe(
     for (const auto& set : stream.quant_table_sets) {
         context_counts.push_back(set.context_count);
     }
+    if (context_counts.size() == 1) {
+        context_counts.resize(3, context_counts.front());
+    }
 
     const auto center = bootstrap.content_byte_offset;
     const auto begin = center > 4 ? center - 4 : std::uint64_t{0};
@@ -3219,7 +3222,10 @@ std::string describe_legacy_range_rgb_row_probe(
                     return probe_status;
                 }
                 std::int64_t difference = 0;
-                probe_status = probe_reader.read_signed(0, context.context, difference);
+                probe_status = probe_reader.read_signed(
+                    plane,
+                    context.context,
+                    difference);
                 if (!probe_status.ok()) {
                     return probe_status;
                 }
@@ -3279,27 +3285,27 @@ std::string describe_legacy_range_rgb_row_probe(
                                         const mffv1::entropy::RangeCoder::ArithmeticState& state) {
         out << " " << label;
         for (std::uint32_t x = 0; x < sample_count; ++x) {
-        const auto expected_code = mffv1::syntax::forward_jpeg2000_rct(
-            static_cast<std::uint16_t>(
-                sample_at(expected_r.samples, expected_r.info, x, 0)),
-            static_cast<std::uint16_t>(
-                sample_at(expected_g.samples, expected_g.info, x, 0)),
-            static_cast<std::uint16_t>(
-                sample_at(expected_b.samples, expected_b.info, x, 0)),
-            stream.bits_per_raw_sample,
-            stream.extra_plane);
-        const auto actual_rgb = mffv1::syntax::inverse_jpeg2000_rct(
-            row[0][x],
-            row[1][x],
-            row[2][x],
-            stream.bits_per_raw_sample,
-            stream.extra_plane);
-        out << " #" << x
-            << " y=" << row[0][x] << "/" << expected_code.y
-            << " cb=" << row[1][x] << "/" << expected_code.cb
-            << " cr=" << row[2][x] << "/" << expected_code.cr
-            << " rgb=" << actual_rgb.r << ","
-            << actual_rgb.g << "," << actual_rgb.b;
+            const auto expected_code = mffv1::syntax::forward_jpeg2000_rct(
+                static_cast<std::uint16_t>(
+                    sample_at(expected_r.samples, expected_r.info, x, 0)),
+                static_cast<std::uint16_t>(
+                    sample_at(expected_g.samples, expected_g.info, x, 0)),
+                static_cast<std::uint16_t>(
+                    sample_at(expected_b.samples, expected_b.info, x, 0)),
+                stream.bits_per_raw_sample,
+                stream.extra_plane);
+            const auto actual_rgb = mffv1::syntax::inverse_jpeg2000_rct(
+                row[0][x],
+                row[1][x],
+                row[2][x],
+                stream.bits_per_raw_sample,
+                stream.extra_plane);
+            out << " #" << x
+                << " y=" << row[0][x] << "/" << expected_code.y
+                << " cb=" << row[1][x] << "/" << expected_code.cb
+                << " cr=" << row[2][x] << "/" << expected_code.cr
+                << " rgb=" << actual_rgb.r << ","
+                << actual_rgb.g << "," << actual_rgb.b;
         }
         out << " after{" << describe_range_state(state) << "}";
     };
@@ -3333,6 +3339,185 @@ std::string describe_legacy_range_rgb_row_probe(
         append_row_summary(out, "plane_context_arithmetic_reset", variant_coded, variant_after);
     } else {
         out << " plane_context_arithmetic_reset=err(" << describe_status(status) << ")";
+    }
+    return out.str();
+}
+
+std::string describe_legacy_range_planar_row_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    const auto& stream = bootstrap.stream;
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || stream.colorspace_type != 0
+        || vector.frame_payloads.empty()
+        || vector.expected_planes.empty()
+        || vector.expected_planes.front().size() < 2
+        || stream.quant_table_sets.empty()
+        || stream.quant_table_sets.front().context_count == 0) {
+        return {};
+    }
+
+    const auto& planes = vector.expected_planes.front();
+    for (const auto& plane : planes) {
+        if (plane.info.sample_format != mffv1::SampleFormat::UInt8
+            || plane.info.width == 0
+            || plane.info.height == 0) {
+            return {};
+        }
+    }
+
+    std::vector<std::size_t> context_counts;
+    context_counts.reserve(stream.quant_table_sets.size());
+    for (const auto& set : stream.quant_table_sets) {
+        context_counts.push_back(set.context_count);
+    }
+
+    const auto plane_count = std::min<std::size_t>(planes.size(), 3);
+    if (context_counts.size() == 1) {
+        context_counts.resize(plane_count, context_counts.front());
+    }
+    const auto sample_count =
+        std::min<std::uint32_t>(planes.front().info.width, 8);
+    const mffv1::syntax::ContextModel context_model(stream.quant_table_sets.front());
+
+    const auto decode_first_rows = [&](bool neutral_chroma_border,
+                                       bool reset_contexts_per_plane,
+                                       std::vector<std::vector<std::int32_t>>& decoded,
+                                       mffv1::entropy::RangeCoder::ArithmeticState& after) {
+        mffv1::entropy::RangeCoder probe_reader;
+        auto probe_status = probe_reader.reset_from_arithmetic_state(
+            vector.frame_payloads.front(),
+            context_counts,
+            {},
+            stream.state_transition,
+            bootstrap.range_state_after_parameters);
+        if (probe_status.ok() && stream.version == 0) {
+            probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+        }
+        if (!probe_status.ok()) {
+            return probe_status;
+        }
+
+        decoded.assign(plane_count, {});
+        for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+            decoded[plane_index].assign(planes[plane_index].info.width, 0);
+        }
+
+        for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+            if (reset_contexts_per_plane && plane_index != 0) {
+                probe_status = probe_reader.reconfigure_contexts(context_counts);
+                if (probe_status.ok() && stream.version == 0) {
+                    probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+                }
+                if (!probe_status.ok()) {
+                    return probe_status;
+                }
+            }
+
+            mffv1::syntax::LineState line;
+            const auto border =
+                neutral_chroma_border
+                    && plane_index > 0
+                    && stream.bits_per_raw_sample > 0
+                    && stream.bits_per_raw_sample < 31
+                ? std::int32_t{1 << (stream.bits_per_raw_sample - 1)}
+                : std::int32_t{0};
+            probe_status = line.reset(planes[plane_index].info.width, border);
+            if (!probe_status.ok()) {
+                return probe_status;
+            }
+            for (std::uint32_t x = 0; x < planes[plane_index].info.width; ++x) {
+                const auto neighbors = line.neighbors(x);
+                const auto prediction = mffv1::syntax::Predictor::median_predict(
+                    neighbors.left,
+                    neighbors.top,
+                    neighbors.top_left);
+                mffv1::syntax::ContextDecision context;
+                probe_status = context_model.derive_context(neighbors, context);
+                if (!probe_status.ok()) {
+                    return probe_status;
+                }
+                std::int64_t difference = 0;
+                probe_status = probe_reader.read_signed(
+                    plane_index,
+                    context.context,
+                    difference);
+                if (!probe_status.ok()) {
+                    return probe_status;
+                }
+                if (context.invert_difference) {
+                    difference = -difference;
+                }
+                if (difference < std::numeric_limits<std::int32_t>::min()
+                    || difference > std::numeric_limits<std::int32_t>::max()) {
+                    return mffv1::make_error(
+                        mffv1::ErrorCode::SyntaxError,
+                        "difference-out-of-range");
+                }
+                const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                    prediction,
+                    static_cast<std::int32_t>(difference),
+                    stream.bits_per_raw_sample);
+                line.mutable_current()[x] = reconstructed;
+                decoded[plane_index][x] = reconstructed;
+            }
+        }
+        after = probe_reader.arithmetic_state();
+        return mffv1::ok_status();
+    };
+
+    const auto append_summary = [&](std::ostringstream& out,
+                                    std::string_view label,
+                                    const std::vector<std::vector<std::int32_t>>& decoded,
+                                    const mffv1::entropy::RangeCoder::ArithmeticState& state) {
+        out << " " << label;
+        for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+            out << " p" << plane_index << "=";
+            for (std::uint32_t x = 0; x < sample_count; ++x) {
+                if (x != 0) {
+                    out << ",";
+                }
+                const auto expected = sample_at(
+                    planes[plane_index].samples,
+                    planes[plane_index].info,
+                    x,
+                    0);
+                out << decoded[plane_index][x] << "/" << expected;
+            }
+        }
+        out << " after{" << describe_range_state(state) << "}";
+    };
+
+    std::vector<std::vector<std::int32_t>> decoded;
+    mffv1::entropy::RangeCoder::ArithmeticState after;
+    auto status = decode_first_rows(false, false, decoded, after);
+    if (!status.ok()) {
+        return std::string{" planar_row_probe="} + describe_status(status);
+    }
+
+    std::ostringstream out;
+    out << " planar_row_probe";
+    append_summary(out, "shared_context", decoded, after);
+
+    status = decode_first_rows(false, true, decoded, after);
+    if (status.ok()) {
+        append_summary(out, "plane_context_reset", decoded, after);
+    } else {
+        out << " plane_context_reset=err(" << describe_status(status) << ")";
+    }
+    status = decode_first_rows(true, false, decoded, after);
+    if (status.ok()) {
+        append_summary(out, "neutral_chroma_border", decoded, after);
+    } else {
+        out << " neutral_chroma_border=err(" << describe_status(status) << ")";
+    }
+    status = decode_first_rows(true, true, decoded, after);
+    if (status.ok()) {
+        append_summary(out, "neutral_chroma_border_plane_context_reset", decoded, after);
+    } else {
+        out << " neutral_chroma_border_plane_context_reset=err("
+            << describe_status(status) << ")";
     }
     return out.str();
 }
@@ -3392,6 +3577,7 @@ std::string describe_legacy_bootstrap_state(
             << describe_legacy_range_initial_state_probe(vector, bootstrap)
             << describe_legacy_range_reset_boundary_probe(vector, bootstrap)
             << describe_legacy_range_rgb_row_probe(vector, bootstrap)
+            << describe_legacy_range_planar_row_probe(vector, bootstrap)
             << describe_legacy_range_v1_sibling_probe(vector.name);
     }
     return out.str();

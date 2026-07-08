@@ -173,6 +173,42 @@ TEST(SliceStateTest, UsesSliceOutputPlaneWidths)
     EXPECT_EQ(state.line_state(2).width(), 1u);
 }
 
+TEST(SliceStateTest, UsesNeutralChromaBorderForLegacyRangeYCbCr)
+{
+    auto stream = make_stream();
+    stream.entropy_mode = mffv1::EntropyMode::Range;
+    stream.version = 1;
+    stream.colorspace_type = 0;
+    stream.chroma_planes = true;
+
+    mffv1::codec::SliceState state;
+    const auto status = state.reset(stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(state.plane_count(), 3u);
+    EXPECT_EQ(state.line_state(0).previous()[0], 0);
+    EXPECT_EQ(state.line_state(1).previous()[0], 128);
+    EXPECT_EQ(state.line_state(2).previous()[0], 128);
+}
+
+TEST(SliceStateTest, KeepsGolombRiceYCbCrChromaBorderAtZero)
+{
+    auto stream = make_stream();
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    stream.version = 1;
+    stream.colorspace_type = 0;
+    stream.chroma_planes = true;
+
+    mffv1::codec::SliceState state;
+    const auto status = state.reset(stream);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    ASSERT_EQ(state.plane_count(), 3u);
+    EXPECT_EQ(state.line_state(0).previous()[0], 0);
+    EXPECT_EQ(state.line_state(1).previous()[0], 0);
+    EXPECT_EQ(state.line_state(2).previous()[0], 0);
+}
+
 TEST(SliceStateTest, PreservesCapturedRangeContextsAcrossLineReset)
 {
     const std::array<std::byte, 2> payload{

@@ -102,6 +102,17 @@ for those versions. The generated header exposes those entries with empty
 configuration records and keyframe payloads containing embedded parameters,
 which matches the intended public API flow through `bootstrap_legacy_frame()`.
 
+The compact range-coded no-Codec-Private legacy probes now show a split
+between planar YCbCr and RCT RGB behavior. For planar YCbCr, the first coded
+luma row matches with the existing zero border, while the first flat Cb/Cr
+rows reconstruct as zero unless the chroma line-state border is initialized to
+the neutral value `1 << (bits_per_raw_sample - 1)`. The decoder now preserves
+that legacy range YCbCr chroma border rule as a narrow `SliceState` contract.
+The public generated-vector decode path still keeps these compact legacy RGB
+and YUV444p range entries as known gaps, so the next investigation should
+compare the low-level reconstructed row against the public output path and the
+legacy range context-bank setup before removing them from the gap list.
+
 The current generated `*_inter*.mkv` entries now expose two frame payloads and
 two expected-plane sets per vector, so they exercise the public decoder's
 reference-state continuity across one non-keyframe.

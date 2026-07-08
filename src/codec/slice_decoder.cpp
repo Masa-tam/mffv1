@@ -830,8 +830,14 @@ namespace {
 std::int32_t plane_border_value(const syntax::StreamParameters& stream,
                                 std::size_t plane_index) noexcept
 {
-    (void)stream;
-    (void)plane_index;
+    if (stream.entropy_mode == EntropyMode::Range
+        && stream.version <= 1
+        && stream.colorspace_type == 0
+        && syntax::is_chroma_plane(stream, plane_index)
+        && stream.bits_per_raw_sample > 0
+        && stream.bits_per_raw_sample <= 8) {
+        return std::int32_t{1 << (stream.bits_per_raw_sample - 1)};
+    }
     return 0;
 }
 

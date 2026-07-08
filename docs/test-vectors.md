@@ -127,11 +127,11 @@ no-Codec-Private vectors as known compatibility gaps by default; set
 `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1` with a narrow
 `MFFV1_TEST_VECTOR_FILTER` when diagnosing those streams directly.
 
-The same known-gap handling currently applies to the compact legacy version 1
-YUV420p no-Codec-Private controls and the 8-bit Golomb-Rice RGBA `testsrc2`
-control. These vectors are useful local probes, but they should not make the
-normal generated-vector run fail while the implementation work is still in
-progress.
+The same known-gap handling currently applies to compact legacy version 1
+no-Codec-Private controls, 8-bit Golomb-Rice RGBA controls, and the compact
+Golomb-Rice YUV420p multi-slice inter-frame control. These vectors are useful
+local probes, but they should not make the normal generated-vector run fail
+while the implementation work is still in progress.
 
 If version 0 compatibility needs more evidence, prefer tiny diagnostic vectors
 over broad coverage expansion:

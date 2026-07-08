@@ -983,3 +983,23 @@ The remaining `gr_rgba_testsrc2_2x2` ambiguity needs smaller RGBA-specific
 black-box controls before another implementation change is justified. The most
 useful next probes are tiny 8-bit GR RGBA vectors with constant opaque alpha,
 constant non-opaque alpha, and simple RGB bars in both 1-slice and 2x2 layouts.
+
+The refreshed compact vector set added those RGBA probes and also added
+multi-frame controls. The 1-slice range and Golomb-Rice YUV420p/RGB
+three-frame controls pass, as does the range-coded 3x2 RGB inter-frame
+control. The compact range-coded YUVA10/RGBA10 controls also pass.
+
+The new vectors leave three focused known gaps:
+
+- `gr_yuv420p_inter_64x48_2x2_2frames.mkv` fails on the second frame at the
+  bottom-right slice origin. That narrows the next non-RGBA investigation to
+  Golomb-Rice multi-slice inter-frame reference-state handling rather than
+  single-slice inter prediction.
+- `range_rgb_v1_legacy_1slice.mkv` and `range_yuv444p_v1_legacy_1slice.mkv`
+  still fail under `MFFV1_TEST_VECTOR_TRY_UNSUPPORTED=1`, so the generated
+  harness now treats compact version 1 no-Codec-Private legacy probes as a
+  named gap rather than only the earlier YUV420p variants.
+- The compact `gr_rgba8_*` opaque-alpha and half-alpha bar probes fail in the
+  same broad class as `gr_rgba_testsrc2_2x2.mkv`. This confirms that the RGBA
+  issue is not specific to `testsrc2` complexity and remains a clean
+  alpha/RCT Golomb-Rice compatibility target.

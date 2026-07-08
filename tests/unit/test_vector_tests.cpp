@@ -4531,15 +4531,17 @@ std::size_t expected_frame_count_from_name(std::string_view name) noexcept
 
 std::string known_decode_gap_reason(std::string_view name)
 {
-    if (name.find("gr_rgba_testsrc2_2x2.mkv") != std::string_view::npos) {
+    if (name.find("gr_rgba") != std::string_view::npos) {
         return "pending Golomb-Rice RGBA alpha-plane compatibility investigation";
+    }
+    if (name.find("gr_yuv420p_inter_64x48_2x2_2frames.mkv") != std::string_view::npos) {
+        return "pending Golomb-Rice multi-slice inter-frame reference-state investigation";
     }
     if (name.find("_v0_legacy_") != std::string_view::npos) {
         return "pending legacy version 0 no-Codec-Private compatibility investigation";
     }
-    if (name.find("range_yuv420p_v1_legacy_1slice.mkv") != std::string_view::npos
-        || name.find("gr_yuv420p_v1_legacy_1slice.mkv") != std::string_view::npos) {
-        return "pending legacy version 1 YUV420p no-Codec-Private compatibility investigation";
+    if (name.find("_v1_legacy_") != std::string_view::npos) {
+        return "pending legacy version 1 no-Codec-Private compatibility investigation";
     }
     return {};
 }

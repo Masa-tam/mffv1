@@ -32,5 +32,3 @@ public references, headers, and tests as authoritative for current behavior.
   implementation interpretations and possible clarification topics.
 - [Test Vector Compatibility Notes](test-vector-compatibility-notes.md):
   investigation notes for external vector compatibility work.
-- [Test Vector Generator Review](test-vector-generator-review.md): review
-  notes for the external generator workflow.

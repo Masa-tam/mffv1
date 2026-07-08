@@ -8,48 +8,50 @@ repository test data.
 ## Current Local Vector Status
 
 The local `testvectors/test_vector_data.hpp` set currently contains the
-regression vectors:
+focused RGB controls:
 
-- `gr_intra_rgb_v3_1slice.mkv`: 8-bit RGB, version 3.4, Golomb-Rice, one
-  slice, planar R/G/B expected planes.
-- `gr_intra_rgb_v3_2x2.mkv`: the same source format split into a 2x2 slice
-  grid.
+- `gr_rgb_black_16x16_1slice.mkv`
+- `range_rgb_black_16x16_1slice.mkv`
+- `gr_rgb_magenta_16x16_1slice.mkv`
+- `range_rgb_magenta_16x16_1slice.mkv`
+- `gr_rgb_bars_64x48_1slice.mkv`
+- `range_rgb_bars_64x48_1slice.mkv`
+- `gr_rgb_bars_64x48_2x2.mkv`
+- `range_rgb_bars_64x48_2x2.mkv`
 
-Both vectors are detected by the generated-vector test harness and reach frame
-decode through the public API. The one-slice vector currently decodes to an
-`ok` status but fails plane comparison. The 2x2 vector enters Golomb-Rice RGB
-Slice Content and then fails before its output planes are fully written. This
-makes the current active compatibility gap RGB-specific Golomb-Rice
-reconstruction and multi-slice payload consumption, not Configuration Record
-parsing, Slice Header parsing, Slice Footer discovery, or generated-plane
-ingestion.
+All eight vectors are detected by the generated-vector test harness, decode
+through the public API, and match their generated R/G/B expected planes. These
+controls confirm that the RGB RCT transform, planar R/G/B output mapping,
+version 3 Slice Header/Footer handling, range-coded RGB content, and
+Golomb-Rice RGB content all work for compact flat and vertical-bar patterns,
+including a 2x2 RGB Golomb-Rice slice grid.
 
-The one-slice vector's first public mismatch is at `x=87,y=1`, where the
-expected RGB sample is `255/0/255` but mffv1 outputs `158/157/38`. The
-diagnostic for the same location reports a coded RGB/RCT plane-1 mismatch:
-the expected internal chroma sample is `511`, while mffv1 reconstructs `393`
-from the current bit position. The 2x2 vector also reaches frame decode but
-fails in slice content; slice descriptors and footer sizes are coherent.
+The previous larger `gr_intra_rgb_v3_1slice.mkv` and
+`gr_intra_rgb_v3_2x2.mkv` testsrc-derived probes remain useful historical
+signals because they exposed a mismatch that the compact controls do not. The
+one-slice probe decoded to `ok` but first mismatched at `x=87,y=1`, where the
+expected RGB sample was `255/0/255` and mffv1 produced `158/157/38`; the
+diagnostic mapped that to a coded RGB/RCT plane-1 mismatch with expected
+internal chroma `511` and reconstructed chroma `393`. The 2x2 probe entered
+Golomb-Rice RGB Slice Content and then failed before its output planes were
+fully written. Keep that as a candidate for a later high-complexity RGB GR
+state-evolution investigation rather than as a basic RGB GR failure.
 
-Three local probes were rejected while checking these vectors:
+Three local probes were rejected while checking the larger RGB GR vectors:
 
-- Making RGB Golomb-Rice run state independent per coded plane worsens the
+- Making RGB Golomb-Rice run state independent per coded plane worsened the
   one-slice vector to an immediate coded-chroma mismatch at `x=0,y=0`.
-- Resetting the shared RGB Golomb-Rice run state once per RGB output row moves
-  the failure but still diverges before completing the frame; it is not a
+- Resetting the shared RGB Golomb-Rice run state once per RGB output row moved
+  the failure but still diverged before completing the frame; it is not a
   sufficient compatibility rule.
-- Using a neutral `1 << bits_per_raw_sample` border for RGB/RCT chroma worsens
+- Using a neutral `1 << bits_per_raw_sample` border for RGB/RCT chroma worsened
   the first coded-chroma sample. This reinforces the current zero-border model
   for RGB/RGBA RCT planes.
 
-The next useful external vectors would be smaller RGB Golomb-Rice controls
-that isolate the same failure class:
-
-- flat black RGB, 1 slice, 16x16 or 32x16;
-- flat magenta RGB, 1 slice, 16x16 or 32x16;
-- vertical RGB color bars, 1 slice and 2x2 slices, preferably 64x48;
-- the same set with range coding if not already covered by existing local
-  controls, to keep the RGB RCT transform separate from the GR bitstream issue.
+No new local vector request is active as of this note. The next useful RGB
+Golomb-Rice vector should be driven by a specific recurrence of the larger
+testsrc mismatch or by a smaller pattern that reproduces the same `x=87,y=1`
+state divergence.
 
 Several previously rejected probes remain useful guardrails:
 

@@ -1394,6 +1394,12 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 if (status.ok() && slice.uses_legacy_v0_arithmetic) {
                     status = reader.set_legacy_v0_arithmetic(true);
                 }
+                if (status.ok()
+                    && stream_.version == 1
+                    && stream_.entropy_mode == EntropyMode::Range
+                    && stream_.colorspace_type == 0) {
+                    status = reader.set_legacy_zero_symbol_carry(true);
+                }
                 resumed_after_embedded_parameters = true;
             }
         }
@@ -1411,6 +1417,12 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
             status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
             if (status.ok() && slice.uses_legacy_v0_arithmetic) {
                 status = reader.set_legacy_v0_arithmetic(true);
+            }
+            if (status.ok()
+                && stream_.version == 1
+                && stream_.entropy_mode == EntropyMode::Range
+                && stream_.colorspace_type == 0) {
+                status = reader.set_legacy_zero_symbol_carry(true);
             }
         }
     } else {

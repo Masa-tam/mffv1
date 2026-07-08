@@ -5838,8 +5838,7 @@ std::string known_decode_gap_reason(std::string_view name)
     const bool compact_range_legacy =
         name.find("range_rgb_v0_legacy_") != std::string_view::npos
         || name.find("range_rgb_v1_legacy_") != std::string_view::npos
-        || name.find("range_yuv444p_v0_legacy_") != std::string_view::npos
-        || name.find("range_yuv444p_v1_legacy_") != std::string_view::npos;
+        || name.find("range_yuv444p_v0_legacy_") != std::string_view::npos;
     if (compact_range_legacy) {
         return "pending compact range-coded no-Codec-Private legacy compatibility investigation";
     }

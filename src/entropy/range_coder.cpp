@@ -354,6 +354,15 @@ Status RangeCoder::set_legacy_v0_arithmetic(bool enabled)
     return ok_status();
 }
 
+Status RangeCoder::set_legacy_zero_symbol_carry(bool enabled)
+{
+    if (!initialized_) {
+        return make_error(ErrorCode::InvalidState, "range coder is not initialized");
+    }
+    legacy_zero_symbol_carry_ = enabled;
+    return ok_status();
+}
+
 Status RangeCoder::begin_independent_scalar_contexts(std::size_t scalar_context_count)
 {
     if (!initialized_) {
@@ -449,6 +458,9 @@ Status RangeCoder::read_symbol(std::size_t context_bank,
     }
     if (bit) {
         out_value = 0;
+        if (legacy_zero_symbol_carry_) {
+            ++low_;
+        }
         return ok_status();
     }
 

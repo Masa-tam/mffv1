@@ -1121,3 +1121,13 @@ unnatural arithmetic state with unread payload bytes (`byte=186` instead of
 the normal end near `byte=200`). The next implementation-oriented step should
 therefore find the smallest legacy RangeCoder rule that preserves valid
 arithmetic-state progression while reproducing the same effective carry.
+
+The smallest production experiment applies the zero-symbol carry only to
+version 1 legacy range-coded YCbCr content. This makes
+`range_yuv444p_v1_legacy_1slice.mkv` decode through the public API with no
+plane mismatches. The same rule is intentionally not applied to legacy RGB:
+forcing it for `range_rgb_v1_legacy_1slice.mkv` breaks the first row
+(`R/G/B` drift immediately after the first sample), so compact legacy RGB
+still needs a separate RCT/layout or arithmetic rule. Version 0 also remains
+separate because its legacy arithmetic mode and compact range failures do not
+match the version 1 YCbCr carry behavior.

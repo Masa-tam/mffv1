@@ -601,6 +601,43 @@ TEST(RangeCoderTest, RejectsLegacyV0ArithmeticModeBeforeReset)
     EXPECT_EQ(status.message, "range coder is not initialized");
 }
 
+TEST(RangeCoderTest, RejectsLegacyZeroSymbolCarryModeBeforeReset)
+{
+    mffv1::entropy::RangeCoder coder;
+
+    const auto status = coder.set_legacy_zero_symbol_carry(true);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "range coder is not initialized");
+}
+
+TEST(RangeCoderTest, LegacyZeroSymbolCarryAdvancesLowAfterZeroScalar)
+{
+    const std::array<std::byte, 2> payload{
+        std::byte{0xfe},
+        std::byte{0xff},
+    };
+
+    mffv1::entropy::RangeCoder normal;
+    ASSERT_TRUE(normal.reset(payload).ok());
+    std::int64_t normal_value = 1;
+    ASSERT_TRUE(normal.read_signed(normal_value).ok());
+
+    mffv1::entropy::RangeCoder legacy;
+    ASSERT_TRUE(legacy.reset(payload).ok());
+    ASSERT_TRUE(legacy.set_legacy_zero_symbol_carry(true).ok());
+    std::int64_t legacy_value = 1;
+    ASSERT_TRUE(legacy.read_signed(legacy_value).ok());
+
+    EXPECT_EQ(normal_value, 0);
+    EXPECT_EQ(legacy_value, 0);
+    EXPECT_EQ(legacy.arithmetic_state().range, normal.arithmetic_state().range);
+    EXPECT_EQ(legacy.arithmetic_state().byte_position,
+              normal.arithmetic_state().byte_position);
+    EXPECT_EQ(legacy.arithmetic_state().low, normal.arithmetic_state().low + 1);
+}
+
 TEST(RangeCoderTest, LegacyV0ArithmeticModeUsesCeilSplitAndOnePathCarry)
 {
     const std::array<std::byte, 2> payload{

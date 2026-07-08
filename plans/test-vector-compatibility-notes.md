@@ -41,7 +41,7 @@ version 3.4 controls plus MKV-derived legacy Golomb-Rice probes:
   `gr_yuv420p10le_mandelbrot_1slice.mkv`,
   `range_rgb10_testsrc2_2x2.mkv`,
   `range_rgba10_testsrc2_1slice.mkv`,
-  `range_yuv420p_inter_64x48_21slice_frames.mkv`,
+  `range_yuv420p_inter_64x48_1slice_2frames.mkv`,
   `gr_yuv420p_inter_64x48_1slice_2frames.mkv`,
   `range_rgb_inter_64x48_1slice_2frames.mkv`,
   `gr_rgb_inter_64x48_1slice_2frames.mkv`,
@@ -104,10 +104,7 @@ which matches the intended public API flow through `bootstrap_legacy_frame()`.
 
 The current generated `*_inter*.mkv` entries now expose two frame payloads and
 two expected-plane sets per vector, so they exercise the public decoder's
-reference-state continuity across one non-keyframe. One filename,
-`range_yuv420p_inter_64x48_21slice_frames.mkv`, appears to have a typo where
-`1slice_2frames` was intended, but the generated header shape is correct and
-the vector decodes successfully.
+reference-state continuity across one non-keyframe.
 
 Several previously rejected probes remain useful guardrails:
 

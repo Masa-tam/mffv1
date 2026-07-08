@@ -78,7 +78,7 @@ cmake `
 - [Encoder Reference](docs/ENCODER_REFERENCE.md)
 - [Frame Buffer Reference](docs/FRAME_BUFFER_REFERENCE.md)
 - [License And Clean-Room Provenance](docs/LICENSE_AND_PROVENANCE.md)
-- [Test Vector Registry](docs/test-vectors.md)
+- [External Test Vector Registry](testvectors/REGISTRY.md)
 - [Support Policy](docs/SUPPORT_POLICY.md)
 - [Security Policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)

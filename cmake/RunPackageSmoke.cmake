@@ -240,7 +240,8 @@ set(mffv1_package_smoke_required_docs
     docs/README.md
     docs/RELEASE_PROCESS.md
     docs/SUPPORT_POLICY.md
-    docs/test-vectors.md
+    testvectors/README.md
+    testvectors/REGISTRY.md
 )
 
 mffv1_package_smoke_check_allowlist(
@@ -253,7 +254,6 @@ set(mffv1_package_smoke_forbidden_doc_paths
     .github
     plans
     private
-    testvectors
 )
 
 foreach(mffv1_package_smoke_forbidden_doc_path IN LISTS mffv1_package_smoke_forbidden_doc_paths)

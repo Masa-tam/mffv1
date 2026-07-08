@@ -167,3 +167,10 @@ install(
     DESTINATION "${CMAKE_INSTALL_DOCDIR}/docs"
     FILES_MATCHING PATTERN "*.md"
 )
+
+install(
+    FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/testvectors/README.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/testvectors/REGISTRY.md"
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}/testvectors"
+)

@@ -119,5 +119,5 @@ inspect the failure diagnostics.
 Do not commit local vector data from this directory by default. If generated
 vectors are intentionally promoted to repository fixtures, change the tracked
 file policy through a separate reviewed change and record their provenance in
-`docs/test-vectors.md`. Avoid force-adding files from this directory for
+`testvectors/REGISTRY.md`. Avoid force-adding files from this directory for
 ordinary library, documentation, or test-maintenance commits.

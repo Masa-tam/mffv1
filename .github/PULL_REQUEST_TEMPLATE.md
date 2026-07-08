@@ -10,7 +10,7 @@ Describe the change and the user-visible behavior it affects.
       internal tables, or implementation details from FFmpeg or another
       incompatibly licensed implementation.
 - [ ] Any new committed test vectors have recorded provenance and license
-      review in `docs/test-vectors.md`.
+      review in `testvectors/REGISTRY.md`.
 
 ## Verification
 

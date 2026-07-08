@@ -67,7 +67,7 @@ Generated project-owned vectors may be covered by the project license.
 Externally supplied vectors must be accompanied by provenance and licensing
 information. Record committed external vectors in:
 
-- [Test Vector Registry](test-vectors.md)
+- [External Test Vector Registry](../testvectors/REGISTRY.md)
 
 Vectors derived from private, personal, unreleased, or commercial media must
 not be committed unless publication has been explicitly approved by the content

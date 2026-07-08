@@ -56,7 +56,7 @@ tests, and black-box interoperability observations.
 - Avoid copying code structure, identifiers, constants tables, comments, or
   implementation-specific tricks from incompatible libraries.
 - If external conformance samples are used, record provenance in
-  `../docs/test-vectors.md` before committing them.
+  `../testvectors/REGISTRY.md` before committing them.
 - Keep design decisions traceable to specification sections, measured behavior,
   or project-owned reasoning.
 - Write scalar code first. SIMD and threading must be behavior-preserving

@@ -21,6 +21,8 @@ The repository contains only:
 - `testvectors/README.md`: local drop-point instructions and generated header
   contract.
 - `testvectors/.gitignore`: keeps local vector artifacts out of commits.
+- `testvectors/REGISTRY.md`: provenance policy and optional local
+  compatibility scope.
 - CMake-generated fallback `test_vector_data.hpp` in the build tree, defining
   `NO_DEFINE_TEST_VECTOR_DATA` when no local source-tree vector header exists.
 - `tests/unit/test_vector_tests.cpp`: skip-aware test hook.

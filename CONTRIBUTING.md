@@ -107,4 +107,4 @@ generated vector headers, FFmpeg binaries, downloaded media, or generator build
 outputs by default.
 
 Committed external vectors require recorded provenance and license review in
-[Test Vector Registry](docs/test-vectors.md).
+[External Test Vector Registry](testvectors/REGISTRY.md).

@@ -12,9 +12,6 @@
 - [Build Guide](BUILD.md): supported build workflow and CMake presets.
 - [License And Provenance](LICENSE_AND_PROVENANCE.md): MIT licensing,
   clean-room rules, FFmpeg independence, and third-party boundaries.
-- [Test Vector Registry](test-vectors.md): optional local vector workflow,
-  supported external-vector test scope, and committed-vector provenance
-  checklist.
 - [Support Policy](SUPPORT_POLICY.md): pre-release compatibility and reporting
   expectations.
 - [Security Policy](../SECURITY.md): reporting path for security-sensitive or
@@ -24,6 +21,9 @@
 
 - [Release Process](RELEASE_PROCESS.md): release readiness, verification, and
   artifact checklist for maintainers and downstream forks.
+- [External Test Vector Registry](../testvectors/REGISTRY.md): optional local
+  vector workflow, supported external-vector test scope, and committed-vector
+  provenance checklist.
 - [Contributing](../CONTRIBUTING.md): clean-room contribution rules and
   verification expectations.
 - [Changelog](../CHANGELOG.md): user-visible project changes.

@@ -31,7 +31,7 @@ A stable release candidate should satisfy all of the following:
 - `.github/release.yml` categories match the labels used by merged pull
   requests for the release.
 - Optional committed external vectors, if any, have complete entries in
-  `docs/test-vectors.md`.
+  `testvectors/REGISTRY.md`.
 - Local-only vector data and generator build outputs are absent from the commit.
 - The package smoke test passes against the installed CMake package.
 - GitHub Actions Windows, Linux GCC, Linux Clang, and no-status package smoke

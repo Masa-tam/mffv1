@@ -41,6 +41,7 @@ endfunction()
 set(mffv1_public_tree_allowed_testvector_files
     testvectors/.gitignore
     testvectors/README.md
+    testvectors/REGISTRY.md
 )
 
 set(mffv1_public_tree_forbidden_path_patterns

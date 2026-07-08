@@ -55,6 +55,19 @@ bool can_try_golomb_rice_read_ahead_boundary(
     return stream.version <= 1 && slice.content_bit_offset == 0;
 }
 
+bool should_prefer_golomb_rice_read_ahead_boundary(
+    const syntax::StreamParameters& stream) noexcept
+{
+    // FFmpeg GR RGBA multi-slice streams can share one byte between the
+    // range-coded slice header and the Golomb-Rice body even when the primary
+    // boundary decodes without a syntax error.
+    return stream.version >= 3
+        && stream.entropy_mode == EntropyMode::GolombRice
+        && stream.colorspace_type == 1
+        && stream.extra_plane
+        && (stream.num_h_slices > 1 || stream.num_v_slices > 1);
+}
+
 syntax::SliceDescriptor make_golomb_rice_read_ahead_boundary(
     const syntax::SliceDescriptor& slice) noexcept
 {
@@ -68,9 +81,17 @@ std::vector<syntax::SliceDescriptor> make_golomb_rice_content_candidates(
     const syntax::SliceDescriptor& slice)
 {
     std::vector<syntax::SliceDescriptor> candidates;
-    candidates.push_back(slice);
     if (can_try_golomb_rice_read_ahead_boundary(stream, slice)) {
-        candidates.push_back(make_golomb_rice_read_ahead_boundary(slice));
+        const auto read_ahead = make_golomb_rice_read_ahead_boundary(slice);
+        if (should_prefer_golomb_rice_read_ahead_boundary(stream)) {
+            candidates.push_back(read_ahead);
+            candidates.push_back(slice);
+        } else {
+            candidates.push_back(slice);
+            candidates.push_back(read_ahead);
+        }
+    } else {
+        candidates.push_back(slice);
     }
     return candidates;
 }

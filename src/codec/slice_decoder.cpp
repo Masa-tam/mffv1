@@ -121,6 +121,16 @@ void set_reader_byte_offset(Status& status,
     }
 }
 
+std::uint16_t truncate_to_raw_sample_bits(std::int32_t sample,
+                                          std::uint8_t bits_per_raw_sample) noexcept
+{
+    if (bits_per_raw_sample == 0 || bits_per_raw_sample >= 16) {
+        return static_cast<std::uint16_t>(sample);
+    }
+    const auto mask = (std::uint32_t{1} << bits_per_raw_sample) - 1u;
+    return static_cast<std::uint16_t>(static_cast<std::uint32_t>(sample) & mask);
+}
+
 Status skip_matching_legacy_parameters_if_needed(
     entropy::RangeCoder& reader,
     const syntax::StreamParameters& stream,
@@ -624,7 +634,9 @@ Status store_rgb_line(const syntax::StreamParameters& stream,
             rows_u8[2][x] = static_cast<std::uint8_t>(rgb_scratch[2][x]);
             if (stream.extra_plane) {
                 rows_u8[3][x] = static_cast<std::uint8_t>(
-                    state.line_state(3).current()[x]);
+                    truncate_to_raw_sample_bits(
+                        state.line_state(3).current()[x],
+                        stream.bits_per_raw_sample));
             }
         } else {
             rows_u16[0][x] = rgb_scratch[0][x];
@@ -632,7 +644,9 @@ Status store_rgb_line(const syntax::StreamParameters& stream,
             rows_u16[2][x] = rgb_scratch[2][x];
             if (stream.extra_plane) {
                 rows_u16[3][x] = static_cast<std::uint16_t>(
-                    state.line_state(3).current()[x]);
+                    truncate_to_raw_sample_bits(
+                        state.line_state(3).current()[x],
+                        stream.bits_per_raw_sample));
             }
         }
     }
@@ -713,9 +727,8 @@ Status decode_golomb_rice_slice(const syntax::StreamParameters& stream,
         }
         for (std::uint32_t y = 0; y < height; ++y) {
             for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
-                const auto reconstruction_bits = plane < 3
-                    ? static_cast<std::uint8_t>(stream.bits_per_raw_sample + 1)
-                    : stream.bits_per_raw_sample;
+                const auto reconstruction_bits =
+                    static_cast<std::uint8_t>(stream.bits_per_raw_sample + 1);
                 status = decode_golomb_rice_line(bit_reader,
                                                  reader,
                                                  payload_offset,

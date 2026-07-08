@@ -834,12 +834,9 @@ Status SliceEncoder::encode_golomb_rice_samples(
             for (std::size_t plane_index = 0;
                  plane_index < plane_count;
                  ++plane_index) {
-                const auto reconstruction_bits = plane_index < 3
-                    ? coded_bits
-                    : stream_.bits_per_raw_sample;
                 Status status = encode_line(
                     rows[plane_index],
-                    reconstruction_bits,
+                    coded_bits,
                     context_bank_indexes[plane_index],
                     state.line_state(plane_index),
                     state.golomb_rice_run_state(plane_index));

@@ -1421,7 +1421,7 @@ TEST(SliceDecoderTest, DecodesGolombRiceRgbRunInterruptionsWithAlpha)
     EXPECT_EQ(state.line_state(0).previous()[0], 1);
     EXPECT_EQ(state.line_state(1).previous()[0], 1);
     EXPECT_EQ(state.line_state(2).previous()[0], 2);
-    EXPECT_EQ(state.line_state(3).previous()[0], 255);
+    EXPECT_EQ(state.line_state(3).previous()[0], 511);
     EXPECT_EQ(r[0], 131u);
     EXPECT_EQ(g[0], 129u);
     EXPECT_EQ(b[0], 130u);
@@ -1552,7 +1552,7 @@ TEST(SliceDecoderTest, GolombRiceRgbAlphaDisablesCompatibilityTransform)
     EXPECT_EQ(state.line_state(0).previous()[0], 1);
     EXPECT_EQ(state.line_state(1).previous()[0], 1);
     EXPECT_EQ(state.line_state(2).previous()[0], 2);
-    EXPECT_EQ(state.line_state(3).previous()[0], 1023);
+    EXPECT_EQ(state.line_state(3).previous()[0], 2047);
     EXPECT_EQ(r[0], 515u);
     EXPECT_EQ(g[0], 513u);
     EXPECT_EQ(b[0], 514u);

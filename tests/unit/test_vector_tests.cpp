@@ -3661,7 +3661,7 @@ public:
         const auto expected_difference = mffv1::syntax::Predictor::difference(
             static_cast<std::int32_t>(expected_sample),
             trace.prediction,
-            stream_.bits_per_raw_sample);
+            reconstruction_bits_for(trace));
         const auto rice_k =
             derive_golomb_rice_k_for_diagnostic(trace.adaptive_state_before);
         const auto has_context_terms =
@@ -3733,6 +3733,15 @@ public:
     }
 
 private:
+    std::uint8_t reconstruction_bits_for(
+        const mffv1::codec::GolombRiceSampleTrace&) const noexcept
+    {
+        if (stream_.colorspace_type == 1) {
+            return static_cast<std::uint8_t>(stream_.bits_per_raw_sample + 1);
+        }
+        return stream_.bits_per_raw_sample;
+    }
+
     std::uint32_t expected_internal_sample(
         const mffv1::codec::GolombRiceSampleTrace& trace) const
     {
@@ -4924,9 +4933,6 @@ std::size_t expected_frame_count_from_name(std::string_view name) noexcept
 
 std::string known_decode_gap_reason(std::string_view name)
 {
-    if (name.find("gr_rgba") != std::string_view::npos) {
-        return "pending Golomb-Rice RGBA alpha-plane compatibility investigation";
-    }
     if (name.find("_v0_legacy_") != std::string_view::npos) {
         return "pending legacy version 0 no-Codec-Private compatibility investigation";
     }

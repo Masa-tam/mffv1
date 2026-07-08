@@ -3,10 +3,10 @@
 All notable project changes should be recorded here.
 
 This project is currently pre-release software. The format of this file follows
-the spirit of Keep a Changelog, but version numbers and compatibility promises
-start only once the first public release is tagged.
+the spirit of Keep a Changelog. Version `0.1.0` is the planned first public
+release and remains a pre-1.0 compatibility milestone.
 
-## Unreleased
+## 0.1.0 - Unreleased
 
 ### Added
 

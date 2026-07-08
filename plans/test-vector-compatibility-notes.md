@@ -1059,3 +1059,34 @@ arithmetic coder at byte boundaries between coded planes also misses badly.
 The remaining compact legacy range issue therefore needs either a more precise
 old RGB/RCT plane-layout rule or smaller black-box vectors that isolate the
 Cb-to-Cr boundary.
+
+A subsequent YUV444p row-major probe narrowed the compact v1 YUV444p range
+gap further. Resuming the RangeCoder from the post-parameter arithmetic state,
+using neutral chroma borders, and decoding complete rows in `Y, Cb, Cr` order
+matches the public mismatch pattern much more closely than plane-major order:
+the first luma mismatch is delayed until the final row
+(`p0@0,15 = 121/126`), while chroma mismatches also move near the lower rows.
+Focused state tracing shows row 14 still reading zero residuals in context 0,
+then the final-row first luma sample reads `diff=-5` from
+`range=0x3e3 low=0x22 byte=184` with context state `s0=236`. The expected
+sample would require a zero residual, but the arithmetic state and context
+state select the non-zero branch at that point.
+
+Temporary variants deliberately kept as trace-only diagnostics:
+
+- Switching from the stream's custom state transition back to the default
+  transition worsens the YUV444p vector and diverges by row 4.
+- Decoding only the first 15 or 16 rows in row-major order and then switching
+  to plane tails does not remove the final-row luma mismatch.
+- Resetting contexts per row or sharing a single scalar context bank worsens
+  the vector.
+- Treating left-edge context neighbors as zero-border values worsens the
+  vector by row 12, so the remaining gap is not a simple left-edge context
+  boundary rule.
+
+At the final-row luma mismatch, the derived gradients are all quantized to
+zero (`folded=0`), so the current context choice is internally consistent with
+the parsed quantization tables. The next useful compact legacy range probe
+should compare the arithmetic state after row 14 against a reference decoder
+or isolate a still smaller v1 YUV444p range vector whose last row crosses the
+same low-range boundary.

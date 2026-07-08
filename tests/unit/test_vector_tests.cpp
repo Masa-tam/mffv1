@@ -3522,6 +3522,89 @@ std::string describe_legacy_range_planar_row_probe(
     return out.str();
 }
 
+std::string describe_legacy_range_public_slice_probe(
+    const mffv1_testvectors::DecodeVector& vector,
+    const mffv1::codec::LegacyFrameBootstrap& bootstrap)
+{
+    const auto& stream = bootstrap.stream;
+    if (stream.entropy_mode != mffv1::EntropyMode::Range
+        || vector.frame_payloads.empty()
+        || vector.expected_planes.empty()) {
+        return {};
+    }
+
+    const mffv1::codec::FrameParser frame_parser(stream, true);
+    mffv1::codec::FrameDecodeContext frame;
+    auto status = frame_parser.parse(vector.frame_payloads.front(), frame);
+    if (!status.ok() || frame.slices.empty()) {
+        return std::string{" public_slice_probe=parse:"} + describe_status(status);
+    }
+
+    const auto& expected_planes = vector.expected_planes.front();
+    std::vector<std::vector<std::byte>> plane_storage;
+    std::vector<mffv1::MutablePlaneView> output_planes;
+    plane_storage.reserve(expected_planes.size());
+    output_planes.reserve(expected_planes.size());
+    for (const auto& expected : expected_planes) {
+        std::size_t expected_size = 0;
+        if (!compute_plane_size(expected, expected_size)) {
+            return " public_slice_probe=plane-size-overflow";
+        }
+        plane_storage.emplace_back(expected_size, std::byte{0xa5});
+        output_planes.push_back(
+            mffv1::MutablePlaneView{plane_storage.back().data(), expected.info});
+    }
+    mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
+
+    mffv1::codec::SliceOutputWindow window;
+    status = window.validate(stream, output, frame.slices.front());
+    if (!status.ok()) {
+        return std::string{" public_slice_probe=window:"} + describe_status(status);
+    }
+    mffv1::codec::SliceState state;
+    status = state.reset(stream, window);
+    if (!status.ok()) {
+        return std::string{" public_slice_probe=state:"} + describe_status(status);
+    }
+
+    std::ostringstream out;
+    out << " public_slice_probe initial";
+    const auto plane_count =
+        std::min<std::size_t>(state.plane_count(), expected_planes.size());
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        out << " p" << plane << "=";
+        if (!state.line_state(plane).previous().empty()) {
+            out << state.line_state(plane).previous()[0];
+        } else {
+            out << "empty";
+        }
+    }
+
+    const mffv1::codec::SliceDecoder slice_decoder(stream, true);
+    status = slice_decoder.decode(frame.slices.front(), window, state);
+    out << " decode=" << describe_status(status);
+    if (!status.ok()) {
+        return out.str();
+    }
+
+    out << " first";
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        out << " p" << plane << "=";
+        const auto actual = sample_at(
+            plane_storage[plane],
+            expected_planes[plane].info,
+            0,
+            0);
+        const auto expected = sample_at(
+            expected_planes[plane].samples,
+            expected_planes[plane].info,
+            0,
+            0);
+        out << actual << "/" << expected;
+    }
+    return out.str();
+}
+
 std::string describe_legacy_bootstrap_state(
     const mffv1_testvectors::DecodeVector& vector)
 {
@@ -3578,6 +3661,7 @@ std::string describe_legacy_bootstrap_state(
             << describe_legacy_range_reset_boundary_probe(vector, bootstrap)
             << describe_legacy_range_rgb_row_probe(vector, bootstrap)
             << describe_legacy_range_planar_row_probe(vector, bootstrap)
+            << describe_legacy_range_public_slice_probe(vector, bootstrap)
             << describe_legacy_range_v1_sibling_probe(vector.name);
     }
     return out.str();

@@ -1,5 +1,6 @@
 #include "codec/slice_decoder.hpp"
 
+#include "codec/legacy_frame_bootstrap_parser.hpp"
 #include "mffv1/profile_constraints.hpp"
 #include "codec/slice_header_parser.hpp"
 #include "codec/slice_input_window.hpp"
@@ -1370,20 +1371,47 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                                    slice.payload_byte_offset);
         }
         const auto local_content_offset = slice.content_byte_offset - slice.payload_byte_offset;
-        status = skip_matching_legacy_parameters_if_needed(
-            reader, stream_, local_content_offset, slice.header_byte_offset);
-        if (!status.ok()) {
-            return status;
-        }
-        status = reader.set_state_transition(stream_.state_transition);
-        if (!status.ok()) {
-            add_byte_offset(status, slice.payload_byte_offset);
-            return status;
-        }
-        status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
         reader_base_offset = slice.payload_byte_offset;
-        if (status.ok() && slice.uses_legacy_v0_arithmetic) {
-            status = reader.set_legacy_v0_arithmetic(true);
+        bool resumed_after_embedded_parameters = false;
+        if (keyframe) {
+            LegacyFrameBootstrap bootstrap;
+            const LegacyFrameBootstrapParser bootstrap_parser;
+            status = bootstrap_parser.parse(
+                slice.payload,
+                stream_.width,
+                stream_.height,
+                bootstrap);
+            if (status.ok()
+                && bootstrap.has_embedded_parameters
+                && bootstrap.content_byte_offset == local_content_offset
+                && syntax::stream_parameters_equivalent(stream_, bootstrap.stream)) {
+                status = reader.reset_from_arithmetic_state(
+                    slice.payload,
+                    range_context_counts,
+                    range_initial_state_banks,
+                    stream_.state_transition,
+                    bootstrap.range_state_after_parameters);
+                if (status.ok() && slice.uses_legacy_v0_arithmetic) {
+                    status = reader.set_legacy_v0_arithmetic(true);
+                }
+                resumed_after_embedded_parameters = true;
+            }
+        }
+        if (!resumed_after_embedded_parameters) {
+            status = skip_matching_legacy_parameters_if_needed(
+                reader, stream_, local_content_offset, slice.header_byte_offset);
+            if (!status.ok()) {
+                return status;
+            }
+            status = reader.set_state_transition(stream_.state_transition);
+            if (!status.ok()) {
+                add_byte_offset(status, slice.payload_byte_offset);
+                return status;
+            }
+            status = reader.reconfigure_contexts(range_context_counts, range_initial_state_banks);
+            if (status.ok() && slice.uses_legacy_v0_arithmetic) {
+                status = reader.set_legacy_v0_arithmetic(true);
+            }
         }
     } else {
         status = reader.reset(content_payload,
@@ -1432,6 +1460,45 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     }
 
     const bool use_signed_16bit_prediction = syntax::uses_signed_16bit_predictor(stream_);
+    const bool use_legacy_range_ycbcr_row_order =
+        stream_.version <= 1
+        && stream_.entropy_mode == EntropyMode::Range
+        && stream_.colorspace_type == 0
+        && stream_.chroma_planes
+        && stream_.log2_h_chroma_subsample == 0
+        && stream_.log2_v_chroma_subsample == 0;
+
+    if (use_legacy_range_ycbcr_row_order) {
+        const auto height = output.plane_height(0);
+        for (std::uint32_t y = 0; y < height; ++y) {
+            for (std::size_t plane_index = 0;
+                 plane_index < output.plane_count();
+                 ++plane_index) {
+                if (y >= output.plane_height(plane_index)) {
+                    continue;
+                }
+                const auto& context_model = context_models[plane_index];
+                auto& line = state.line_state(plane_index);
+                const auto width = output.plane_width(plane_index);
+                status = decode_range_line(reader,
+                                           reader_base_offset,
+                                           context_model,
+                                           range_context_bank_indexes[plane_index],
+                                           width,
+                                           stream_.bits_per_raw_sample,
+                                           use_signed_16bit_prediction,
+                                           line);
+                if (!status.ok()) {
+                    return status;
+                }
+                status = store_planar_line(stream_, output, plane_index, y, line);
+                if (!status.ok()) {
+                    return status;
+                }
+            }
+        }
+        return state.capture_range_contexts(reader);
+    }
 
     for (std::size_t plane_index = 0; plane_index < output.plane_count(); ++plane_index) {
         const auto& context_model = context_models[plane_index];

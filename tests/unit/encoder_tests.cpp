@@ -1778,6 +1778,102 @@ TEST(EncoderTest, PublicEncoderRoundTripsEightBitGolombRiceRgb)
         8, false, mffv1::EntropyMode::GolombRice);
 }
 
+TEST(EncoderTest, PublicEncoderRoundTripsLargeGolombRiceRgb)
+{
+    constexpr std::uint32_t width = 320;
+    constexpr std::uint32_t height = 240;
+    constexpr std::size_t sample_count =
+        static_cast<std::size_t>(width) * height;
+    std::vector<std::uint8_t> r(sample_count);
+    std::vector<std::uint8_t> g(sample_count);
+    std::vector<std::uint8_t> b(sample_count);
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            const auto index =
+                static_cast<std::size_t>(y) * width + x;
+            const auto bar = static_cast<std::uint8_t>((x / 40u) & 7u);
+            r[index] = static_cast<std::uint8_t>(
+                ((bar & 1u) != 0u ? 0xffu : 0x20u) ^ ((y * 3u) & 0x3fu));
+            g[index] = static_cast<std::uint8_t>(
+                ((bar & 2u) != 0u ? 0xe0u : 0x10u) ^ ((x + y) & 0x1fu));
+            b[index] = static_cast<std::uint8_t>(
+                ((bar & 4u) != 0u ? 0xc0u : 0x30u) ^ ((x * 5u) & 0x7fu));
+        }
+    }
+
+    mffv1::EncoderOptions options;
+    options.entropy_mode = mffv1::EntropyMode::GolombRice;
+    auto encoder = mffv1::create_encoder(options);
+    ASSERT_TRUE(encoder.status.ok());
+    ASSERT_NE(encoder.encoder, nullptr);
+
+    mffv1::StreamInfo stream;
+    stream.width = width;
+    stream.height = height;
+    stream.version = 3;
+    stream.bits_per_raw_sample = 8;
+    stream.color_space = mffv1::ColorSpace::Rgb;
+    stream.has_chroma_planes = true;
+    stream.has_extra_plane = false;
+    mffv1::ConfigurationRecord record;
+    ASSERT_TRUE(encoder.encoder->configure(stream, record).ok());
+
+    const std::array input_planes{
+        mffv1::PlaneView{
+            r.data(),
+            {mffv1::PlaneRole::R, mffv1::SampleFormat::UInt8,
+             width, height, width},
+        },
+        mffv1::PlaneView{
+            g.data(),
+            {mffv1::PlaneRole::G, mffv1::SampleFormat::UInt8,
+             width, height, width},
+        },
+        mffv1::PlaneView{
+            b.data(),
+            {mffv1::PlaneRole::B, mffv1::SampleFormat::UInt8,
+             width, height, width},
+        },
+    };
+    const mffv1::FrameView input{input_planes.data(), input_planes.size()};
+    mffv1::EncodedFrame frame;
+    ASSERT_TRUE(encoder.encoder->encode_frame(input, frame).ok());
+
+    mffv1::DecoderOptions decoder_options;
+    decoder_options.frame_width = width;
+    decoder_options.frame_height = height;
+    auto decoder = mffv1::create_decoder(decoder_options);
+    ASSERT_TRUE(decoder.status.ok());
+    ASSERT_NE(decoder.decoder, nullptr);
+    ASSERT_TRUE(decoder.decoder->configure(record.bytes).ok());
+
+    std::vector<std::uint8_t> decoded_r(sample_count);
+    std::vector<std::uint8_t> decoded_g(sample_count);
+    std::vector<std::uint8_t> decoded_b(sample_count);
+    std::array output_planes{
+        mffv1::MutablePlaneView{
+            decoded_r.data(),
+            {mffv1::PlaneRole::R, mffv1::SampleFormat::UInt8,
+             width, height, width},
+        },
+        mffv1::MutablePlaneView{
+            decoded_g.data(),
+            {mffv1::PlaneRole::G, mffv1::SampleFormat::UInt8,
+             width, height, width},
+        },
+        mffv1::MutablePlaneView{
+            decoded_b.data(),
+            {mffv1::PlaneRole::B, mffv1::SampleFormat::UInt8,
+             width, height, width},
+        },
+    };
+    mffv1::MutableFrameView output{output_planes.data(), output_planes.size()};
+    ASSERT_TRUE(decoder.decoder->decode_frame(frame.bytes, output).ok());
+    EXPECT_EQ(decoded_r, r);
+    EXPECT_EQ(decoded_g, g);
+    EXPECT_EQ(decoded_b, b);
+}
+
 TEST(EncoderTest, PublicEncoderRoundTripsTenBitGolombRiceRgb)
 {
     expect_public_rgb_round_trip(

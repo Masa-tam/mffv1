@@ -839,7 +839,7 @@ Status SliceEncoder::encode_golomb_rice_samples(
                     coded_bits,
                     context_bank_indexes[plane_index],
                     state.line_state(plane_index),
-                    state.golomb_rice_run_state(plane_index));
+                    state.golomb_rice_run_state(0));
                 if (!status.ok()) {
                     return status;
                 }

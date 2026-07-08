@@ -1021,16 +1021,19 @@ RGBA known gaps:
   internal domain used by the RGB/RCT planes and truncates the stored alpha
   output back to the raw sample width.
 
-The remaining known generated-vector gap is now focused on compact
-version 0 range-coded legacy no-Codec-Private controls:
+There are currently no known generated-vector decode gaps for the active
+compact range-coded legacy no-Codec-Private controls:
 
-- `range_rgb_v0_legacy_1slice.mkv` and `range_yuv444p_v0_legacy_1slice.mkv`
-  remain grouped with the compact range-state boundary investigation.
-- The version 1 siblings are no longer grouped with this gap.
-  `range_yuv444p_v1_legacy_1slice.mkv` decodes after the legacy YCbCr
-  zero-symbol carry rule, and `range_rgb_v1_legacy_1slice.mkv` decodes after
-  applying the legacy RGB shared-chroma Range context-bank rule described
-  below.
+- `range_yuv444p_v1_legacy_1slice.mkv` decodes after the legacy YCbCr
+  zero-symbol carry rule.
+- `range_rgb_v1_legacy_1slice.mkv` decodes after applying the legacy RGB
+  shared-chroma Range context-bank rule described below.
+- `range_yuv444p_v0_legacy_1slice.mkv` decodes when version 0 compact
+  no-Codec-Private Slice Content uses the normal range arithmetic split plus
+  the same YCbCr zero-symbol carry.
+- `range_rgb_v0_legacy_1slice.mkv` decodes when version 0 compact
+  no-Codec-Private Slice Content uses the normal range arithmetic split plus
+  the compact RGB shared-chroma context-bank mapping.
 
 With `MFFV1_TEST_VECTOR_TRACE_BOOTSTRAP=1`, known-gap legacy entries now emit
 the same bootstrap/range-state probes used for unsupported-entry diagnostics.
@@ -1131,13 +1134,21 @@ forcing it for `range_rgb_v1_legacy_1slice.mkv` breaks the first row
 
 The compact legacy RGB issue turned out to be a Range context-bank mapping
 difference rather than an RCT formula difference or a plane-major layout.
-For version 1 range-coded RGB, the coded Y plane uses its own scalar context
-bank, while the coded Cb and Cr planes share the chroma context bank. A
+For compact range-coded RGB resumed from embedded frame parameters, the coded
+Y plane uses its own scalar context bank, while the coded Cb and Cr planes
+share the chroma context bank. A
 diagnostic row probe showed the standard independent-bank mapping decoding the
 first row as `Y=128`, `Cb=256`, and `Cr` near zero for the flat gray control.
 Using `Y=0, Cb=1, Cr=1` as Range context-bank indexes made the first row and
 the full frame match `range_rgb_v1_legacy_1slice.mkv`. The production decoder
 now applies this mapping when resuming compact legacy RGB range-coded content
-from an embedded frame header. Version 0 still remains separate because its
-legacy arithmetic mode and compact range failures do not match the version 1
-YCbCr carry or RGB shared-chroma behavior.
+from an embedded frame header.
+
+The compact version 0 range-coded controls then showed that the earlier
+`legacy_v0_arithmetic` Slice Content experiment was too broad. It had been
+useful for historical AVI-derived probes, but the active MKV no-Codec-Private
+v0 controls decode with the normal range arithmetic split after the embedded
+Parameters state has been replayed. Under that normal split, v0 RGB matches
+with the same compact RGB shared-chroma context-bank mapping, and v0 YUV444p
+matches when the zero-symbol carry rule is applied to both version 0 and
+version 1 compact YCbCr range-coded content.

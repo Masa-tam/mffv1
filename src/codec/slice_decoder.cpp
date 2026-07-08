@@ -1400,7 +1400,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                     status = reader.set_legacy_v0_arithmetic(true);
                 }
                 if (status.ok()
-                    && stream_.version == 1
+                    && stream_.version <= 1
                     && stream_.entropy_mode == EntropyMode::Range
                     && stream_.colorspace_type == 0) {
                     status = reader.set_legacy_zero_symbol_carry(true);
@@ -1424,7 +1424,7 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
                 status = reader.set_legacy_v0_arithmetic(true);
             }
             if (status.ok()
-                && stream_.version == 1
+                && stream_.version <= 1
                 && stream_.entropy_mode == EntropyMode::Range
                 && stream_.colorspace_type == 0) {
                 status = reader.set_legacy_zero_symbol_carry(true);

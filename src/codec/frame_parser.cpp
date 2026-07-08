@@ -292,12 +292,9 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     slice.payload = payload;
     slice.header_byte_offset = 0;
     auto content_byte_offset = parse_legacy_range_header ? frame_reader.byte_position() : 0;
-    auto uses_legacy_v0_arithmetic = false;
     if (parse_legacy_range_header && next_frame.keyframe) {
         const auto embedded_content_byte_offset = detect_legacy_embedded_parameters_offset(
             frame_reader, stream_, content_byte_offset);
-        uses_legacy_v0_arithmetic = stream_.version == 0
-            && embedded_content_byte_offset != content_byte_offset;
         content_byte_offset = embedded_content_byte_offset;
     }
     slice.content_byte_offset = content_byte_offset;
@@ -312,7 +309,7 @@ Status FrameParser::parse(ByteSpan payload, FrameDecodeContext& out_frame) const
     }
     slice.payload_byte_offset = 0;
     slice.continues_frame_range_state = parse_legacy_range_header;
-    slice.uses_legacy_v0_arithmetic = uses_legacy_v0_arithmetic;
+    slice.uses_legacy_v0_arithmetic = false;
     next_frame.slices.push_back(slice);
 
     status = validate_slice_raster_coverage(stream_, next_frame.slices);

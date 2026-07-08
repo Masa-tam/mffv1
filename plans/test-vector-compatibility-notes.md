@@ -116,7 +116,13 @@ range YCbCr 4:4:4 in row-major Y/Cb/Cr order moves the version 1 mismatch from
 the first chroma sample to luma row 15, which is strong evidence that compact
 legacy planar range content is not simple whole-plane order. The next
 investigation should isolate the later row transition before removing the
-YUV444p entries from the gap list.
+YUV444p entries from the gap list. The row-major diagnostic now reports the
+first mismatches as luma `(0,15)=121/126`, Cb `(19,16)=125/128`, and Cr
+`(16,13)=127/128`; the range coder first reaches payload end later at
+`p2@(24,15)`, so the first luma divergence is not merely an EOF read-ahead
+artifact. Resetting range scalar contexts at each row worsens the mismatch to
+row 5 or 6, and sharing one scalar context bank for all planes worsens it to
+row 8 or 9.
 
 The current generated `*_inter*.mkv` entries now expose two frame payloads and
 two expected-plane sets per vector, so they exercise the public decoder's

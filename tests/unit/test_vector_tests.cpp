@@ -3519,6 +3519,162 @@ std::string describe_legacy_range_planar_row_probe(
         out << " neutral_chroma_border_plane_context_reset=err("
             << describe_status(status) << ")";
     }
+    const auto append_full_candidate =
+        [&](std::string_view label,
+            bool neutral_chroma_border,
+            bool shared_bank,
+            bool reset_contexts_per_row) {
+            mffv1::entropy::RangeCoder probe_reader;
+            auto probe_status = probe_reader.reset_from_arithmetic_state(
+                vector.frame_payloads.front(),
+                context_counts,
+                {},
+                stream.state_transition,
+                bootstrap.range_state_after_parameters);
+            if (probe_status.ok() && stream.version == 0) {
+                probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+            }
+            if (!probe_status.ok()) {
+                out << " " << label << "=err(" << describe_status(probe_status) << ")";
+                return;
+            }
+
+            std::vector<mffv1::syntax::LineState> lines(plane_count);
+            for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+                const auto border =
+                    neutral_chroma_border
+                        && plane_index > 0
+                        && stream.bits_per_raw_sample > 0
+                        && stream.bits_per_raw_sample < 31
+                    ? std::int32_t{1 << (stream.bits_per_raw_sample - 1)}
+                    : std::int32_t{0};
+                probe_status = lines[plane_index].reset(
+                    planes[plane_index].info.width,
+                    border);
+                if (!probe_status.ok()) {
+                    out << " " << label << "=err(" << describe_status(probe_status) << ")";
+                    return;
+                }
+            }
+
+            std::vector<std::vector<std::int32_t>> full_decoded(plane_count);
+            for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+                full_decoded[plane_index].assign(
+                    static_cast<std::size_t>(planes[plane_index].info.width)
+                        * planes[plane_index].info.height,
+                    0);
+            }
+
+            bool found_first_end = false;
+            std::size_t first_end_plane = 0;
+            std::uint32_t first_end_x = 0;
+            std::uint32_t first_end_y = 0;
+            const auto height = planes.front().info.height;
+            for (std::uint32_t y = 0; y < height; ++y) {
+                if (reset_contexts_per_row && y != 0) {
+                    probe_status = probe_reader.reconfigure_contexts(context_counts);
+                    if (probe_status.ok() && stream.version == 0) {
+                        probe_status = probe_reader.set_legacy_v0_arithmetic(true);
+                    }
+                    if (!probe_status.ok()) {
+                        out << " " << label << "=err("
+                            << describe_status(probe_status) << ")";
+                        return;
+                    }
+                }
+                for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+                    auto& line = lines[plane_index];
+                    for (std::uint32_t x = 0; x < planes[plane_index].info.width; ++x) {
+                        const auto neighbors = line.neighbors(x);
+                        const auto prediction = mffv1::syntax::Predictor::median_predict(
+                            neighbors.left,
+                            neighbors.top,
+                            neighbors.top_left);
+                        mffv1::syntax::ContextDecision context;
+                        probe_status = context_model.derive_context(neighbors, context);
+                        if (!probe_status.ok()) {
+                            out << " " << label << "=err("
+                                << describe_status(probe_status) << ")";
+                            return;
+                        }
+                        std::int64_t difference = 0;
+                        probe_status = probe_reader.read_signed(
+                            shared_bank ? std::size_t{0} : plane_index,
+                            context.context,
+                            difference);
+                        if (!probe_status.ok()) {
+                            out << " " << label << "=err("
+                                << describe_status(probe_status) << ")";
+                            return;
+                        }
+                        if (context.invert_difference) {
+                            difference = -difference;
+                        }
+                        if (difference < std::numeric_limits<std::int32_t>::min()
+                            || difference > std::numeric_limits<std::int32_t>::max()) {
+                            out << " " << label << "=err(difference-out-of-range)";
+                            return;
+                        }
+                        const auto reconstructed = mffv1::syntax::Predictor::reconstruct(
+                            prediction,
+                            static_cast<std::int32_t>(difference),
+                            stream.bits_per_raw_sample);
+                        line.mutable_current()[x] = reconstructed;
+                        full_decoded[plane_index][
+                            static_cast<std::size_t>(y) * planes[plane_index].info.width + x] =
+                            reconstructed;
+                        if (!found_first_end && probe_reader.arithmetic_state().end) {
+                            found_first_end = true;
+                            first_end_plane = plane_index;
+                            first_end_x = x;
+                            first_end_y = y;
+                        }
+                    }
+                    line.swap_lines();
+                }
+            }
+
+            out << " " << label << "=";
+            for (std::size_t plane_index = 0; plane_index < plane_count; ++plane_index) {
+                bool found_mismatch = false;
+                out << "p" << plane_index << ":";
+                for (std::uint32_t y = 0;
+                     y < planes[plane_index].info.height && !found_mismatch;
+                     ++y) {
+                    for (std::uint32_t x = 0; x < planes[plane_index].info.width; ++x) {
+                        const auto actual = static_cast<std::uint32_t>(
+                            full_decoded[plane_index][
+                                static_cast<std::size_t>(y) * planes[plane_index].info.width + x]);
+                        const auto expected = sample_at(
+                            planes[plane_index].samples,
+                            planes[plane_index].info,
+                            x,
+                            y);
+                        if (actual == expected) {
+                            continue;
+                        }
+                        out << x << "," << y << ":" << actual << "/" << expected;
+                        found_mismatch = true;
+                        break;
+                    }
+                }
+                if (!found_mismatch) {
+                    out << "ok";
+                }
+                out << ";";
+            }
+            out << " first_end=";
+            if (found_first_end) {
+                out << "p" << first_end_plane << "@"
+                    << first_end_x << "," << first_end_y;
+            } else {
+                out << "none";
+            }
+            out << " after{" << describe_range_state(probe_reader.arithmetic_state()) << "}";
+        };
+    append_full_candidate("row_major_neutral", true, false, false);
+    append_full_candidate("row_major_neutral_shared_bank", true, true, false);
+    append_full_candidate("row_major_neutral_row_reset", true, false, true);
     return out.str();
 }
 
@@ -3601,6 +3757,48 @@ std::string describe_legacy_range_public_slice_probe(
             0,
             0);
         out << actual << "/" << expected;
+    }
+    out << " mismatch";
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        const auto& expected = expected_planes[plane];
+        out << " p" << plane << "=";
+        bool found_mismatch = false;
+        for (std::uint32_t y = 0; y < expected.info.height && !found_mismatch; ++y) {
+            for (std::uint32_t x = 0; x < expected.info.width; ++x) {
+                const auto actual_sample =
+                    sample_at(plane_storage[plane], expected.info, x, y);
+                const auto expected_sample =
+                    sample_at(expected.samples, expected.info, x, y);
+                if (actual_sample == expected_sample) {
+                    continue;
+                }
+                out << x << "," << y
+                    << ":" << actual_sample << "/" << expected_sample;
+                if (x != 0) {
+                    const auto prev_actual =
+                        sample_at(plane_storage[plane], expected.info, x - 1, y);
+                    const auto prev_expected =
+                        sample_at(expected.samples, expected.info, x - 1, y);
+                    out << " prev=" << prev_actual << "/" << prev_expected;
+                }
+                out << " row0=";
+                const auto row_sample_count =
+                    std::min<std::uint32_t>(expected.info.width, 4);
+                for (std::uint32_t sx = 0; sx < row_sample_count; ++sx) {
+                    if (sx != 0) {
+                        out << ",";
+                    }
+                    out << sample_at(plane_storage[plane], expected.info, sx, y)
+                        << "/"
+                        << sample_at(expected.samples, expected.info, sx, y);
+                }
+                found_mismatch = true;
+                break;
+            }
+        }
+        if (!found_mismatch) {
+            out << "none";
+        }
     }
     return out.str();
 }

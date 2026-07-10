@@ -12,7 +12,7 @@ their own source or binary releases. Library users should start with
 
 ## Release Readiness
 
-A stable release candidate should satisfy all of the following:
+A release candidate should satisfy all of the following:
 
 - Public API references match the installed headers.
 - The current limitations in `DECODER_REFERENCE.md` and

@@ -2,10 +2,10 @@
 
 ## Purpose
 
-This document specifies the first clean-room FFV1 encoder architecture for
-mffv1. It is written primarily as implementation guidance for LLM-assisted
-development, while keeping ownership, invariants, and milestones explicit for
-human review.
+This document specifies the first specification-driven FFV1 encoder
+architecture for mffv1. It is written primarily as implementation guidance for
+LLM-assisted development, while keeping ownership, invariants, and milestones
+explicit for human review.
 
 The encoder MUST be implemented from published specifications and
 project-owned tests. Code from existing FFV1 implementations MUST NOT be used
@@ -417,7 +417,7 @@ Each milestone builds and passes the full test suite before commit:
 10. Add chroma, extra plane, higher bit depth, RGB, Golomb-Rice, multiple
     slices, non-keyframes, threading, and SIMD in separately tested increments.
 
-## Clean-Room Verification Rules
+## Source-Provenance Verification Rules
 
 - Record the RFC section used when a non-obvious arithmetic rule is added.
 - Do not copy code, tables, comments, or test vectors from implementation

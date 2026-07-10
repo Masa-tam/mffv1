@@ -1,10 +1,10 @@
 # mffv1 Clean Implementation Design
 
-This document describes the first-stage design of mffv1, a clean C++
-implementation of the FFV1 codec. The name `mffv1` identifies this project;
-`FFV1` identifies the codec and format standardized by RFC 9043. The document is
-intended to be readable by humans and directly useful to LLM-based coding agents
-during implementation.
+This document describes the first-stage design of mffv1, a specification-driven
+C++ implementation of the FFV1 codec. The name `mffv1` identifies this project;
+`FFV1` identifies the codec and format standardized by RFC 9043. The document
+is intended to be readable by humans and directly useful to LLM-based coding
+agents during implementation.
 
 The implementation target is a complete FFV1 codec, with an initial focus on
 correct, testable decoding and a matching encoder architecture. The design keeps
@@ -25,8 +25,9 @@ Authoritative format reference:
 ## Goals
 
 - Implement FFV1 versions 0, 1, and 3 as defined by RFC 9043.
-- Keep the implementation clean-room friendly: use the public specification and
-  generated test vectors, not source-derived behavior from incompatible code.
+- Keep the implementation source-provenance friendly: use the public
+  specification and generated test vectors, not source-derived behavior from
+  incompatible code.
 - Provide both decoder and encoder APIs in C++.
 - Make the scalar implementation the correctness oracle.
 - Add SIMD paths behind explicit, testable strategy interfaces.

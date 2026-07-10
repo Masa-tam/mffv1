@@ -165,7 +165,7 @@ that justifies why the vector can be redistributed with mffv1.
 - Review notes:
 ```
 
-## Clean-Room Constraints
+## Source-Provenance Constraints
 
 - Vectors may be generated from media files and public container/codec metadata.
 - Do not copy or translate FFmpeg source code into generated vector files.

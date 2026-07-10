@@ -3,7 +3,7 @@
 This note collects mffv1 findings that may be useful when reading or
 implementing RFC 9043. It is not a replacement for the RFC and does not define
 the public mffv1 API. It records black-box compatibility observations, internal
-tests, and clean-room implementation decisions.
+tests, and source-provenance-aware implementation decisions.
 
 mffv1 must remain independent from FFmpeg source code. The observations below
 come from RFC text, generated bitstreams, generated expected planes, and mffv1

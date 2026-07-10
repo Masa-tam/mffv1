@@ -16,10 +16,15 @@ contracts, prefer:
 
 When a plan document differs from the public references or tests, treat the
 public references, headers, and tests as authoritative for current behavior.
+Some early planning documents use the term "clean-room" in a broad engineering
+sense. Current public project wording is "specification-driven independent
+implementation"; see
+[License And Development Provenance](../docs/LICENSE_AND_PROVENANCE.md) for the
+authoritative source-provenance statement.
 
 ## Documents
 
-- [Architecture Design](DESIGN.md): original clean-room architecture and
+- [Architecture Design](DESIGN.md): original specification-driven architecture and
   long-term module boundaries.
 - [Phase 2 Class Specification](PHASE2_CLASS_SPEC.md): decoder construction
   plan and internal class boundaries.

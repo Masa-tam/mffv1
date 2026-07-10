@@ -3,17 +3,17 @@
 All notable project changes should be recorded here.
 
 This project is currently pre-release software. The format of this file follows
-the spirit of Keep a Changelog. Version `0.1.0` is the planned first public
-release and remains a pre-1.0 compatibility milestone.
+the spirit of Keep a Changelog. Version `0.1.0` is the first public release and
+remains a pre-1.0 compatibility milestone.
 
-## 0.1.0 - Unreleased
+## 0.1.0 - 2026-07-10
 
 Initial public pre-1.0 release.
 
 ### Added
 
-- Clean-room C++20 FFV1 codec library with container-independent public
-  decoder and encoder factories.
+- Specification-driven independent C++20 FFV1 codec library with
+  container-independent public decoder and encoder factories.
 - Public API based on pure virtual decoder and encoder interfaces returned as
   `std::unique_ptr` instances.
 - FFV1 version 3 decoder support for stable micro-version 4 or later.

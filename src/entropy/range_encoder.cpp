@@ -461,12 +461,20 @@ Status RangeEncoder::finalize_impl(std::vector<std::byte>& out_bytes,
             : static_cast<std::uint32_t>(
                 static_cast<std::uint8_t>(completed.low_bytes_.back()));
         auto delta_to_zero_low_byte = (256u - last_byte) & 0xffu;
-        if (delta_to_zero_low_byte == 0 && completed.range_ > 256u) {
-            delta_to_zero_low_byte = 256u;
+        std::uint32_t closing_delta = completed.range_ / 2u;
+        if (delta_to_zero_low_byte < completed.range_) {
+            const auto target = completed.range_ / 2u;
+            auto aligned_delta = delta_to_zero_low_byte;
+            while (aligned_delta + 256u < completed.range_
+                   && aligned_delta + 256u <= target) {
+                aligned_delta += 256u;
+            }
+            if (aligned_delta + 256u < completed.range_
+                && target - aligned_delta > aligned_delta + 256u - target) {
+                aligned_delta += 256u;
+            }
+            closing_delta = aligned_delta;
         }
-        const auto closing_delta = delta_to_zero_low_byte < completed.range_
-            ? delta_to_zero_low_byte
-            : completed.range_ / 2u;
         Status status = completed.add_to_low(closing_delta);
         if (!status.ok()) {
             return status;

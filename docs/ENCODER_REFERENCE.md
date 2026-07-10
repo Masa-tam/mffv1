@@ -204,6 +204,10 @@ The generated Configuration Record currently declares:
 - Error-status and slice CRC fields when `StreamInfo::error_status_enabled`
   is true; otherwise, these slice footer fields are omitted.
 
+For range-coded version 3 slices, mffv1 closes the arithmetic range payload
+before writing the Slice Footer. When `error_status_enabled` is true, the
+error-status byte and CRC parity are footer data, not range-coded content.
+
 The lower-level `codec::ConfigurationRecordWriter` can also serialize custom
 quantization table sets, custom range state transitions from
 `syntax::StreamParameters` by writing range coder type 2 and the signed

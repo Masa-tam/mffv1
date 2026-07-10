@@ -74,6 +74,9 @@ release and remains a pre-1.0 compatibility milestone.
   official FFV1 implementation and to emphasize the modular, modern C++ design.
 - The CMake target is explicitly static; `BUILD_SHARED_LIBS` does not change
   the supported package artifact type.
+- Range-coded version 3 encoder output now uses closed slice tails that avoid
+  drifting into error-status and CRC footer bytes in black-box FFmpeg
+  interoperability checks.
 
 ### Known Limitations
 

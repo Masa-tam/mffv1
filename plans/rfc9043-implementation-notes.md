@@ -57,6 +57,17 @@ termination sentinel between a range-coded Slice Header and Golomb-Rice Slice
 Content. The range coder's normal byte-position behavior still determines the
 content byte boundary.
 
+### Range-Coded Slices Close Before Slice Footer
+
+For version 3 range-coded slices, mffv1 writes a closed arithmetic code before
+appending the Slice Footer. With error status enabled, the following
+`error_status` byte and CRC parity are footer bytes, not implicit range-coded
+read-ahead bytes. Local black-box FFmpeg checks reported
+`bytestream end mismatching by -1` when short final range payloads allowed the
+decoder boundary to drift into those footer bytes. Centering the final code in
+the remaining interval and keeping the needed closed-tail bytes removed that
+warning for the reproduced range-coded inter-frame stream.
+
 ### Custom State Transition Applies After Parameters
 
 For `coder_type == 2`, `state_transition_delta` is decoded using the current

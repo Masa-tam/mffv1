@@ -1,4 +1,5 @@
 # mffv1
+![mffv1 logo](https://github.com/user-attachments/assets/64c86829-1bd3-450c-a6bd-1a7a26c89ecb)
 
 [![CI](https://github.com/Masa-tam/mffv1/actions/workflows/ci.yml/badge.svg)](https://github.com/Masa-tam/mffv1/actions/workflows/ci.yml)
 

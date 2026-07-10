@@ -46,6 +46,12 @@ To run external-vector tests, place a locally generated
 `test_vector_data.hpp` in this directory before configuring the build. CMake
 will include that local header instead of generating the fallback header.
 
+If `test_vector_data.hpp` is added, removed, or replaced after a build tree has
+already been configured, rerun the CMake configure step before rebuilding. The
+configured test include path is selected during configure, so a stale build
+tree can keep looking for a removed local header or keep using the fallback
+after a local header has been added.
+
 After running the tests, remove or replace the local header before committing
 ordinary mffv1 library changes. Local generated headers are test artifacts and
 are ignored by Git.

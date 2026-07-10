@@ -28,9 +28,10 @@ diagnostic location, or first mismatching sample when available.
 ## Reproducer
 
 Prefer synthetic, minimized, or redacted data. Do not upload private media,
-FFmpeg source code, or generated data with unclear licensing.
+unreleased creative work, commercial project material, personal data, FFmpeg
+source code, or generated data with unclear licensing.
 
-## Provenance
+## Source-Provenance Confirmation
 
 Explain how the bitstream or observation was produced. Black-box observations
 are welcome; copied implementation details are not.

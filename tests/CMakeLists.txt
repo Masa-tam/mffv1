@@ -22,6 +22,12 @@ if(NOT GTest_FOUND)
     endif()
 endif()
 
+set(mffv1_msvc_asan_test_environment)
+if(MSVC AND MFFV1_ENABLE_SANITIZERS)
+    get_filename_component(mffv1_msvc_tool_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    set(mffv1_msvc_asan_test_environment "PATH=${mffv1_msvc_tool_dir}")
+endif()
+
 set(mffv1_unit_test_sources
     unit/status_tests.cpp
 )
@@ -84,6 +90,12 @@ if(NOT MFFV1_BUILD_STATUS_CONTRACT_TESTS_ONLY)
     )
     mffv1_apply_common_options(mffv1_header_fallback_smoke)
     add_test(NAME HeaderFallbackSmoke COMMAND mffv1_header_fallback_smoke)
+    if(mffv1_msvc_asan_test_environment)
+        set_tests_properties(HeaderFallbackSmoke
+            PROPERTIES
+                ENVIRONMENT "${mffv1_msvc_asan_test_environment}"
+        )
+    endif()
 endif()
 
 add_executable(mffv1_unit_tests ${mffv1_unit_test_sources})
@@ -119,10 +131,9 @@ mffv1_apply_common_options(mffv1_unit_tests)
 
 include(GoogleTest)
 set(mffv1_test_properties)
-if(MSVC AND MFFV1_ENABLE_SANITIZERS)
-    get_filename_component(mffv1_msvc_tool_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+if(mffv1_msvc_asan_test_environment)
     list(APPEND mffv1_test_properties
-        ENVIRONMENT "PATH=${mffv1_msvc_tool_dir}"
+        ENVIRONMENT "${mffv1_msvc_asan_test_environment}"
     )
 endif()
 

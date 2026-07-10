@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+
 function(mffv1_package_smoke_run)
     execute_process(
         COMMAND ${ARGN}
@@ -71,6 +73,26 @@ function(mffv1_package_smoke_read_project_version out_var)
     endif()
 
     set("${out_var}" "${CMAKE_MATCH_1}" PARENT_SCOPE)
+endfunction()
+
+function(mffv1_package_smoke_require_build_child path label)
+    get_filename_component(
+        mffv1_package_smoke_build_root
+        "${MFFV1_PACKAGE_SMOKE_SOURCE_DIR}/build"
+        ABSOLUTE
+    )
+    file(RELATIVE_PATH
+        mffv1_package_smoke_relative_path
+        "${mffv1_package_smoke_build_root}"
+        "${path}"
+    )
+    if(mffv1_package_smoke_relative_path STREQUAL ""
+       OR mffv1_package_smoke_relative_path MATCHES "^\\.\\."
+       OR IS_ABSOLUTE "${mffv1_package_smoke_relative_path}")
+        message(FATAL_ERROR
+            "${label} must be inside the repository build directory: ${path}"
+        )
+    endif()
 endfunction()
 
 get_filename_component(
@@ -148,6 +170,26 @@ get_filename_component(
     MFFV1_PACKAGE_SMOKE_BUILD_DIR
     "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}"
     ABSOLUTE
+)
+
+mffv1_package_smoke_require_build_child(
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}"
+    "MFFV1_PACKAGE_SMOKE_INSTALL_DIR"
+)
+mffv1_package_smoke_require_build_child(
+    "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}"
+    "MFFV1_PACKAGE_SMOKE_BUILD_DIR"
+)
+if(MFFV1_PACKAGE_SMOKE_INSTALL_DIR STREQUAL MFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR
+   OR MFFV1_PACKAGE_SMOKE_BUILD_DIR STREQUAL MFFV1_PACKAGE_SMOKE_PROJECT_BUILD_DIR)
+    message(FATAL_ERROR
+        "package smoke install/build directories must not be the project build directory"
+    )
+endif()
+
+file(REMOVE_RECURSE
+    "${MFFV1_PACKAGE_SMOKE_INSTALL_DIR}"
+    "${MFFV1_PACKAGE_SMOKE_BUILD_DIR}"
 )
 
 if(NOT DEFINED MFFV1_PACKAGE_SMOKE_CONFIG)

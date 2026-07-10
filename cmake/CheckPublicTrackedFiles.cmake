@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+
 get_filename_component(
     MFFV1_PUBLIC_TREE_ROOT
     "${CMAKE_CURRENT_LIST_DIR}/.."

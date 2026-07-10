@@ -78,7 +78,7 @@ When GoogleTest is available, tests should run through CTest:
 
 ```powershell
 cmake --build --preset vs2026-x64-debug
-ctest --preset vs2026-x64-debug
+ctest --preset vs2026-x64-debug --output-on-failure
 ```
 
 The GitHub Actions workflow uses hosted Windows and Ubuntu images as
@@ -106,7 +106,7 @@ after parser, entropy, threading, or buffer-boundary changes:
 ```powershell
 cmake --preset vs2026-x64-asan
 cmake --build --preset vs2026-x64-asan-debug
-ctest --preset vs2026-x64-asan-debug
+ctest --preset vs2026-x64-asan-debug --output-on-failure
 ```
 
 The Visual Studio preset enables MSVC AddressSanitizer. On Clang and GCC,
@@ -126,7 +126,7 @@ standard input.
 ```powershell
 cmake --preset vs2026-x64-fuzz
 cmake --build --preset vs2026-x64-fuzz-debug
-ctest --preset vs2026-x64-fuzz-debug
+ctest --preset vs2026-x64-fuzz-debug --output-on-failure
 .\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_configuration_record.exe sample.bin
 .\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_frame_decode.exe sample.bin
 .\build\vs2026-x64-fuzz\fuzz\Debug\mffv1_fuzz_encoder.exe sample.bin

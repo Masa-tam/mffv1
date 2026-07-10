@@ -1,4 +1,4 @@
-# License And Clean-Room Provenance
+# License And Development Provenance
 
 ## Project License
 
@@ -11,7 +11,7 @@ The intended result is a permissively licensed, modular C++20 implementation
 of the FFV1 codec that can be integrated independently of container libraries
 and independently of FFmpeg.
 
-## Clean-Room Basis
+## Development Provenance
 
 mffv1 is an independent implementation of the FFV1 video coding format. Its
 normative format reference is:
@@ -27,17 +27,25 @@ Project implementation work is based on:
 - Black-box interoperability observations when their source and conditions are
   recorded.
 
-FFmpeg source code is not used as implementation source material for mffv1.
-Code, comments, identifiers, internal structures, and implementation-specific
-tables are not copied or translated from FFmpeg or other incompatibly licensed
-codec implementations.
+The development workflow does not use FFmpeg source code as implementation
+source material for mffv1. Code, comments, identifiers, internal structures,
+and implementation-specific tables are not copied or translated from FFmpeg or
+other incompatibly licensed codec implementations. FFmpeg executables may be
+used only as external black-box interoperability tools by comparing encoded and
+decoded outputs.
+
+The implementation was developed with the assistance of AI coding agents. No
+claim is made that the agents or their underlying models were trained without
+exposure to FFmpeg or other existing FFV1 implementations. Accordingly, this
+project is described as a specification-driven independent implementation
+rather than a formal clean-room implementation.
 
 FFV1 identifies the standardized codec format. mffv1 is a separate project and
 is not affiliated with, endorsed by, or an official component of FFmpeg.
 
 ## Contribution Rule
 
-Contributions must preserve the clean-room basis:
+Contributions must preserve the source-provenance boundary:
 
 - Do not submit code copied or translated from FFmpeg or another implementation
   whose license is incompatible with this project.

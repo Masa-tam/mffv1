@@ -1,8 +1,8 @@
 # Release Process
 
 This document defines the release checklist for mffv1. It is intentionally
-conservative because the project exists to provide a clean-room, permissively
-licensed FFV1 implementation.
+conservative because the project exists to provide a specification-driven,
+permissively licensed FFV1 implementation.
 
 The audience is project maintainers and downstream fork maintainers preparing
 their own source or binary releases. Library users should start with
@@ -24,7 +24,7 @@ A stable release candidate should satisfy all of the following:
   are current.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `docs/SUPPORT_POLICY.md` point to the
   current public repository and reporting policy.
-- GitHub issue and pull request templates still match the clean-room and
+- GitHub issue and pull request templates still match the source-provenance and
   verification policy.
 - `CODEOWNERS` and Dependabot settings still route maintenance work to the
   intended maintainer and dependency boundaries.

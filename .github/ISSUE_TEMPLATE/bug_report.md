@@ -32,7 +32,7 @@ licensing. Prefer synthetic, minimized, or redacted reproducers.
 If the report requires sensitive data, follow the
 [Security Policy](../../SECURITY.md) instead of uploading it here.
 
-## Clean-Room Confirmation
+## Source-Provenance Confirmation
 
 - [ ] This report does not include code, comments, identifiers, internal tables,
       or implementation details copied or translated from FFmpeg or another

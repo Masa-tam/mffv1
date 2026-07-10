@@ -2,7 +2,7 @@
 
 Describe the change and the user-visible behavior it affects.
 
-## Clean-Room Confirmation
+## Source-Provenance Confirmation
 
 - [ ] This change is based on public specifications, generated tests,
       black-box observations, or original reasoning.

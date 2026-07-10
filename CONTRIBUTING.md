@@ -1,10 +1,10 @@
 # Contributing To mffv1
 
-Thank you for considering a contribution. mffv1 is a clean-room, MIT-licensed
-C++20 FFV1 implementation, so contribution provenance matters as much as code
-quality.
+Thank you for considering a contribution. mffv1 is a specification-driven,
+MIT-licensed C++20 FFV1 implementation, so contribution provenance matters as
+much as code quality.
 
-## Clean-Room Rule
+## Source Provenance Rule
 
 Contributions must be derived from public specifications, independently
 generated tests, black-box interoperability observations, or original reasoning.
@@ -15,7 +15,7 @@ incompatible license. If a behavior is learned from black-box testing, document
 the input conditions and observed result rather than citing implementation
 source.
 
-For details, see [License And Clean-Room Provenance](docs/LICENSE_AND_PROVENANCE.md).
+For details, see [License And Development Provenance](docs/LICENSE_AND_PROVENANCE.md).
 
 ## Issues
 
@@ -46,8 +46,8 @@ changes. Public API changes should update headers, tests, references, and
 
 The repository uses `CODEOWNERS` to route review to the maintainer. Dependabot
 may open maintenance pull requests for GitHub Actions and Git submodules; those
-updates still need the same clean-room and license-boundary review as ordinary
-changes.
+updates still need the same source-provenance and license-boundary review as
+ordinary changes.
 
 Release notes use GitHub labels through `.github/release.yml`. Add labels such
 as `bug`, `compatibility`, `documentation`, or `maintenance` to pull requests
@@ -67,7 +67,7 @@ Actions.
 
 Before `1.0.0`, prioritize correctness, specification traceability,
 readability, robust bounds checking, and test coverage over broad algorithmic
-optimization. mffv1 should remain useful as a clean reference-quality
+optimization. mffv1 should remain useful as a readable reference-quality
 implementation of RFC 9043 behavior.
 
 Performance work is welcome when it preserves that shape: keep optimized paths
@@ -77,7 +77,7 @@ to compare with the specification. Large algorithmic tuning should wait until
 after the API, package shape, and interoperability baseline are stable, unless
 it fixes a correctness or safety problem.
 
-The pull request template asks for clean-room confirmation, relevant test
+The pull request template asks for source-provenance confirmation, relevant test
 commands, and documentation status. Treat unchecked items as an explicit note
 that the step was not applicable or could not be run.
 

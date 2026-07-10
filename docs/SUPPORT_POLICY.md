@@ -56,7 +56,7 @@ project material, or other confidential content. Prefer synthetic,
 minimized, or redacted reproducers over original media. If the original media
 is required to explain the problem, do not upload it to a public issue.
 
-## Clean-Room Reporting Notes
+## Source-Provenance Reporting Notes
 
 Correctness reports may cite public specifications, independently generated
 test vectors, or black-box behavior. Do not submit patches copied or translated

@@ -38,7 +38,7 @@ Initial public pre-1.0 release.
 - Build option `MFFV1_ENABLE_STATUS_MESSAGES` for disabling generated
   diagnostic text in `Status::message`.
 - User-facing documentation for building, decoding, encoding, frame buffers,
-  support policy, security policy, and clean-room provenance.
+  support policy, security policy, and development provenance.
 - GoogleTest-based unit and compatibility test suite.
 - Optional local external test-vector header workflow that keeps generated
   vector payloads out of normal source releases.

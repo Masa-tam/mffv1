@@ -3,8 +3,9 @@
 
 [![CI](https://github.com/Masa-tam/mffv1/actions/workflows/ci.yml/badge.svg)](https://github.com/Masa-tam/mffv1/actions/workflows/ci.yml)
 
-mffv1 is a clean-room C++20 implementation of the FFV1 video codec. It is
-designed as a modular codec library rather than a container or FFmpeg wrapper.
+mffv1 is a specification-driven independent C++20 implementation of the FFV1
+video codec. It is designed as a modular codec library rather than a container
+or FFmpeg wrapper.
 
 Repository: [https://github.com/Masa-tam/mffv1](https://github.com/Masa-tam/mffv1)
 
@@ -15,7 +16,8 @@ stable `1.0.0` release is tagged. The first public release version is `0.1.0`.
 
 ## Goals
 
-- Clean-room implementation based on RFC 9043 and project-owned tests.
+- Specification-driven implementation based on RFC 9043 and project-owned
+  tests.
 - MIT-licensed library code with explicit third-party boundaries.
 - Container-independent decoder and encoder APIs.
 - Slice-level parallel execution.
@@ -78,7 +80,7 @@ cmake `
 - [Decoder Reference](docs/DECODER_REFERENCE.md)
 - [Encoder Reference](docs/ENCODER_REFERENCE.md)
 - [Frame Buffer Reference](docs/FRAME_BUFFER_REFERENCE.md)
-- [License And Clean-Room Provenance](docs/LICENSE_AND_PROVENANCE.md)
+- [License And Development Provenance](docs/LICENSE_AND_PROVENANCE.md)
 - [External Test Vector Registry](testvectors/REGISTRY.md)
 - [Support Policy](docs/SUPPORT_POLICY.md)
 - [Security Policy](SECURITY.md)
@@ -86,15 +88,21 @@ cmake `
 - [Release Process](docs/RELEASE_PROCESS.md)
 - [Changelog](CHANGELOG.md)
 
-## Clean-Room Boundary
+## Development Provenance
 
-mffv1 is not affiliated with FFmpeg. FFmpeg may be used locally as a black-box
-interoperability tool, but FFmpeg source code, internal comments, identifiers,
-and implementation-specific structures are not implementation source material
-for this project.
+mffv1 was developed against the FFV1 specification published as RFC 9043. The
+development workflow did not use FFmpeg source code as an implementation
+reference. FFmpeg executables may be used locally as external black-box
+interoperability tools by comparing encoded and decoded outputs.
 
-See [License And Clean-Room Provenance](docs/LICENSE_AND_PROVENANCE.md) for the
-full contribution rule.
+The implementation was developed with the assistance of AI coding agents. No
+claim is made that the agents or their underlying models were trained without
+exposure to FFmpeg or other existing FFV1 implementations. Accordingly, this
+project is described as a specification-driven independent implementation
+rather than a formal clean-room implementation.
+
+See [License And Development Provenance](docs/LICENSE_AND_PROVENANCE.md) for
+the full contribution rule.
 
 ## License
 

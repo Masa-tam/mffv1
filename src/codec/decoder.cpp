@@ -35,11 +35,15 @@ public:
         }
 
         if (options_.frame_width != 0 && options_.frame_height != 0) {
+            // Container-provided dimensions are authoritative for containers
+            // whose FFV1 configuration record does not carry coded dimensions.
             stream.width = options_.frame_width;
             stream.height = options_.frame_height;
         }
 
         stream_ = std::move(stream);
+        // SliceExecutor borrows stream_; rebuild it immediately after every
+        // stream_ update so the borrowed reference remains tied to Decoder.
         slice_executor_ = std::make_unique<codec::SliceExecutor>(
             *stream_, options_.thread_count, options_.cpu);
         return ok_status();
@@ -72,6 +76,8 @@ public:
 
         if (!stream_.has_value()) {
             stream_ = std::move(bootstrap.stream);
+            // SliceExecutor borrows stream_; construct it only after stream_
+            // owns the final parameters.
             slice_executor_ = std::make_unique<codec::SliceExecutor>(
                 *stream_, options_.thread_count, options_.cpu);
             result.info.state = LegacyBootstrapState::Configured;

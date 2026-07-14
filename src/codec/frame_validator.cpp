@@ -105,6 +105,8 @@ Status FrameValidator::validate_output(const syntax::StreamParameters& stream,
 
     const FrameInfo expected = make_frame_info(stream);
     const std::size_t required_planes = expected.plane_count;
+    // Decoder output may be backed by a reusable larger plane array. Only the
+    // planes that belong to the stream are validated and written.
     if (output.plane_count < required_planes) {
         return make_error(ErrorCode::InvalidArgument, "output frame does not have enough planes");
     }
@@ -135,6 +137,8 @@ Status FrameValidator::validate_input(const syntax::StreamParameters& stream,
 
     const FrameInfo expected = make_frame_info(stream);
     const std::size_t required_planes = expected.plane_count;
+    // Encoder input is the authoritative image content. Reject extra planes or
+    // dimensions so callers cannot accidentally encode a mismatched layout.
     if (input.plane_count != required_planes) {
         return make_error(ErrorCode::InvalidArgument, "input frame plane count does not match the stream");
     }

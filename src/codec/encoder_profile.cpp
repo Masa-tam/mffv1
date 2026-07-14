@@ -48,12 +48,6 @@ Status normalize_encoder_profile(const EncoderOptions& options,
             ErrorCode::InvalidArgument,
             "RGB streams require three full-resolution color planes");
     }
-    if (options.entropy_mode == EntropyMode::GolombRice
-        && !constraints::is_supported_encoder_bit_depth(info.bits_per_raw_sample)) {
-        return make_error(
-            ErrorCode::UnsupportedFeature,
-            "Golomb-Rice encoding supports only 1-16 bit streams");
-    }
     if (constraints::has_subsampling_without_chroma(
             info.has_chroma_planes,
             info.log2_h_chroma_subsample,

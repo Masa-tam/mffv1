@@ -38,6 +38,8 @@ public:
         }
 
         stream_ = std::move(normalized);
+        // SliceEncodeExecutor borrows stream_; rebuild it immediately after
+        // stream_ is assigned so the reference follows this Encoder instance.
         executor_ = std::make_unique<codec::SliceEncodeExecutor>(
             *stream_, options_.thread_count, kernels_);
         next_frame_index_ = 0;
@@ -50,13 +52,12 @@ public:
         if (!stream_.has_value()) {
             return make_error(ErrorCode::InvalidState, "encoder is not configured");
         }
-        std::vector<std::byte> frame_bytes;
         if (!executor_) {
             return make_error(ErrorCode::InvalidState, "encoder executor is not configured");
         }
+        std::vector<std::byte> frame_bytes;
         const bool keyframe =
-            options_.keyframe_interval == 1
-            || next_frame_index_ % options_.keyframe_interval == 0;
+            next_frame_index_ % options_.keyframe_interval == 0;
         Status status = executor_->encode(input, keyframe, frame_bytes);
         if (!status.ok()) {
             return status;

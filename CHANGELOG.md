@@ -6,8 +6,6 @@ This project is currently pre-release software. The format of this file follows
 the spirit of Keep a Changelog. Version `0.1.0` is the first public release and
 remains a pre-1.0 compatibility milestone.
 
-## Unreleased
-
 ## 0.1.1 - 2026-07-14
 
 ### Changed

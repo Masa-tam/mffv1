@@ -9,7 +9,7 @@ bool Status::ok() const noexcept
     return code == ErrorCode::Ok;
 }
 
-Status ok_status()
+Status ok_status() noexcept
 {
     return {};
 }

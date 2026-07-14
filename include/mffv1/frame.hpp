@@ -15,18 +15,18 @@ using MutableByteSpan = std::span<std::byte>;
 inline constexpr std::size_t kMaxFramePlanes = 4;
 
 enum class PlaneRole : std::uint8_t {
-    Y,
-    Cb,
-    Cr,
-    Alpha,
-    R,
-    G,
-    B,
+    Y = 0,
+    Cb = 1,
+    Cr = 2,
+    Alpha = 3,
+    R = 4,
+    G = 5,
+    B = 6,
 };
 
 enum class SampleFormat : std::uint8_t {
-    UInt8,
-    UInt16,
+    UInt8 = 0,
+    UInt16 = 1,
 };
 
 enum class ColorSpace : std::uint8_t {

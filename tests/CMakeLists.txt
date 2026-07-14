@@ -56,6 +56,7 @@ if(NOT MFFV1_BUILD_STATUS_CONTRACT_TESTS_ONLY)
         unit/legacy_frame_bootstrap_parser_tests.cpp
         unit/predictor_tests.cpp
         unit/plane_window_math_tests.cpp
+        unit/public_api_contract_tests.cpp
         unit/profile_constraints_tests.cpp
         unit/range_coder_tests.cpp
         unit/range_encoder_tests.cpp

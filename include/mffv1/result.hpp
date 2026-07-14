@@ -16,14 +16,14 @@ namespace mffv1 {
 
 enum class ErrorCode : std::uint32_t {
     Ok = 0,
-    InvalidArgument,
-    InvalidState,
-    UnsupportedFeature,
-    SyntaxError,
-    CrcMismatch,
-    ResourceExhausted,
-    NotImplemented,
-    InternalError,
+    InvalidArgument = 1,
+    InvalidState = 2,
+    UnsupportedFeature = 3,
+    SyntaxError = 4,
+    CrcMismatch = 5,
+    ResourceExhausted = 6,
+    NotImplemented = 7,
+    InternalError = 8,
 };
 
 struct ErrorLocation {
@@ -35,7 +35,7 @@ struct ErrorLocation {
     bool has_slice_index = false;
 };
 
-struct Status {
+struct [[nodiscard]] Status {
     ErrorCode code = ErrorCode::Ok;
     std::string message;
     ErrorLocation location;
@@ -43,7 +43,7 @@ struct Status {
     [[nodiscard]] bool ok() const noexcept;
 };
 
-Status ok_status();
-Status make_error(ErrorCode code, std::string message);
+[[nodiscard]] Status ok_status() noexcept;
+[[nodiscard]] Status make_error(ErrorCode code, std::string message);
 
 } // namespace mffv1

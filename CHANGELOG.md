@@ -6,6 +6,16 @@ This project is currently pre-release software. The format of this file follows
 the spirit of Keep a Changelog. Version `0.1.0` is the first public release and
 remains a pre-1.0 compatibility milestone.
 
+## Unreleased
+
+### Changed
+
+- Public status/result-returning API types and functions are annotated with
+  `[[nodiscard]]` to help callers catch accidentally ignored errors.
+- Public virtual codec interfaces are explicitly non-copyable and non-movable.
+- Public enum values for `ErrorCode`, `PlaneRole`, `SampleFormat`, and
+  `LegacyBootstrapState` are explicitly assigned.
+
 ## 0.1.0 - 2026-07-10
 
 Initial public pre-1.0 release.

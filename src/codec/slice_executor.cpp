@@ -132,10 +132,11 @@ Status make_temporary_frame(const SliceOutputWindow& window,
 {
     storage.clear();
     planes.clear();
-    storage.reserve(output.plane_count);
-    planes.reserve(output.plane_count);
+    const auto required_planes = window.plane_count();
+    storage.reserve(required_planes);
+    planes.reserve(required_planes);
 
-    for (std::size_t i = 0; i < output.plane_count; ++i) {
+    for (std::size_t i = 0; i < required_planes; ++i) {
         const auto& info = output.planes[i].info;
         const auto width = window.plane_width(i);
         const auto height = window.plane_height(i);

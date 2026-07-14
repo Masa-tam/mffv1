@@ -251,6 +251,50 @@ TEST(SliceExecutorTest, DecodesGolombRiceReadAheadBoundaryForOffsetSlice)
     EXPECT_TRUE(executor.has_reference_state());
 }
 
+TEST(SliceExecutorTest, GolombRiceReadAheadIgnoresExtraOutputPlanes)
+{
+    auto stream = make_stream(2, 1);
+    stream.version = 3;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    stream.num_h_slices = 2;
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    std::array<std::uint8_t, 1> extra_storage{0xcc};
+    std::array<mffv1::MutablePlaneView, 2> planes{};
+    planes[0] = make_y_plane(storage);
+    planes[1].data = extra_storage.data();
+    planes[1].info.role = mffv1::PlaneRole::Alpha;
+    planes[1].info.sample_format = mffv1::SampleFormat::UInt8;
+    planes[1].info.width = 1;
+    planes[1].info.height = 1;
+    planes[1].info.stride_bytes = 1;
+    mffv1::MutableFrameView output{planes.data(), planes.size()};
+    const std::array<std::byte, 1> payload{std::byte{0x80}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.index = 1;
+    slice.x = 1;
+    slice.width = 1;
+    slice.height = 1;
+    slice.raster_x = 1;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    slice.payload = payload;
+    slice.content_byte_offset = 1;
+    slice.footer_byte_offset = 1;
+    slice.slice_size = 1;
+    slice.quant_table_set_indexes = {0, 0};
+    const std::array slices{slice};
+
+    mffv1::codec::SliceExecutor executor(stream);
+    const auto status = executor.decode(output, slices, true);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0u);
+    EXPECT_EQ(extra_storage[0], 0xcc);
+    EXPECT_TRUE(executor.has_reference_state());
+}
+
 TEST(SliceExecutorTest, DecodesLegacyGolombRiceEmbeddedReadAheadBoundary)
 {
     auto stream = make_stream();

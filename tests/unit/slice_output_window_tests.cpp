@@ -328,6 +328,103 @@ TEST(SliceOutputWindowTest, MapsChromaPlanesWithSubsampling)
     EXPECT_EQ(window.row_u8(2, 1), cr.data() + 5);
 }
 
+TEST(SliceOutputWindowTest, ClampsLargeChromaSubsamplingShifts)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.width = 2;
+    stream.height = 2;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 40;
+    stream.log2_v_chroma_subsample = 255;
+
+    std::array<std::uint8_t, 4> y{};
+    std::array<std::uint8_t, 1> cb{};
+    std::array<std::uint8_t, 1> cr{};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
+
+    planes[0].data = y.data();
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 2, 2, 2};
+    planes[1].data = cb.data();
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 1, 1, 1};
+    planes[2].data = cr.data();
+    planes[2].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 1, 1, 1};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.x = 1;
+    slice.y = 1;
+    slice.width = 1;
+    slice.height = 1;
+
+    mffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(window.plane_width(1), 1u);
+    EXPECT_EQ(window.plane_height(1), 1u);
+    EXPECT_EQ(window.row_u8(1, 0), cb.data());
+    EXPECT_EQ(window.row_u8(2, 0), cr.data());
+}
+
+TEST(SliceOutputWindowTest, ClearsWindowsWhenValidationFailsAfterReuse)
+{
+    const auto stream = make_y_stream();
+    std::array<std::uint8_t, 32> storage{};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+
+    mffv1::syntax::SliceDescriptor good;
+    good.width = 8;
+    good.height = 4;
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, good).ok());
+    ASSERT_EQ(window.plane_count(), 1u);
+
+    mffv1::syntax::SliceDescriptor bad;
+    bad.width = 0;
+    bad.height = 1;
+    const auto status = window.validate(stream, frame, bad);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
+TEST(SliceOutputWindowTest, ClearsPartialWindowsWhenValidationFailsMidLoop)
+{
+    mffv1::syntax::StreamParameters stream;
+    stream.width = 8;
+    stream.height = 4;
+    stream.bits_per_raw_sample = 8;
+    stream.chroma_planes = true;
+    stream.log2_h_chroma_subsample = 1;
+    stream.log2_v_chroma_subsample = 1;
+
+    std::array<std::uint8_t, 32> y{};
+    std::array<std::uint8_t, 8> cb{};
+    std::array<mffv1::MutablePlaneView, 3> planes{};
+
+    planes[0].data = y.data();
+    planes[0].info = {mffv1::PlaneRole::Y, mffv1::SampleFormat::UInt8, 8, 4, 8};
+    planes[1].data = cb.data();
+    planes[1].info = {mffv1::PlaneRole::Cb, mffv1::SampleFormat::UInt8, 4, 2, 4};
+    planes[2].data = nullptr;
+    planes[2].info = {mffv1::PlaneRole::Cr, mffv1::SampleFormat::UInt8, 4, 2, 4};
+    mffv1::MutableFrameView frame{planes.data(), planes.size()};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = 8;
+    slice.height = 4;
+
+    mffv1::codec::SliceOutputWindow window;
+    const auto status = window.validate(stream, frame, slice);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.message, "output plane data pointer is null");
+    EXPECT_EQ(window.plane_count(), 0u);
+}
+
 TEST(SliceOutputWindowTest, PartitionsChromaBySliceRasterWithoutOverlap)
 {
     mffv1::syntax::StreamParameters stream;

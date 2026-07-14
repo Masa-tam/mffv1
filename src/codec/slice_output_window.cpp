@@ -4,10 +4,20 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 namespace mffv1::codec {
 
 namespace {
+
+std::uint32_t subsampled_position(std::uint32_t value,
+                                  std::uint8_t log2_subsample) noexcept
+{
+    if (log2_subsample >= 32) {
+        return 0;
+    }
+    return value >> log2_subsample;
+}
 
 std::uint32_t plane_x(const syntax::StreamParameters& stream,
                       const syntax::SliceDescriptor& slice,
@@ -19,7 +29,7 @@ std::uint32_t plane_x(const syntax::StreamParameters& stream,
                                                 stream.num_h_slices,
                                                 slice.raster_x);
         }
-        return slice.x >> stream.log2_h_chroma_subsample;
+        return subsampled_position(slice.x, stream.log2_h_chroma_subsample);
     }
     return slice.x;
 }
@@ -34,7 +44,7 @@ std::uint32_t plane_y(const syntax::StreamParameters& stream,
                                                 stream.num_v_slices,
                                                 slice.raster_y);
         }
-        return slice.y >> stream.log2_v_chroma_subsample;
+        return subsampled_position(slice.y, stream.log2_v_chroma_subsample);
     }
     return slice.y;
 }
@@ -85,6 +95,8 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
                                    MutableFrameView frame,
                                    const syntax::SliceDescriptor& slice)
 {
+    planes_.clear();
+
     if (slice.width == 0 || slice.height == 0) {
         return make_error(ErrorCode::InvalidArgument, "slice dimensions must be non-zero");
     }
@@ -102,8 +114,8 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
         return make_error(ErrorCode::InvalidArgument, "output plane array is null");
     }
 
-    planes_.clear();
-    planes_.reserve(required_planes);
+    std::vector<PlaneWindow> windows;
+    windows.reserve(required_planes);
 
     for (std::size_t i = 0; i < required_planes; ++i) {
         const auto& plane = frame.planes[i];
@@ -165,20 +177,23 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
         window.width = pw;
         window.height = ph;
         window.sample_format = plane.info.sample_format;
-        planes_.push_back(window);
+        windows.push_back(window);
     }
 
+    planes_ = std::move(windows);
     return ok_status();
 }
 
 Status SliceOutputWindow::reset_to_contiguous_frame(MutableFrameView frame)
 {
+    planes_.clear();
+
     if (frame.plane_count != 0 && frame.planes == nullptr) {
         return make_error(ErrorCode::InvalidArgument, "output plane array is null");
     }
 
-    planes_.clear();
-    planes_.reserve(frame.plane_count);
+    std::vector<PlaneWindow> windows;
+    windows.reserve(frame.plane_count);
 
     for (std::size_t i = 0; i < frame.plane_count; ++i) {
         const auto& plane = frame.planes[i];
@@ -223,9 +238,10 @@ Status SliceOutputWindow::reset_to_contiguous_frame(MutableFrameView frame)
         window.width = plane.info.width;
         window.height = plane.info.height;
         window.sample_format = plane.info.sample_format;
-        planes_.push_back(window);
+        windows.push_back(window);
     }
 
+    planes_ = std::move(windows);
     return ok_status();
 }
 

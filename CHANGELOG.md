@@ -24,6 +24,8 @@ remains a pre-1.0 compatibility milestone.
   proven locally.
 - Golomb-Rice multi-slice read-ahead preference now applies to all version 3
   extra-plane streams, including YUVA, not only RGBA.
+- Slice output window validation clamps oversized chroma subsampling shifts
+  and leaves no stale or partial windows after validation failures.
 
 ## 0.1.0 - 2026-07-10
 

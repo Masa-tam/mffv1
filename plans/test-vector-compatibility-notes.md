@@ -1021,6 +1021,15 @@ RGBA known gaps:
   internal domain used by the RGB/RCT planes and truncates the stored alpha
   output back to the raw sample width.
 
+The slice-boundary hardening review then added focused external vectors for
+2x2 Golomb-Rice RGBA, YUVA, odd-sized YUV420p, 10-bit RGB, and a range-coded
+odd-sized YUV420p control. These confirmed that the read-ahead preference is
+not RGB/RGBA-specific: FFmpeg-style version 3 multi-slice Golomb-Rice streams
+with any extra plane can require `content_byte_offset - 1` even when the parsed
+primary boundary decodes without a syntax error. mffv1 therefore now prefers
+the read-ahead candidate for version 3 multi-slice Golomb-Rice extra-plane
+streams in both RGB and YCbCr layouts.
+
 There are currently no known generated-vector decode gaps for the active
 compact range-coded legacy no-Codec-Private controls:
 

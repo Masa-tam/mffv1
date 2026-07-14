@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(mffv1
-    VERSION 0.1.0
+    VERSION 0.1.1
     HOMEPAGE_URL "https://github.com/Masa-tam/mffv1"
     LANGUAGES CXX
 )

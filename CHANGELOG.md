@@ -8,6 +8,8 @@ remains a pre-1.0 compatibility milestone.
 
 ## Unreleased
 
+## 0.1.1 - 2026-07-14
+
 ### Changed
 
 - Public status/result-returning API types and functions are annotated with

@@ -2,6 +2,7 @@
 
 #include "codec/slice_decoder.hpp"
 #include "codec/slice_output_window.hpp"
+#include "codec/slice_raster_validator.hpp"
 #include "util/status.hpp"
 
 #include <algorithm>
@@ -58,12 +59,11 @@ bool can_try_golomb_rice_read_ahead_boundary(
 bool should_prefer_golomb_rice_read_ahead_boundary(
     const syntax::StreamParameters& stream) noexcept
 {
-    // FFmpeg GR RGBA multi-slice streams can share one byte between the
+    // FFmpeg GR multi-slice streams with an extra plane can share one byte between the
     // range-coded slice header and the Golomb-Rice body even when the primary
     // boundary decodes without a syntax error.
     return stream.version >= 3
         && stream.entropy_mode == EntropyMode::GolombRice
-        && stream.colorspace_type == 1
         && stream.extra_plane
         && (stream.num_h_slices > 1 || stream.num_v_slices > 1);
 }
@@ -96,7 +96,36 @@ std::vector<syntax::SliceDescriptor> make_golomb_rice_content_candidates(
     return candidates;
 }
 
-Status make_temporary_frame(MutableFrameView output,
+bool slices_have_raster_layout(std::span<const syntax::SliceDescriptor> slices) noexcept
+{
+    return std::all_of(
+        slices.begin(),
+        slices.end(),
+        [](const syntax::SliceDescriptor& slice) {
+            return slice.raster_width != 0 && slice.raster_height != 0;
+        });
+}
+
+Status validate_parallel_slice_layout(const syntax::StreamParameters& stream,
+                                      std::span<const syntax::SliceDescriptor> slices)
+{
+    if (slices.empty() || !slices_have_raster_layout(slices)) {
+        return ok_status();
+    }
+    return validate_slice_raster_coverage(stream, slices);
+}
+
+bool can_decode_parallel_safely(const syntax::StreamParameters& stream,
+                                std::span<const syntax::SliceDescriptor> slices)
+{
+    if (slices.empty() || !slices_have_raster_layout(slices)) {
+        return false;
+    }
+    return validate_slice_raster_coverage(stream, slices).ok();
+}
+
+Status make_temporary_frame(const SliceOutputWindow& window,
+                            MutableFrameView output,
                             std::vector<std::vector<std::byte>>& storage,
                             std::vector<MutablePlaneView>& planes,
                             MutableFrameView& out_frame)
@@ -108,21 +137,36 @@ Status make_temporary_frame(MutableFrameView output,
 
     for (std::size_t i = 0; i < output.plane_count; ++i) {
         const auto& info = output.planes[i].info;
+        const auto width = window.plane_width(i);
+        const auto height = window.plane_height(i);
         if (info.stride_bytes < 0) {
             return make_error(ErrorCode::InvalidArgument,
                               "output plane stride is negative");
         }
-        const auto stride = static_cast<std::uint64_t>(info.stride_bytes);
-        const auto height = static_cast<std::uint64_t>(info.height);
-        if (height != 0
-            && stride > std::numeric_limits<std::size_t>::max() / height) {
+        std::uint64_t row_bytes = width;
+        if (info.sample_format == SampleFormat::UInt16) {
+            if (row_bytes > std::numeric_limits<std::uint64_t>::max() / sizeof(std::uint16_t)) {
+                return make_error(ErrorCode::ResourceExhausted,
+                                  "temporary output plane row size overflows uint64_t");
+            }
+            row_bytes *= sizeof(std::uint16_t);
+        }
+        if (row_bytes > static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
+            return make_error(ErrorCode::ResourceExhausted,
+                              "temporary output plane row size exceeds ptrdiff_t");
+        }
+        const auto stride = static_cast<std::ptrdiff_t>(row_bytes);
+        if (height != 0 && row_bytes > std::numeric_limits<std::size_t>::max() / height) {
             return make_error(ErrorCode::ResourceExhausted,
                               "temporary output plane size overflows size_t");
         }
-        storage.emplace_back(static_cast<std::size_t>(stride * height));
+        storage.emplace_back(static_cast<std::size_t>(row_bytes * height));
         MutablePlaneView plane;
         plane.data = storage.back().data();
         plane.info = info;
+        plane.info.width = width;
+        plane.info.height = height;
+        plane.info.stride_bytes = stride;
         planes.push_back(plane);
     }
 
@@ -218,6 +262,10 @@ Status SliceExecutor::decode(MutableFrameView output,
     if (!status.ok()) {
         return status;
     }
+    const bool parallel_safe =
+        thread_count_ > 1
+        && slices.size() >= 2
+        && can_decode_parallel_safely(stream_, slices);
 
     std::vector<SliceState> working_states;
     std::vector<SliceLayout> working_layouts;
@@ -271,7 +319,7 @@ Status SliceExecutor::decode(MutableFrameView output,
         }
     }
 
-    if (thread_count_ <= 1 || slices.size() < 2) {
+    if (!parallel_safe) {
         status = decode_serial(output, slices, working_states);
     } else {
         status = decode_parallel(output, slices, working_states);
@@ -304,6 +352,13 @@ std::size_t SliceExecutor::worker_count_for(std::size_t slice_count) const noexc
 Status SliceExecutor::validate_slices(MutableFrameView output,
                                       std::span<const syntax::SliceDescriptor> slices) const
 {
+    if (thread_count_ > 1 && slices.size() >= 2) {
+        Status status = validate_parallel_slice_layout(stream_, slices);
+        if (!status.ok()) {
+            return status;
+        }
+    }
+
     const SliceDecoder decoder(stream_, kernels_);
     for (const auto& slice : slices) {
         SliceOutputWindow window;
@@ -416,7 +471,12 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
     std::vector<MutablePlaneView> temporary_planes;
     MutableFrameView temporary_frame;
     status = make_temporary_frame(
-        output, temporary_storage, temporary_planes, temporary_frame);
+        window, output, temporary_storage, temporary_planes, temporary_frame);
+    if (!status.ok()) {
+        return status;
+    }
+    SliceOutputWindow temporary_window;
+    status = temporary_window.reset_to_contiguous_frame(temporary_frame);
     if (!status.ok()) {
         return status;
     }
@@ -430,19 +490,8 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
     for (std::size_t i = 0; i < candidates.size(); ++i) {
         const auto& candidate = candidates[i];
         const auto& candidate_decoder = read_ahead_decoder;
-        SliceOutputWindow candidate_window;
-        status = candidate_window.validate(stream_, temporary_frame, candidate);
-        if (!status.ok()) {
-            append_golomb_rice_candidate_context(status, candidate);
-            if (!has_first_status) {
-                first_status = status;
-                has_first_status = true;
-            }
-            last_status = std::move(status);
-            continue;
-        }
         SliceState candidate_state = state;
-        status = candidate_decoder.decode(candidate, candidate_window, candidate_state);
+        status = candidate_decoder.decode(candidate, temporary_window, candidate_state);
         if (!status.ok()) {
             append_golomb_rice_candidate_context(status, candidate);
             if (!has_first_status) {
@@ -453,7 +502,7 @@ Status SliceExecutor::decode_slice(MutableFrameView output,
             continue;
         }
 
-        status = copy_decoded_slice(candidate_window, window);
+        status = copy_decoded_slice(temporary_window, window);
         if (!status.ok()) {
             return status;
         }

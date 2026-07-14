@@ -216,6 +216,41 @@ TEST(SliceExecutorTest, DecodesVersionThreeGolombRiceReadAheadBoundary)
     EXPECT_TRUE(executor.has_reference_state());
 }
 
+TEST(SliceExecutorTest, DecodesGolombRiceReadAheadBoundaryForOffsetSlice)
+{
+    auto stream = make_stream(2, 1);
+    stream.version = 3;
+    stream.entropy_mode = mffv1::EntropyMode::GolombRice;
+    stream.num_h_slices = 2;
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 1> payload{std::byte{0x80}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.index = 1;
+    slice.x = 1;
+    slice.width = 1;
+    slice.height = 1;
+    slice.raster_x = 1;
+    slice.raster_width = 1;
+    slice.raster_height = 1;
+    slice.payload = payload;
+    slice.content_byte_offset = 1;
+    slice.footer_byte_offset = 1;
+    slice.slice_size = 1;
+    slice.quant_table_set_indexes = {0, 0};
+    const std::array slices{slice};
+
+    mffv1::codec::SliceExecutor executor(stream);
+    const auto status = executor.decode(output, slices, true);
+
+    EXPECT_TRUE(status.ok()) << status.message;
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0u);
+    EXPECT_TRUE(executor.has_reference_state());
+}
+
 TEST(SliceExecutorTest, DecodesLegacyGolombRiceEmbeddedReadAheadBoundary)
 {
     auto stream = make_stream();
@@ -241,6 +276,41 @@ TEST(SliceExecutorTest, DecodesLegacyGolombRiceEmbeddedReadAheadBoundary)
     EXPECT_TRUE(status.ok()) << status.message;
     EXPECT_EQ(storage[0], 0u);
     EXPECT_TRUE(executor.has_reference_state());
+}
+
+TEST(SliceExecutorTest, ParallelDecodeRejectsOverlappingRasterSlices)
+{
+    auto stream = make_stream(2, 1);
+    stream.num_h_slices = 2;
+    std::array<std::uint8_t, 2> storage{0xee, 0xee};
+    auto plane = make_y_plane(storage);
+    mffv1::MutableFrameView output{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    mffv1::syntax::SliceDescriptor first;
+    first.index = 3;
+    first.width = 1;
+    first.height = 1;
+    first.raster_width = 1;
+    first.raster_height = 1;
+    first.payload = payload;
+    first.quant_table_set_indexes.push_back(0);
+
+    mffv1::syntax::SliceDescriptor second = first;
+    second.index = 9;
+
+    const std::array slices{first, second};
+
+    mffv1::codec::SliceExecutor executor(stream, 2);
+    const auto status = executor.decode(output, slices);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::SyntaxError);
+    EXPECT_EQ(status.message, "slice raster rectangles overlap");
+    EXPECT_TRUE(status.location.has_slice_index);
+    EXPECT_EQ(status.location.slice_index, 9u);
+    EXPECT_EQ(storage[0], 0xee);
+    EXPECT_EQ(storage[1], 0xee);
 }
 
 TEST(SliceExecutorTest, PrefersPrimaryGolombRiceBoundaryWithReadAheadFallback)

@@ -16,6 +16,7 @@ public:
     Status validate(const syntax::StreamParameters& stream,
                     MutableFrameView frame,
                     const syntax::SliceDescriptor& slice);
+    Status reset_to_contiguous_frame(MutableFrameView frame);
 
     [[nodiscard]] std::size_t plane_count() const noexcept;
     [[nodiscard]] std::uint32_t plane_width(std::size_t plane_index) const noexcept;
@@ -37,4 +38,3 @@ private:
 };
 
 } // namespace mffv1::codec
-

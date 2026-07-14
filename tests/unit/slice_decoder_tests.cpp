@@ -124,6 +124,34 @@ TEST(SliceStateTest, ResetsOneLineStatePerCodedPlane)
     EXPECT_EQ(state.line_state(0).width(), stream.width);
 }
 
+TEST(SliceDecoderTest, RejectsStateLineWidthMismatchBeforeDecoding)
+{
+    const auto stream = make_stream();
+    std::array<std::uint8_t, 8> storage{};
+    auto plane = make_plane(storage);
+    mffv1::MutableFrameView frame{&plane, 1};
+    const std::array<std::byte, 2> payload{std::byte{0xff}, std::byte{0x00}};
+
+    mffv1::syntax::SliceDescriptor slice;
+    slice.width = stream.width;
+    slice.height = stream.height;
+    slice.payload = payload;
+    slice.quant_table_set_indexes.push_back(0);
+
+    mffv1::codec::SliceOutputWindow window;
+    ASSERT_TRUE(window.validate(stream, frame, slice).ok());
+    mffv1::codec::SliceState state;
+    ASSERT_TRUE(state.reset(window).ok());
+    state.line_state(0).mutable_current().pop_back();
+
+    const mffv1::codec::SliceDecoder decoder(stream);
+    const auto status = decoder.decode(slice, window, state);
+
+    EXPECT_FALSE(status.ok());
+    EXPECT_EQ(status.code, mffv1::ErrorCode::InvalidState);
+    EXPECT_EQ(status.message, "slice state line width does not match output plane width");
+}
+
 TEST(SliceStateTest, KeepsExtraPlaneFullWidthWhenChromaIsAbsent)
 {
     auto stream = make_stream();
@@ -303,7 +331,7 @@ TEST(SliceDecoderTest, RejectsEmptyPayload)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
     const std::array<std::byte, 2> previous_payload{
         std::byte{0xff},
         std::byte{0x00},
@@ -342,7 +370,7 @@ TEST(SliceDecoderTest, RejectsInitialStateCountThatDoesNotMatchQuantizationConte
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -450,7 +478,7 @@ TEST(SliceDecoderTest, RejectsContentOffsetOutsidePayload)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -486,7 +514,7 @@ TEST(SliceDecoderTest, RejectsContentOffsetBeforePayload)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -527,7 +555,7 @@ TEST(SliceDecoderTest, DecodesWithAbsoluteContentOffset)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -561,7 +589,7 @@ TEST(SliceDecoderTest, ReportsRangeCoderResetErrorAtAbsoluteContentOffset)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -606,7 +634,7 @@ TEST(SliceDecoderTest, DecodesOnlyContentBeforeFooter)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -643,7 +671,7 @@ TEST(SliceDecoderTest, RejectsFooterOffsetBeforePayload)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -686,7 +714,7 @@ TEST(SliceDecoderTest, RejectsFooterOffsetBeforeContent)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -725,7 +753,7 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly8BitSlice)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -761,7 +789,7 @@ TEST(SliceDecoderTest, DecodesZeroDifferencesForYOnly16BitSlice)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -795,7 +823,7 @@ TEST(SliceDecoderTest, DecodesPositiveDifferenceForYOnly16BitSlice)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);
@@ -828,7 +856,7 @@ TEST(SliceDecoderTest, DecodesWrappedNegativeDifferenceForYOnly16BitSlice)
     mffv1::codec::SliceOutputWindow window;
     ASSERT_TRUE(window.validate(stream, frame, slice).ok());
     mffv1::codec::SliceState state;
-    ASSERT_TRUE(state.reset(stream).ok());
+    ASSERT_TRUE(state.reset(window).ok());
 
     const mffv1::codec::SliceDecoder decoder(stream);
     const auto status = decoder.decode(slice, window, state);

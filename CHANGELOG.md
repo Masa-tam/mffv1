@@ -15,6 +15,15 @@ remains a pre-1.0 compatibility milestone.
 - Public virtual codec interfaces are explicitly non-copyable and non-movable.
 - Public enum values for `ErrorCode`, `PlaneRole`, `SampleFormat`, and
   `LegacyBootstrapState` are explicitly assigned.
+- Slice decoding validates that caller-provided `SliceState` line geometry
+  matches the selected output slice window before writing samples.
+- Golomb-Rice read-ahead decoding uses slice-sized temporary output buffers
+  instead of allocating one full-frame temporary buffer per slice.
+- Parallel slice decoding now validates raster coverage when raster metadata
+  is available and falls back to serial decoding when non-overlap cannot be
+  proven locally.
+- Golomb-Rice multi-slice read-ahead preference now applies to all version 3
+  extra-plane streams, including YUVA, not only RGBA.
 
 ## 0.1.0 - 2026-07-10
 

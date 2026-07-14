@@ -171,6 +171,64 @@ Status SliceOutputWindow::validate(const syntax::StreamParameters& stream,
     return ok_status();
 }
 
+Status SliceOutputWindow::reset_to_contiguous_frame(MutableFrameView frame)
+{
+    if (frame.plane_count != 0 && frame.planes == nullptr) {
+        return make_error(ErrorCode::InvalidArgument, "output plane array is null");
+    }
+
+    planes_.clear();
+    planes_.reserve(frame.plane_count);
+
+    for (std::size_t i = 0; i < frame.plane_count; ++i) {
+        const auto& plane = frame.planes[i];
+        if (plane.data == nullptr) {
+            return make_error(ErrorCode::InvalidArgument, "output plane data pointer is null");
+        }
+        if (plane.info.stride_bytes < 0) {
+            return make_error(ErrorCode::InvalidArgument, "output plane stride is negative");
+        }
+
+        std::uint64_t minimum_stride = 0;
+        Status status = checked_plane_row_bytes(
+            plane.info,
+            minimum_stride,
+            "output plane row size exceeds ptrdiff_t");
+        if (!status.ok()) {
+            return status;
+        }
+        if (plane.info.stride_bytes < static_cast<std::ptrdiff_t>(minimum_stride)) {
+            return make_error(ErrorCode::InvalidArgument, "output plane stride is too small");
+        }
+
+        std::ptrdiff_t plane_offset = 0;
+        status = checked_plane_window_offset(
+            plane.info,
+            0,
+            0,
+            plane.info.width,
+            plane.info.height,
+            plane_offset,
+            "output plane row offset exceeds ptrdiff_t",
+            "output plane sample offset exceeds ptrdiff_t",
+            "output plane window rows exceed ptrdiff_t",
+            "output plane window exceeds ptrdiff_t");
+        if (!status.ok()) {
+            return status;
+        }
+
+        PlaneWindow window;
+        window.data = static_cast<std::byte*>(plane.data) + plane_offset;
+        window.stride_bytes = plane.info.stride_bytes;
+        window.width = plane.info.width;
+        window.height = plane.info.height;
+        window.sample_format = plane.info.sample_format;
+        planes_.push_back(window);
+    }
+
+    return ok_status();
+}
+
 std::size_t SliceOutputWindow::plane_count() const noexcept
 {
     return planes_.size();

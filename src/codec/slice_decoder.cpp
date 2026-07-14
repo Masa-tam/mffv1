@@ -595,6 +595,21 @@ std::string format_trailing_golomb_rice_bytes(bitstream::BitReader& reader,
     return out.str();
 }
 
+Status validate_state_line_geometry(const SliceOutputWindow& output,
+                                    const SliceState& state)
+{
+    if (output.plane_count() != state.plane_count()) {
+        return make_error(ErrorCode::InvalidArgument, "slice output and state plane counts differ");
+    }
+    for (std::size_t plane = 0; plane < output.plane_count(); ++plane) {
+        if (state.line_state(plane).width() != output.plane_width(plane)) {
+            return make_error(ErrorCode::InvalidState,
+                              "slice state line width does not match output plane width");
+        }
+    }
+    return ok_status();
+}
+
 Status store_rgb_line(const syntax::StreamParameters& stream,
                       const simd::CodecKernels& kernels,
                       SliceOutputWindow& output,
@@ -1175,8 +1190,9 @@ Status SliceDecoder::decode(const syntax::SliceDescriptor& slice,
     if (!status.ok()) {
         return status;
     }
-    if (output.plane_count() != state.plane_count()) {
-        return make_error(ErrorCode::InvalidArgument, "slice output and state plane counts differ");
+    status = validate_state_line_geometry(output, state);
+    if (!status.ok()) {
+        return status;
     }
 
     ByteSpan content_payload;
